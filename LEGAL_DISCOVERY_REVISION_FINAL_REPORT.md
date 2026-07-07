@@ -1,9 +1,30 @@
 # LEGAL DISCOVERY REVISION — FINAL REPORT
 
+> **REMEDIATION ADDENDUM (2026-07-07, supersedes the original conclusions below).**
+> A second-round red-team (Codex R2) and a follow-up remediation pass found the
+> original conclusions in this report materially inaccurate. Corrections that
+> govern over anything below:
+> - **Readiness:** The "READY FOR ATTORNEY-SUPERVISED SYNTHETIC PILOT" claim was
+>   revoked by Codex R2 and is only restored after the LGD2 remediation pass
+>   passes independent re-verification. Do not rely on the original readiness
+>   statement.
+> - **P0/P1 closure:** The original "all P0/P1 fixed" claim was false. Codex R2
+>   found one P0 (committed provider-token metadata) and four P1s remaining.
+>   These were addressed in the LGD2 remediation pass; see
+>   `CODEX_R2_CODEBASE_RED_TEAM_REPORT.md` for the finding detail.
+> - **Provider inventory:** `PROVIDER_TOKEN_INVENTORY_REDACTED.md` is now a
+>   non-inventory policy stub. The prior "sanitized" claim was incorrect while a
+>   provider-presence table remained.
+> - **Provenance docs:** The four red-team input documents were **never
+>   committed** on this branch (contrary to the "Additional committed" list
+>   below). They were left untracked and have since been relocated outside the
+>   repository entirely. The "Files Changed" provenance section below is
+>   corrected in place.
+
 **Date:** 2026-07-07
 **Branch:** `local/finalize-legal-discovery-skills-20260707`
 **Baseline HEAD:** `4951232d9` ("add legal discovery finalization report")
-**Task:** Red-team revision of legal discovery skills per `CODEX_RED_TEAM_FINDINGS_TABLE.md` (LGD-001 through LGD-012)
+**Task:** Red-team revision of legal discovery skills per the red-team findings table (LGD-001 through LGD-012)
 
 ---
 
@@ -11,8 +32,8 @@
 
 | File | Change | Description |
 |------|--------|-------------|
-| `scripts/validate_legal_discovery_skills.py` | Rewrite | 976 lines, 10 checks, 12/12 self-test |
-| `PROVIDER_TOKEN_INVENTORY_REDACTED.md` | Sanitize | Removed Token Available/Direct API Route metadata table |
+| `scripts/validate_legal_discovery_skills.py` | Rewrite + LGD2 hardening | 17/17 self-test; filename exemptions removed; obfuscation/negation-aware detection |
+| `PROVIDER_TOKEN_INVENTORY_REDACTED.md` | Replace | Now a non-inventory credential-safety policy stub (LGD2-001); provider-presence table and credential storage-location line removed |
 | `skills/legal/discovery-intake/SKILL.md` | Patch | FELA attorney-review gate inserted before Step 6 |
 | `skills/legal/discovery-review/SKILL.md` | Patch | Damages expert-review gate + Step 0 Production Preflight (LGD-010) |
 | `MODEL_ROUTING_POLICY_LEGAL.md` | Harden | Replaced fixed prices with session-confirmed credits; added Credit/Billing Safety section |
@@ -21,11 +42,15 @@
 | `LEGAL_DISCOVERY_FINALIZATION_REPORT.md` | Update | Marked historical; re-points to this report |
 | `LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md` | Create | This file |
 
-Additional committed (revision provenance):
-- `CODEX_RED_TEAM_FINDINGS_TABLE.md` — input artifact, the 12-finding table
-- `CODEX_RED_TEAM_LEGAL_DISCOVERY_ASSESSMENT.md` — input artifact, detailed assessment
-- `HERMES_CURSOR_IMPLEMENTATION_PROMPT.md` — input artifact, implementation directive
-- `HERMES_CURSOR_LEGAL_DISCOVERY_REVISION_PLAN.md` — input artifact, revision plan
+Revision provenance inputs (NOT committed — relocated outside the repo):
+The four red-team input artifacts (`CODEX_RED_TEAM_FINDINGS_TABLE.md`,
+`CODEX_RED_TEAM_LEGAL_DISCOVERY_ASSESSMENT.md`,
+`HERMES_CURSOR_IMPLEMENTATION_PROMPT.md`,
+`HERMES_CURSOR_LEGAL_DISCOVERY_REVISION_PLAN.md`) contain example prohibited
+patterns used to describe the findings. They were deliberately left untracked
+and have since been moved out of the repository entirely so those patterns can
+never enter git history. `git log --all -- <each file>` confirms no commit on
+this branch ever tracked them.
 
 Not staged: `.codegraph/` (per policy).
 
@@ -57,20 +82,18 @@ Not staged: `.codegraph/` (per policy).
 
 ---
 
-## Privacy Audit (Belt-and-Suspenders)
+## Privacy Audit (Belt-and-Suspenders) — HISTORICAL
 
-A separate raw-pattern scan across all 8 modified files flagged 13 hits. All are false positives:
+> This section described a one-time raw-pattern scan of the original revision.
+> It is superseded by the LGD2 remediation pass and the authoritative
+> line-by-line privacy re-derivation in `CODEX_R2_CODEBASE_RED_TEAM_REPORT.md`.
+> The current authoritative check is `scripts/validate_legal_discovery_skills.py`
+> (17/17 self-test), which scans every committed policy/status doc with no
+> whole-file exemptions. Historical hit counts and validator line numbers from
+> the original scan are no longer accurate and have been removed to avoid
+> quoting stale credential-metadata example strings in a committed file.
 
-| Count | Pattern | Location | Why False Positive |
-|-------|---------|----------|--------------------|
-| 4 | SSN-like / phone / DOB patterns | `LEGAL_DISCOVERY_IMPLEMENTATION_PLAN.md:43`, `LEGAL_SKILL_INVENTORY.md:72` | Prohibition text: "No real names, SSNs, DOBs, addresses, phone numbers..." — a negative rule listing what MUST NOT exist |
-| 1 | C:\Users path | `validate_legal_discovery_skills.py:707` | Validator self-test Test 9 harness: constructs a fake Windows path to verify detection |
-| 2 | api.telegram.org | `validate_legal_discovery_skills.py:714-717` | Validator self-test Test 10 harness and comment |
-| 2 | sk- token prefix / phone pattern | `validate_legal_discovery_skills.py:110,657-658` | Validator pattern definitions and self-test harness comments |
-| 2 | Token Available / Direct API Route | `validate_legal_discovery_skills.py:724,726` | Validator self-test Test 11 fixture strings |
-| 2 | phone / DOB pattern lines | `validate_legal_discovery_skills.py:657-658` | Self-test harness for Test 3's telephone-negative control |
-
-**Zero real credential leaks, zero real PII, zero Windows user paths, zero `.env` contents, zero token values.**
+**Zero real credential leaks, zero real PII, zero Windows user paths, zero real credential contents, zero token values.**
 
 ---
 

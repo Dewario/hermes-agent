@@ -2,7 +2,7 @@
 name: legal-discovery-intake
 description: "Plaintiff FELA/PI discovery intake workflow."
 version: 1.0.0
-author: Hermes Agent
+author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
@@ -93,7 +93,10 @@ Case Identifier: [matter number or placeholder]
 Court / Venue: [jurisdiction, if known]
 Incident Date: [date]
 Incident Location: [terminal, yard, track, crossing, facility — be specific: milepost, track designation, yard name]
-SOL Deadline: [statute of limitations date, if calculable]
+SOL Issue Flag: [flag that a limitations deadline must be determined — do NOT
+  compute or assert a date. Record the attorney-provided deadline here only
+  after the attorney supplies it. This skill does not calculate limitations
+  periods; that is a legal determination requiring attorney review.]
 Case Type: FELA / PI / Both
 Referral Source: [attorney / firm reference]
 ```
@@ -197,11 +200,19 @@ FELA Tax Offset Note: RRTA Tier I / Tier II tax treatment differs from FICA.
 ### Step 8: Build Liability Theory Checklist
 
 Map each negligence theory to:
-- Legal elements required
+- Elements for attorney to verify against governing authority (do NOT assert
+  the legal elements as settled; flag them for attorney confirmation and cite
+  the source the attorney provides)
 - Supporting facts from intake
 - Evidence sources (documents, witnesses, regulations, inspection records)
 - Gaps requiring discovery
-- Preliminary strength assessment
+- Preliminary strength assessment (evidence supports / suggests / requires
+  investigation — never a legal conclusion)
+
+Every legal-standard entry in this checklist requires an attorney-provided or
+source-cited authority. The agent does not supply the governing law; it records
+the attorney's citation and flags any element lacking a confirmed source for
+attorney review.
 
 Include FELA-specific theories:
 - 45 U.S.C. § 51 (general negligence — "featherweight" causation)

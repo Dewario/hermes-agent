@@ -76,6 +76,28 @@ No real names, SSNs, DOBs, addresses, phone numbers, payroll data, or matter ide
 - `scripts/validate_legal_discovery_skills.py` — 12/12 self-test, 10-check comprehensive static validator
 - Hermes compat scanner — `skills/software-development/hermes-compat-scanner/scripts/scan_compat.py`
 
+## Skill Placement Decision
+
+These two skills live in `skills/` (loadable by default) rather than
+`optional-skills/`. Rationale: this is a personal Hermes instance operated by a
+plaintiff-side attorney for whom FELA/PI discovery is core, recurring work, so
+default availability is intended. The skills carry explicit attorney-review
+gates and synthetic-only constraints, and they add no heavy dependencies. If
+this repository were ever shared upstream or multi-tenant, the placement should
+be revisited and the skills moved to `optional-skills/legal/` (Codex R2
+finding LGD2-010).
+
 ## Current Status
 
-Synthetic-only. Validated at 0 failures in --strict mode. Attorney-review gates present on all gated sections. Provider token inventory sanitized. Model routing policy hardened against committed credential metadata. Ready for attorney-supervised synthetic pilot testing.
+Synthetic-only. Validator (`scripts/validate_legal_discovery_skills.py`) passes
+17/17 self-test and 0 failures in both default and `--strict` mode after the
+LGD2 remediation pass; an independent pytest suite
+(`tests/skills/test_legal_discovery_validator.py`) encodes the Codex R2 bypass
+probes. Attorney-review gates present on all gated sections. Provider inventory
+replaced with a non-inventory policy stub. Model routing policy hardened.
+
+Readiness for an attorney-supervised synthetic pilot is contingent on
+independent re-verification (Codex R3) of this remediation pass; see
+`CODEX_R2_CODEBASE_RED_TEAM_REPORT.md` for the findings addressed and
+`LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md` for the remediation addendum.
+Not ready for real-client use.

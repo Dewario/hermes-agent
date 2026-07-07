@@ -2,7 +2,7 @@
 name: legal-discovery-review
 description: "FELA/PI discovery document review and analysis."
 version: 1.0.0
-author: Hermes Agent
+author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:

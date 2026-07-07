@@ -1,46 +1,38 @@
-# PROVIDER TOKEN INVENTORY — REDACTED
+# PROVIDER CREDENTIAL SAFETY POLICY
 
-Generated: 2026-07-07
-Classification: INTERNAL — do not commit token values, prefixes, or metadata
-Policy: Filename + presence only. No contents, no sizes, no validation.
+Effective: 2026-07-07
+Applies to: skills/legal/discovery-intake, skills/legal/discovery-review
+Supersedes: the former provider-token inventory (removed 2026-07-07, LGD2-001)
 
-## Token Directory
+## Purpose
 
-Path: <USER_HOME>/Documents/API_TOKENS/
+This document states the credential-handling rules for legal discovery work.
+It is intentionally a **policy stub**, not an inventory. It does not enumerate
+which providers are configured, which credential files exist, where they are
+stored, or whether any environment configuration is present. That information
+is credential metadata and must never be committed to version control.
 
-## Inventory (filename only, no contents inspected)
+## Rules
 
-| Provider | Filename | Presence |
-|----------|----------|----------|
-| Anthropic | (present) | Yes |
-| DeepSeek | (present) | Yes |
-| Gemini | (present, JPG format) | Yes |
-| LangChain | (present) | Yes |
-| MiniMax | (present) | Yes |
-| OpenAI | (present) | Yes |
-| OpenRouter | (present) | Yes |
-| Perplexity | (present) | Yes |
-| (unknown) | (present) | Yes |
-| (unknown) | (present) | Yes |
+- Credential values, prefixes, lengths, expirations, and account metadata are
+  never read and never recorded during legal discovery work.
+- No committed file may enumerate configured providers, credential-file
+  presence, credential-file locations, or the existence of any environment
+  configuration.
+- Skills reference model access only through the agent's configured provider
+  routing or environment variables — never inline, never by file path.
+- Provider authorization is governed solely by `MODEL_ROUTING_POLICY_LEGAL.md`
+  and is confirmed by the owner in the active session, not inferred from any
+  committed file.
+- `scripts/validate_legal_discovery_skills.py` enforces the no-metadata rule:
+  it fails if provider-token presence metadata appears in any scanned file,
+  including this one.
 
-## Hermes Environment Configuration
+## Rationale
 
-A Hermes environment configuration file exists at the standard Hermes
-application-data location. Path and contents are not inspected per mission
-boundaries.
-
-## Usage Notes
-
-- Token values, prefixes, lengths, expiration dates, and account metadata have NOT been read and MUST NOT be read during this mission.
-- Skills must reference tokens only via provider configuration or environment variables, never inline.
-- No committed file may contain token values, token prefixes (e.g., sk-), or API key patterns.
-- The validator script enforces this via pattern checks.
-
-## Provider Authorization
-
-Provider authorization for legal discovery work is governed solely by
-MODEL_ROUTING_POLICY_LEGAL.md. This document does not enumerate token
-availability, direct-API-route status, or per-provider credential presence
-beyond the filename-only inventory above. Individual provider credential
-details, access status, and endpoint configuration are managed outside
-version control and are never committed.
+The prior version of this file enumerated providers along with per-provider
+credential presence and the filesystem location where credentials are stored.
+A red-team review (LGD-006 / LGD2-001) found that a filename-and-presence
+inventory is itself credential metadata, regardless of whether any secret
+values appear. It was removed. This stub records the policy without
+reintroducing the metadata.
