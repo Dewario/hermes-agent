@@ -1,5 +1,10 @@
 # LEGAL DISCOVERY IMPLEMENTATION PLAN
 
+**Status: HISTORICAL — pre-implementation planning document.**
+
+This plan was written before skill creation. All phases are now complete.
+See `LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md` for current status and red-team finding disposition.
+
 ## Mission
 
 Finalize plaintiff-side legal discovery intake and review skills for FELA/personal-injury litigation workflows. Skills must be usable, testable, confidential, and locally committed. No client facts, no live config mutation, no push/PR.
@@ -9,15 +14,17 @@ Finalize plaintiff-side legal discovery intake and review skills for FELA/person
 | Phase | Deliverable | Status |
 |-------|------------|--------|
 | 0 | Environment verification, working branch | Complete |
-| 1 | LEGAL_SKILL_INVENTORY.md | Pending |
-| 2 | MODEL_ROUTING_POLICY_LEGAL.md, PROVIDER_TOKEN_INVENTORY_REDACTED.md | Pending |
-| 3 | skills/legal/discovery-intake/SKILL.md | Pending |
-| 4 | skills/legal/discovery-review/SKILL.md | Pending |
-| 5 | Synthetic non-client fixtures (7 files, clearly labeled) | Pending |
-| 6 | scripts/validate_legal_discovery_skills.py | Pending |
-| 7 | Full verification suite (scanner, validator, privacy audit, git diff) | Pending |
-| 8 | Cursor premium QA (max 2 calls, synthetic only) | Pending |
-| 9 | Patch issues, local commit, LEGAL_DISCOVERY_FINALIZATION_REPORT.md | Pending |
+| 1 | LEGAL_SKILL_INVENTORY.md | Complete |
+| 2 | MODEL_ROUTING_POLICY_LEGAL.md, PROVIDER_TOKEN_INVENTORY_REDACTED.md | Complete |
+| 3 | skills/legal/discovery-intake/SKILL.md | Complete |
+| 4 | skills/legal/discovery-review/SKILL.md | Complete |
+| 5 | Synthetic non-client fixtures (7 files, clearly labeled) | Complete |
+| 6 | scripts/validate_legal_discovery_skills.py | Complete (12/12 self-test) |
+| 7 | Full verification suite (scanner, validator, privacy audit, git diff) | Complete |
+| 8 | Cursor premium QA (max 2 calls, synthetic only) | Skipped — 120s timeout |
+| 9 | Patch issues, local commit, LEGAL_DISCOVERY_FINALIZATION_REPORT.md | Complete |
+
+Post-red-team revision: see `LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md`.
 
 ## FELA-Specific Requirements
 
@@ -42,7 +49,7 @@ Language: "evidence supports/suggests/contradicts/requires attorney review" — 
 ## Model Routing Policy (Direct-First)
 
 1. Cursor plan / Cursor CLI for implementation and review
-2. Direct provider APIs where approved tokens exist
+2. Direct provider APIs where authorized by owner in current session
 3. OpenRouter only as fallback when no direct/plan route exists
 4. Local grep, Python, scanner, static tests for mechanical work
 5. No OpenRouter credits burned for routine work

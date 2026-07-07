@@ -149,6 +149,12 @@ For general PI cases, flag:
 Each checked item needs: brief factual basis, evidence sources to pursue, and strength
 assessment (evidence supports / suggests / requires investigation).
 
+
+All FELA and PI issue classifications above require attorney review against
+the applicable statutory framework (45 U.S.C. sections 51-60 for FELA claims;
+state tort law for PI claims). Issue flags are preliminary attorney-review
+markers only.
+
 ### Step 6: Capture Injury and Medical Treatment
 
 For each injury:

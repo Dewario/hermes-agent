@@ -23,28 +23,24 @@ Path: <USER_HOME>/Documents/API_TOKENS/
 | (unknown) | (present) | Yes |
 | (unknown) | (present) | Yes |
 
-## Hermes .env
+## Hermes Environment Configuration
 
-Path: <USER_HOME>/AppData/Local/hermes/.env
-Status: Present (contents NOT inspected per mission boundaries)
+A Hermes environment configuration file exists at the standard Hermes
+application-data location. Path and contents are not inspected per mission
+boundaries.
 
 ## Usage Notes
 
-- Token values, prefixes, lengths, expiration dates, and account metadata have NOT been read and MUST NOT be read during this mission
-- Skills must reference tokens only via provider configuration or environment variables, never inline
-- No committed file may contain token values, token prefixes (e.g., sk-), or API key patterns
-- The validator script enforces this via pattern checks
+- Token values, prefixes, lengths, expiration dates, and account metadata have NOT been read and MUST NOT be read during this mission.
+- Skills must reference tokens only via provider configuration or environment variables, never inline.
+- No committed file may contain token values, token prefixes (e.g., sk-), or API key patterns.
+- The validator script enforces this via pattern checks.
 
-## Provider Availability Summary
+## Provider Authorization
 
-| Provider | Token Available | Direct API Route |
-|----------|----------------|-----------------|
-| Anthropic | Yes | Available |
-| DeepSeek | Yes | Available |
-| Google (Gemini) | Yes (JPG format) | Check format |
-| MiniMax | Yes | Available |
-| OpenAI | Yes | Available |
-| OpenRouter | Yes | Available |
-| Perplexity | Yes | Available |
-
-Note: Token availability does not imply authorization to use for legal discovery work. See MODEL_ROUTING_POLICY_LEGAL.md for routing rules.
+Provider authorization for legal discovery work is governed solely by
+MODEL_ROUTING_POLICY_LEGAL.md. This document does not enumerate token
+availability, direct-API-route status, or per-provider credential presence
+beyond the filename-only inventory above. Individual provider credential
+details, access status, and endpoint configuration are managed outside
+version control and are never committed.

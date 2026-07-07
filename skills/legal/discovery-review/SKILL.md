@@ -74,6 +74,30 @@ Load this skill when an attorney or legal professional needs to:
 
 ## Procedure
 
+
+### Step 0: Production Preflight
+
+Before processing any document, verify source integrity and citation provenance:
+
+- **Source Manifest:** Confirm all files have stable identifiers (file hash, Bates range, or
+  production-native identifier). Never process documents without a traceable citation source.
+- **Bates Range Normalization:** Map every document to a normalized Bates range. Flag
+  non-sequential ranges, gaps, and overlapping prefixes.
+- **OCR / Image Quality:** For scanned or image-based documents, note OCR confidence
+  level and whether the text is machine-readable. Flag pages where content is
+  illegible or partially extracted. Do not infer facts from unreadable text.
+- **Duplicate / Near-Duplicate Detection:** Identify exact duplicates (same hash) and
+  near-duplicates (same content, different Bates). Mark the canonical copy and
+  note alternates. Do not double-count or double-cite facts from duplicate documents.
+- **Production Cover Letter Reconciliation:** Cross-check the document set against
+  the production cover letter, privilege log, and any response-to-RFP index.
+  Note discrepancies between the cover letter's description and the actual documents.
+- **No-Inference Rule:** Documents with illegible, redacted, or corrupted content
+  must be flagged as unreadable. Do not fill gaps with assumptions or inferences
+  about what the missing content might contain.
+- **Attorney Review:** All preflight flags are preliminary — final document identity
+  and authenticity determinations require attorney review.
+
 ### Step 1: Build Document Inventory
 
 For each document in the production:
@@ -226,6 +250,12 @@ Period: [date range]
 Source Type: [payroll record, W-2, RRB statement, tax return, time slip]
 Attorney Review Note: [consistency / gaps / RRTA treatment]
 ```
+
+
+All damages calculations and wage-loss figures in this section are preliminary.
+All figures require attorney review and are subject to verification by a
+qualified economic expert before use in pleadings, discovery responses, or
+settlement negotiations.
 
 ### Step 9: Extract Safety Rule / Policy / Incident Report Content
 

@@ -12,7 +12,7 @@ Legal work requires verifiable, auditable, cost-controlled inference. No single 
 
 | Priority | Route | Use Case | Cost Model |
 |----------|-------|----------|------------|
-| 1 | **Cursor CLI** | Heavy implementation, architecture review, legal-risk QA | Prepaid Ultra credits ($200/mo includes $400/mo pool) |
+| 1 | **Cursor CLI** | Heavy implementation, architecture review, legal-risk QA | Available plan credits, if confirmed by owner in the current session |
 | 2 | **Direct provider APIs** | Routine inference, document processing | Provider-direct billing |
 | 3 | **OpenRouter (fallback only)** | When no direct/plan route exists or OR is objectively better | Per-token credits |
 
@@ -43,9 +43,15 @@ For mechanical work, use local tools only — no API calls:
 ## Direct Provider API Usage
 
 When directly calling provider APIs (not through Hermes agent's model routing):
-- Use only providers with approved tokens (see PROVIDER_TOKEN_INVENTORY_REDACTED.md)
+- Use only providers authorized by the owner in the current session — do not infer authorization from committed files or metadata
 - Never transmit real client data to any external API without attorney authorization
 - Synthetic/test data only for skill development and validation
+
+## Credit / Billing Safety
+
+- If any model path returns a billing, credit, overage, or quota warning, downgrade to local/static work for the remainder of the session
+- Do not attempt alternate providers to circumvent credit limits
+- Spent-credit recovery is not a legal discovery task — stop and report to the owner
 
 ## Model Selection for Legal Tasks
 
