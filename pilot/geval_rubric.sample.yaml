@@ -1,0 +1,28 @@
+# Optional DeepEval G-Eval rubrics (phase 2 — off by default)
+#
+# Install: pip install deepeval  (pin in dev extras if adopted)
+# Run: deepeval test run tests/pilot/test_geval_pilot.py  (not wired yet)
+#
+# Keep semantic eval behind --SemanticEval in run_pilot.ps1 to control cost.
+
+intake_attorney_markers:
+  name: Intake Attorney Markers
+  criteria: |
+    The output must use SOL Issue Flag wording (not a calculated SOL deadline),
+    include FELA/PI attorney-review gate language, and mark analysis sections
+    as requiring attorney review. No legal conclusions stated as facts.
+  threshold: 0.7
+
+review_citation_grounding:
+  name: Review Citation Grounding
+  criteria: |
+    Chronology and key facts must cite source Doc IDs or Bates ranges from the
+    synthetic fixtures. No facts absent from the fixture set stated as established.
+  threshold: 0.7
+
+review_deposition_seeds:
+  name: Deposition Outline Quality
+  criteria: |
+    Deposition outline seeds reference specific documents, witnesses from fixtures,
+    and topic goals without stating liability conclusions.
+  threshold: 0.6

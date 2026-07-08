@@ -329,6 +329,78 @@ class TestStandaloneProviderMetadata:
         )
 
 
+# -- FABLE5 hardening regressions -------------------------------------------
+
+class TestPrivacyObfuscation:
+    """FABLE5 H6: the privacy tier must resist the same obfuscation the legal
+    tier already does. The Windows-path pattern (which needs a real separator)
+    must still fire on the raw line."""
+
+    def test_markdown_escaped_secret_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Config\n\nSet TELEGRAM" + BS + "_BOT" + BS + "_TOKEN="
+                   "123456:ABCdefGhIJKlmnoPQR\n")
+        assert any("PRIVACY FAIL" in i for i in V.check_privacy(f))
+
+    def test_zero_width_split_secret_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Config\n\nTELEGRAM" + chr(0x200B) + "_BOT_TOKEN="
+                   "123456:ABCdefGhIJKlmnoPQR\n")
+        assert any("PRIVACY FAIL" in i for i in V.check_privacy(f))
+
+    def test_windows_path_still_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Notes\n\nSee C:" + BS + "Users" + BS + "alice" + BS + "s.txt\n")
+        assert any("Windows user path" in i for i in V.check_privacy(f))
+
+
+class TestHtmlObfuscation:
+    """FABLE5 H7: HTML comments / entities must not hide a trigger phrase."""
+
+    def test_html_comment_split_conclusion_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Case\n\nThe report pro<!--x-->ves liability here.\n")
+        assert len(V.check_legal_language(f)) > 0
+
+    def test_html_entity_encoded_conclusion_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Case\n\nThe report &#112;roves liability here.\n")
+        assert len(V.check_legal_language(f)) > 0
+
+
+class TestNegationGovernance:
+    """FABLE5 M8: a negation must GOVERN the trigger (precede it) to exempt; a
+    trailing negation does not shield a real action clause."""
+
+    def test_trailing_negation_env_still_caught(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Setup\n\nYou can read .env without approval.\n")
+        assert len(V.check_env_references(f)) > 0
+
+    def test_leading_negation_env_still_exempt(self, tmp_path):
+        f = _write(tmp_path, "d.md",
+                   "# Policy\n\nNever read .env files in this workflow.\n")
+        assert len(V.check_env_references(f)) == 0
+
+
+class TestEmptyScanFloor:
+    """FABLE5 M11: an explicit --dir that yields no scannable files must FAIL,
+    not silently PASS."""
+
+    def test_empty_dir_scan_fails(self, tmp_path):
+        import subprocess
+        import sys
+        empty = tmp_path / "empty"
+        empty.mkdir()
+        result = subprocess.run(
+            [sys.executable, str(VALIDATOR), "--dir", str(empty),
+             "--strict", "--no-policy-docs"],
+            cwd=REPO_ROOT, capture_output=True, text=True,
+        )
+        assert result.returncode != 0
+        assert "no files found to scan" in (result.stdout + result.stderr).lower()
+
+
 # -- Baseline: self-test must still pass ------------------------------------
 
 class TestSelfTest:

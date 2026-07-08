@@ -37,6 +37,7 @@ Backslashes in runtime code use chr(92) exclusively.
 """
 
 import argparse
+import html
 import os
 import re
 import shutil
@@ -319,14 +320,38 @@ _CONFUSABLES = {
 }
 
 
+def _strip_html_comments(text):
+    """Remove HTML comments, replacing each with the same number of newlines it
+    spanned so downstream line-number counting stays aligned (FABLE5 H7)."""
+    return re.sub(
+        sentinel(r"<!--.*?-->"),
+        lambda m: chr(10) * m.group(0).count(chr(10)),
+        text,
+        flags=re.DOTALL,
+    )
+
+
+def _decode_html_entities(text):
+    """Decode HTML entities (numeric & named) so '&#112;roves' / 'pro&lt;'
+    can't hide a trigger phrase (FABLE5 H7). Any newline/CR a decode would
+    introduce is folded to a space so line offsets are preserved."""
+    def _dec(m):
+        s = html.unescape(m.group(0))
+        return s.replace(chr(13), " ").replace(chr(10), " ")
+    return re.sub(sentinel(r"&#?XBSXw+;"), _dec, text)
+
+
 def _normalize_md(text):
     """Normalize obfuscation before pattern scanning (LGD2-004, R3 homoglyph
-    residual): NFKC unicode normalization, Greek/Cyrillic homoglyph folding,
-    zero-width-character stripping, and markdown-escape/emphasis removal, so
-    'pro\\*ves', 'pr<omicron>ves', and zero-width-split words all normalize to
-    'proves'. Newlines are never introduced or removed, so line numbers stay
-    aligned."""
+    residual, FABLE5 H7): NFKC unicode normalization, Greek/Cyrillic homoglyph
+    folding, zero-width-character stripping, markdown-escape/emphasis removal,
+    HTML-comment stripping, and HTML-entity decoding, so 'pro\\*ves',
+    'pr<omicron>ves', 'pro<!--x-->ves', '&#112;roves', and zero-width-split
+    words all normalize to 'proves'. Newlines are never introduced or removed,
+    so line numbers stay aligned."""
     out = unicodedata.normalize("NFKC", text)
+    out = _strip_html_comments(out)      # before backslash/emphasis strip
+    out = _decode_html_entities(out)     # reveal entity-hidden letters
     out = out.replace(chr(92), "")  # drop backslashes (markdown escapes)
     for ch in ("*", "_", "`"):
         out = out.replace(ch, "")
@@ -395,6 +420,26 @@ def _is_prohibition_clause(clause):
     return bool(re.match(sentinel(r"^XBSXs*(?:[-*+]XBSXs+|XBSXd+XBSX.XBSXs+)?noXBSXs+XBSXS"), cl))
 
 
+def _clause_boundary_governs(clause, match_start):
+    """True when a clause is boundary/prohibition text that actually GOVERNS a
+    trigger located at ``match_start`` (FABLE5 M8).
+
+    Unlike :func:`_is_prohibition_clause` (which fires on a negation token
+    *anywhere* in the clause, so "you can read .env without approval" wrongly
+    exempts a real read instruction), this requires the negation to precede the
+    trigger -- a negation token in the clause prefix before ``match_start``, or a
+    leading "no <noun>" boundary. A negation that only appears AFTER the trigger
+    does not exempt."""
+    prefix = clause[:match_start].lower()
+    for tok in _NEGATION_TOKENS:
+        if re.search(sentinel(r"XBSXb") + re.escape(tok) + sentinel(r"XBSXb"), prefix):
+            return True
+    return bool(re.match(
+        sentinel(r"^XBSXs*(?:[-*+]XBSXs+|XBSXd+XBSX.XBSXs+)?noXBSXs+XBSXS"),
+        clause.lower(),
+    ))
+
+
 # Instructional verbs that legitimately introduce a prohibited phrase as an
 # example to avoid, e.g. "do not use 'proves liability'", "never say ...".
 _INSTRUCTIONAL_VERBS = (
@@ -432,9 +477,19 @@ def _legal_match_is_referenced(content, start, end):
     post_line = content[end:end + 120].split(nl, 1)[0]
 
     # Quoted phrase (referenced, not asserted).
-    for q in ("'", '"'):
-        if collapsed_sentence.count(q) % 2 == 1 and q in post_line:
-            return True
+    # Double quotes: the odd-count-in-prefix + present-in-suffix heuristic is
+    # safe. Apostrophes are NOT (FABLE5 M7): contractions/possessives
+    # ("the plaintiff's evidence proves liability and it's undisputed") produce
+    # odd counts and would falsely exempt an asserted conclusion. For the
+    # apostrophe we instead require the match to be quote-*bracketed* -- an
+    # apostrophe within a couple of chars before the match AND after it -- which
+    # is what an actual quoted reference ('proves liability') looks like.
+    if collapsed_sentence.count('"') % 2 == 1 and '"' in post_line:
+        return True
+    pre_adj = content[max(0, start - 2):start]
+    post_adj = content[end:end + 2]
+    if "'" in pre_adj and "'" in post_adj:
+        return True
 
     # Direct negation: negation token within a short collapsed window
     # immediately before the match, allowing one optional instructional verb
@@ -580,16 +635,26 @@ def check_privacy(filepath, strict=False):
     lines = content.split(chr(10))
     is_synthetic = has_synthetic_label(content)
 
+    # FABLE5 H6: privacy patterns are scanned against BOTH the raw line and a
+    # normalized copy. The raw line preserves backslashes so the Windows-path
+    # pattern (which needs a real path separator) still fires; the normalized
+    # copy strips zero-width chars / folds homoglyphs / decodes HTML entities /
+    # removes markdown escapes so an obfuscated secret ('TELEGRAM\_BOT_TOKEN=',
+    # a zero-width-split key, an entity-encoded token) cannot slip past. Matches
+    # are deduped by (line, pattern-name) so the union never double-reports.
+    def _scan(pattern):
+        return pattern.search(line) or pattern.search(_normalize_md(line))
+
     for lineno, line in enumerate(lines):
         for pattern, name in ALWAYS_FAIL_PATTERNS:
-            if pattern.search(line):
+            if _scan(pattern):
                 issues.append(
                     f"{filepath}:{lineno + 1}: PRIVACY FAIL ({name}): "
                     f"{line.strip()[:120]}"
                 )
 
         for pattern, name in SYNTHETIC_GATED_PATTERNS:
-            if pattern.search(line):
+            if _scan(pattern):
                 if not is_synthetic:
                     issues.append(
                         f"{filepath}:{lineno + 1}: PRIVACY FAIL ({name}) -- "
@@ -629,20 +694,23 @@ def check_env_references(filepath):
         line = _normalize_md(raw_line)
         is_heading = bool(re.match(sentinel(r"^XBSXs*#"), line))
         for clause in _clauses(line):
-            # A clause is exempt only if that clause itself is prohibition/
-            # boundary text. A negation elsewhere on the line does not exempt a
-            # real action clause (closes LGD2-003 exemption abuse).
-            if _is_prohibition_clause(clause):
-                continue
             for idx, (pattern, name) in enumerate(ENV_REFERENCE_PATTERNS):
                 if is_heading and idx >= 2:
                     continue
-                if pattern.search(clause):
-                    issues.append(
-                        f"{filepath}:{lineno + 1}: .ENV REFERENCE ({name}): "
-                        f"{clause.strip()[:120]}"
-                    )
+                m = pattern.search(clause)
+                if not m:
+                    continue
+                # Exempt only when a negation actually GOVERNS this trigger --
+                # a negation before the match, or a leading "no <noun>" boundary.
+                # A negation later in the clause ("read .env without approval")
+                # does not exempt a real action clause (LGD2-003 + FABLE5 M8).
+                if _clause_boundary_governs(clause, m.start()):
                     break
+                issues.append(
+                    f"{filepath}:{lineno + 1}: .ENV REFERENCE ({name}): "
+                    f"{clause.strip()[:120]}"
+                )
+                break
     return issues
 
 
@@ -734,15 +802,19 @@ def check_provider_token_metadata(filepath):
     for start_lineno, block in _logical_blocks(content):
         text = _normalize_md(block)
         for clause in _clauses(text):
-            if _is_prohibition_clause(clause):
-                continue
             for pattern, name in PROVIDER_TOKEN_METADATA_PATTERNS:
-                if pattern.search(clause):
-                    issues.append(
-                        f"{filepath}:{start_lineno + 1}: PROVIDER-TOKEN METADATA ({name}): "
-                        f"{clause.strip()[:120]}"
-                    )
+                m = pattern.search(clause)
+                if not m:
+                    continue
+                # Exempt only when a negation governs THIS trigger (before it),
+                # not merely appears somewhere in the clause (FABLE5 M8).
+                if _clause_boundary_governs(clause, m.start()):
                     break
+                issues.append(
+                    f"{filepath}:{start_lineno + 1}: PROVIDER-TOKEN METADATA ({name}): "
+                    f"{clause.strip()[:120]}"
+                )
+                break
     return issues
 
 
@@ -989,6 +1061,68 @@ def run_self_test():
                                    ""]),
                      lambda f: len(check_provider_token_metadata(f)) == 0))
 
+        # Test 24 (FABLE5 H6): markdown-escaped secret caught by privacy tier
+        t("markdown-escaped secret caught in privacy tier",
+          lambda: _t(tmpdir, "t24.md",
+                     chr(10).join(["# Config", "",
+                                   "Set TELEGRAM" + chr(92) + "_BOT" + chr(92) + "_TOKEN=123456:ABCdefGhIJKlmno",
+                                   ""]),
+                     lambda f: any("PRIVACY FAIL" in i for i in check_privacy(f))))
+
+        # Test 25 (FABLE5 H6): zero-width-split secret caught by privacy tier
+        t("zero-width-split secret caught in privacy tier",
+          lambda: _t(tmpdir, "t25.md",
+                     chr(10).join(["# Config", "",
+                                   "TELEGRAM" + chr(0x200B) + "_BOT_TOKEN=123456:ABCdefGhIJKlmno",
+                                   ""]),
+                     lambda f: any("PRIVACY FAIL" in i for i in check_privacy(f))))
+
+        # Test 26 (FABLE5 H6): Windows path still caught (raw-line pass intact)
+        t("windows path still caught after H6 union scan",
+          lambda: _t(tmpdir, "t26.md",
+                     chr(10).join(["# Notes", "",
+                                   "See C:" + chr(92) + "Users" + chr(92) + "alice" + chr(92) + "secret.txt",
+                                   ""]),
+                     lambda f: any("Windows user path" in i for i in check_privacy(f))))
+
+        # Test 27 (FABLE5 H7): HTML-comment-split legal conclusion caught
+        t("html-comment-split conclusion caught",
+          lambda: _t(tmpdir, "t27.md",
+                     chr(10).join(["# Case", "",
+                                   "The report pro<!--x-->ves liability of the railroad.",
+                                   ""]),
+                     lambda f: len(check_legal_language(f)) > 0))
+
+        # Test 28 (FABLE5 H7): HTML-entity-encoded conclusion caught
+        t("html-entity-encoded conclusion caught",
+          lambda: _t(tmpdir, "t28.md",
+                     chr(10).join(["# Case", "",
+                                   "The report &#112;roves liability of the railroad.",
+                                   ""]),
+                     lambda f: len(check_legal_language(f)) > 0))
+
+        # Test 29 (FABLE5 M8): trailing-negation .env instruction NOT exempted
+        t("trailing-negation env instruction still caught",
+          lambda: _t(tmpdir, "t29.md",
+                     chr(10).join(["# Setup", "",
+                                   "You can read .env without approval.", ""]),
+                     lambda f: len(check_env_references(f)) > 0))
+
+        # Test 30 (FABLE5 M7): apostrophe/possessive does not exempt an assertion
+        t("possessive apostrophe does not exempt asserted conclusion",
+          lambda: _t(tmpdir, "t30.md",
+                     chr(10).join(["# Case", "",
+                                   "The plaintiff's evidence proves liability and it's undisputed.",
+                                   ""]),
+                     lambda f: len(check_legal_language(f)) > 0))
+
+        # Test 31 (FABLE5 M8): leading negation boundary still exempted (no regression)
+        t("leading-negation env boundary still exempted",
+          lambda: _t(tmpdir, "t31.md",
+                     chr(10).join(["# Policy", "",
+                                   "Never read .env files in this workflow.", ""]),
+                     lambda f: len(check_env_references(f)) == 0))
+
         print(f"\nSelf-test results: {passed}/{total} passed")
         if passed == total:
             print("ALL self-tests passed")
@@ -1067,6 +1201,18 @@ def main():
     print("=" * 60)
 
     all_files = collect_all_files(scan_dir, include_policy=include_policy_docs)
+
+    # FABLE5 M11: a mistargeted --dir (an empty directory, or one with no
+    # readable files) must not silently PASS. Count what the scan TARGET
+    # contributed -- excluding policy docs, which are always appended -- and
+    # fail when an explicit --dir yielded nothing to scan.
+    if args.dir:
+        policy_paths = {(REPO_ROOT / d).resolve() for d in POLICY_DOCS}
+        scan_contributed = [f for f in all_files if f.resolve() not in policy_paths]
+        if not scan_contributed:
+            print(f"\nERROR: no files found to scan under {scan_dir.absolute()} "
+                  f"(--dir target is empty or contains no readable files).")
+            sys.exit(1)
 
     skill_files = [f for f in all_files if f.name == "SKILL.md"]
     fixture_files = [f for f in all_files if is_fixture_path(str(f)) and f.suffix == ".md"]

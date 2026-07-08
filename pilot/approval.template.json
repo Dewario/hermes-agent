@@ -1,0 +1,18 @@
+{
+  "pilot_id": "REPLACE-WITH-RUN-ID",
+  "reviewer": "ahfullerjd",
+  "reviewed_at": "REPLACE-WITH-ISO8601",
+  "artifacts": {
+    "intake": {
+      "path": "pilot_outputs/intake/",
+      "approved": false,
+      "notes": ""
+    },
+    "review": {
+      "path": "pilot_outputs/review/",
+      "approved": false,
+      "notes": ""
+    }
+  },
+  "gates_checked": []
+}

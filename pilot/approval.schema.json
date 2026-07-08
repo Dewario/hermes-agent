@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "hermes-legal-discovery-pilot-approval",
+  "title": "Legal Discovery Synthetic Pilot Approval",
+  "type": "object",
+  "required": ["pilot_id", "reviewer", "reviewed_at", "artifacts", "gates_checked"],
+  "properties": {
+    "pilot_id": {
+      "type": "string",
+      "description": "Unique pilot run identifier, e.g. 2026-07-07-synthetic-v1"
+    },
+    "reviewer": {
+      "type": "string",
+      "description": "Human attorney reviewer (GitHub handle or legal name)"
+    },
+    "reviewed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["intake", "review"],
+      "properties": {
+        "intake": {
+          "type": "object",
+          "required": ["path", "approved"],
+          "properties": {
+            "path": { "type": "string" },
+            "approved": { "type": "boolean" },
+            "notes": { "type": "string" }
+          }
+        },
+        "review": {
+          "type": "object",
+          "required": ["path", "approved"],
+          "properties": {
+            "path": { "type": "string" },
+            "approved": { "type": "boolean" },
+            "notes": { "type": "string" }
+          }
+        }
+      }
+    },
+    "gates_checked": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "SOL_issue_flag_not_deadline",
+          "FELA_attorney_review_gate",
+          "damages_expert_review_gate",
+          "production_preflight_step_0",
+          "no_prohibited_legal_conclusions",
+          "fixture_grounded_facts",
+          "validator_strict_pass",
+          "check_outputs_pass"
+        ]
+      },
+      "minItems": 1
+    }
+  },
+  "additionalProperties": false
+}
