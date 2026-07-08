@@ -1880,6 +1880,19 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
         result = {"response": None, "error": None}
         first_delta_fired = {"done": False}
         deltas_were_sent = {"yes": False}
+        # FABLE5 M16: publish the live boto3 event-stream + region to the
+        # monitor thread so a wedged stream can actually be force-closed on
+        # interrupt or stale-timeout.  stream_converse_with_callbacks' cooperative
+        # on_interrupt_check only fires BETWEEN events; a read blocked on a dead
+        # socket never reaches it, so without a force-close the daemon worker
+        # leaks (holding the connection) until process exit and an interrupt is a
+        # no-op.  Region/flag are consumed HERE (not inside the worker) so the
+        # monitor can invalidate the right cached client even if the worker
+        # wedges before it would have popped them.
+        bedrock_stream = {"raw": None}
+        last_activity = {"t": time.time()}
+        _bedrock_region = api_kwargs.pop("__bedrock_region__", "us-east-1")
+        api_kwargs.pop("__bedrock_converse__", None)
 
         def _fire_first():
             if not first_delta_fired["done"] and on_first_delta:
@@ -1888,6 +1901,30 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     on_first_delta()
                 except Exception:
                     pass
+
+        def _abort_bedrock_stream(reason):
+            """Force-close a wedged Bedrock event stream from the monitor thread
+            and evict the cached client so the outer retry loop rebuilds it."""
+            raw = bedrock_stream.get("raw")
+            stream = None
+            try:
+                stream = raw.get("stream") if isinstance(raw, dict) else None
+            except Exception:
+                stream = None
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+            try:
+                from agent.bedrock_adapter import invalidate_runtime_client
+                invalidate_runtime_client(_bedrock_region)
+            except Exception:
+                pass
+            logger.warning(
+                "bedrock: force-closed converse_stream (%s, region=%s)",
+                reason, _bedrock_region,
+            )
 
         def _bedrock_call():
             try:
@@ -1899,11 +1936,12 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     normalize_converse_response,
                     stream_converse_with_callbacks,
                 )
-                region = api_kwargs.pop("__bedrock_region__", "us-east-1")
-                api_kwargs.pop("__bedrock_converse__", None)
+                region = _bedrock_region
                 client = _get_bedrock_runtime_client(region)
                 try:
                     raw_response = client.converse_stream(**api_kwargs)
+                    # Publish so the monitor can force-close a wedged iteration.
+                    bedrock_stream["raw"] = raw_response
                 except Exception as _bedrock_exc:
                     # IAM policies scoped to bedrock:InvokeModel only (no
                     # InvokeModelWithResponseStream) reject converse_stream()
@@ -1938,14 +1976,17 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                     _fire_first()
                     agent._fire_stream_delta(text)
                     deltas_were_sent["yes"] = True
+                    last_activity["t"] = time.time()
 
                 def _on_tool(name):
                     _fire_first()
                     agent._fire_tool_gen_started(name)
+                    last_activity["t"] = time.time()
 
                 def _on_reasoning(text):
                     _fire_first()
                     agent._fire_reasoning_delta(text)
+                    last_activity["t"] = time.time()
 
                 result["response"] = stream_converse_with_callbacks(
                     raw_response,
@@ -1957,12 +1998,41 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             except Exception as e:
                 result["error"] = e
 
+        # FABLE5 M16: stale-timeout parity with the general streaming path.  A
+        # Bedrock stream that wedges mid-iteration (dead socket, no events) would
+        # otherwise hang forever unless the user manually interrupts.
+        _bedrock_stale = get_provider_stale_timeout(agent.provider, agent.model)
+        if _bedrock_stale is None:
+            _bedrock_stale = env_float("HERMES_STREAM_STALE_TIMEOUT", 180.0)
+
         t = threading.Thread(target=_bedrock_call, daemon=True)
         t.start()
         while t.is_alive():
             t.join(timeout=0.3)
             if agent._interrupt_requested:
+                _abort_bedrock_stream("interrupt")
                 raise InterruptedError("Agent interrupted during Bedrock API call")
+            if (
+                _bedrock_stale not in (None, float("inf"))
+                and bedrock_stream.get("raw") is not None
+                and (time.time() - last_activity["t"]) > _bedrock_stale
+            ):
+                logger.warning(
+                    "bedrock: stream stale for %.0fs (threshold %.0fs) — "
+                    "killing connection.",
+                    time.time() - last_activity["t"], _bedrock_stale,
+                )
+                try:
+                    agent._buffer_status(
+                        f"⚠️ No response from Bedrock for "
+                        f"{int(time.time() - last_activity['t'])}s. Reconnecting..."
+                    )
+                except Exception:
+                    pass
+                _abort_bedrock_stream("stale")
+                # The worker observes the closed stream and sets result["error"];
+                # reset the timer so we don't re-abort while it winds down.
+                last_activity["t"] = time.time()
         if result["error"] is not None:
             raise result["error"]
         return result["response"]
