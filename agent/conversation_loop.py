@@ -1941,19 +1941,46 @@ def run_conversation(
                         _cf_terminated = getattr(
                             response, "_content_filter_terminated", False
                         )
+                        # FABLE5 M17: the stream died mid-delivery on a provider-
+                        # state error (rate-limit/billing/upstream throttle).
+                        # Continuation retries re-hit the same provider, so
+                        # escalate to the fallback chain just like a content
+                        # filter — but pass the classified reason through so the
+                        # activation arms the correct cooldown (rate_limit/billing
+                        # start a 60s primary cooldown; content-filter passes none).
+                        _stream_fo_reason = getattr(
+                            response, "_stream_failover_reason", None
+                        )
                         if (
-                            _cf_terminated
+                            (_cf_terminated or _stream_fo_reason)
                             and agent._fallback_index < len(agent._fallback_chain)
                         ):
-                            agent._vprint(
-                                f"{agent.log_prefix}🛡️  Content filter terminated "
-                                f"stream — activating fallback provider...",
-                                force=True,
-                            )
-                            agent._emit_status(
-                                "Content filter terminated stream; switching to fallback..."
-                            )
-                            if agent._try_activate_fallback():
+                            _fo_arg = None
+                            if _cf_terminated:
+                                agent._vprint(
+                                    f"{agent.log_prefix}🛡️  Content filter terminated "
+                                    f"stream — activating fallback provider...",
+                                    force=True,
+                                )
+                                agent._emit_status(
+                                    "Content filter terminated stream; switching to fallback..."
+                                )
+                            else:
+                                agent._vprint(
+                                    f"{agent.log_prefix}🔁 Provider {_stream_fo_reason} "
+                                    f"mid-stream — activating fallback provider...",
+                                    force=True,
+                                )
+                                agent._emit_status(
+                                    f"Provider {_stream_fo_reason} mid-stream; "
+                                    f"switching to fallback..."
+                                )
+                                try:
+                                    from agent.error_classifier import FailoverReason as _FR
+                                    _fo_arg = _FR(_stream_fo_reason)
+                                except Exception:
+                                    _fo_arg = None
+                            if agent._try_activate_fallback(_fo_arg):
                                 # Roll the partial content (if any was already
                                 # appended in a prior continuation pass) back to
                                 # the last clean turn so the fallback provider
