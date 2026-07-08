@@ -5369,3 +5369,66 @@ class TestCustomEndpointApiKeyInheritance:
             )
 
         assert captured.get("api_key") == "no-key-required"
+
+
+# ── FABLE5 Batch 3 regressions ──────────────────────────────────────────────
+
+class TestFable5Batch3AsyncConversion:
+    """FABLE5 M4 / H5: _to_async_client must carry Azure default_query and must
+    wrap a sync CopilotACPClient so the async aux path can await it."""
+
+    def test_default_query_carried_to_async(self):
+        # M4: an Azure-style sync client with default_query (api-version) must
+        # propagate that query into the async client.
+        import agent.auxiliary_client as ac
+        sync = SimpleNamespace(
+            api_key="k",
+            base_url="https://foundry.example/openai/deployments/x",
+            _custom_query={"api-version": "2025-04-15"},
+        )
+        captured = {}
+
+        class _FakeAsyncOpenAI:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        with patch("openai.AsyncOpenAI", _FakeAsyncOpenAI):
+            ac._to_async_client(sync, "m")
+        assert captured.get("default_query") == {"api-version": "2025-04-15"}
+
+    def test_no_default_query_when_absent(self):
+        import agent.auxiliary_client as ac
+        sync = SimpleNamespace(api_key="k", base_url="https://api.example/v1", _custom_query=None)
+        captured = {}
+
+        class _FakeAsyncOpenAI:
+            def __init__(self, **kwargs):
+                captured.update(kwargs)
+
+        with patch("openai.AsyncOpenAI", _FakeAsyncOpenAI):
+            ac._to_async_client(sync, "m")
+        assert "default_query" not in captured
+
+    def test_copilot_acp_wrapped_awaitable(self):
+        # H5: a sync CopilotACPClient must be wrapped so .chat.completions.create
+        # is a coroutine function (previously returned unchanged -> await TypeError).
+        import asyncio
+        import agent.auxiliary_client as ac
+        from agent.copilot_acp_client import CopilotACPClient
+
+        sync = CopilotACPClient(api_key="x", base_url="acp://marker")
+        client, model = ac._to_async_client(sync, "m")
+        assert isinstance(client, ac.AsyncCopilotACPClient)
+        assert asyncio.iscoroutinefunction(client.chat.completions.create)
+        assert client.api_key == sync.api_key
+
+
+class TestFable5Batch3RetrySignature:
+    """FABLE5 H4: the async same-provider retry helper must accept main_runtime
+    so the custom-provider route resolves the same way as the sync twin."""
+
+    def test_async_retry_accepts_main_runtime(self):
+        import inspect
+        import agent.auxiliary_client as ac
+        params = inspect.signature(ac._retry_same_provider_async).parameters
+        assert "main_runtime" in params
