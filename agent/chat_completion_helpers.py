@@ -1726,11 +1726,31 @@ def handle_max_iterations(agent, messages: list, api_call_count: int) -> str:
             else:
                 final_response = "I reached the iteration limit and couldn't generate a summary."
 
+    except InterruptedError:
+        # FABLE5 M19: an interrupt during the summary is an interrupt, NOT a
+        # summary failure (InterruptedError is an OSError subclass, so the broad
+        # handler below would misreport it). Drop the dangling synthetic user
+        # turn so it doesn't replay next session, then propagate.
+        _drop_dangling_summary_request(messages, summary_request)
+        raise
     except Exception as e:
+        # FABLE5 M19: the synthetic "user" summary-request was appended to the
+        # durable transcript up front; on failure it must not be left dangling
+        # (no assistant reply) or it replays next session as if the user sent it.
+        _drop_dangling_summary_request(messages, summary_request)
         logger.warning(f"Failed to get summary response: {e}")
         final_response = f"I reached the maximum iterations ({agent.max_iterations}) but couldn't summarize. Error: {str(e)}"
 
     return final_response
+
+
+def _drop_dangling_summary_request(messages: list, summary_request: str) -> None:
+    """Remove the trailing synthetic max-iterations user turn if it was left
+    without an assistant reply (FABLE5 M19)."""
+    if (messages and isinstance(messages[-1], dict)
+            and messages[-1].get("role") == "user"
+            and messages[-1].get("content") == summary_request):
+        messages.pop()
 
 
 
