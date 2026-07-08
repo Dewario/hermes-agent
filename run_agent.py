@@ -4667,7 +4667,47 @@ class AIAgent:
             return False
         return pool.has_available()
 
+    def _abort_anthropic_client(self, *, reason: str) -> None:
+        """FABLE5 H10: cross-thread abort of the shared Anthropic client.
+
+        Companion to the OpenAI ``_abort_request_openai_client``. When a
+        *stranger* thread (the stale-call detector or interrupt-check loop)
+        needs to unblock a worker wedged in an Anthropic request, it MUST NOT
+        call ``self._anthropic_client.close()`` — closing from a thread that
+        doesn't own the live SSL BIO races the worker for FD ownership and can
+        corrupt an unrelated file descriptor (the #29507 FD-recycling race).
+
+        Instead we ``shutdown(SHUT_RDWR)`` the pool's sockets (FD-safe from any
+        thread) so the worker's blocked read unwinds, and mark the client for a
+        lazy rebuild that happens on the owner thread at next use. Each session
+        has its own AIAgent (and its own ``_anthropic_client``) running one turn
+        at a time, so aborting here never disrupts a concurrent request.
+        """
+        client = getattr(self, "_anthropic_client", None)
+        if client is None:
+            return
+        try:
+            n = self._force_close_tcp_sockets(client)
+            logger.info(
+                "Anthropic client aborted (%s, tcp_force_closed=%d, "
+                "deferred_rebuild=stranger_thread) %s",
+                reason, n, self._client_log_context(),
+            )
+        except Exception as exc:
+            logger.debug("Anthropic client abort failed (%s) error=%s", reason, exc)
+        # Rebuild lazily on the owner thread (next _anthropic_messages_create).
+        self._anthropic_needs_rebuild = True
+
     def _anthropic_messages_create(self, api_kwargs: dict):
+        # FABLE5 H10: if a stranger thread aborted the client's sockets, rebuild
+        # here — on the worker/owner thread — before the next request instead of
+        # closing/rebuilding from the aborting thread.
+        if getattr(self, "_anthropic_needs_rebuild", False):
+            self._anthropic_needs_rebuild = False
+            try:
+                self._rebuild_anthropic_client()
+            except Exception as exc:
+                logger.debug("Anthropic lazy rebuild after abort failed: %s", exc)
         if self.api_mode == "anthropic_messages":
             self._try_refresh_anthropic_client_credentials()
         # Defensive: strip Responses-only kwargs that can leak in under an
@@ -4693,6 +4733,9 @@ class AIAgent:
         path when an OAuth subscription rejects the 1M-context beta) so the
         rebuilt client carries the reduced beta set.
         """
+        # FABLE5 H10: an explicit rebuild satisfies any pending lazy-rebuild
+        # request from a prior stranger-thread abort.
+        self._anthropic_needs_rebuild = False
         _drop_1m = bool(getattr(self, "_oauth_1m_beta_disabled", False))
         if getattr(self, "provider", None) == "bedrock":
             from agent.anthropic_adapter import build_anthropic_bedrock_client
