@@ -1626,8 +1626,17 @@ if _config_path.exists():
         try:
             from hermes_cli import managed_scope
             _cfg = managed_scope.apply_managed_overlay(_cfg)
-        except Exception:
-            pass
+        except Exception as _mse:
+            # FABLE5 M13: apply_managed_overlay is deliberately fail-open (it must
+            # never break startup) and already logs loudly on a malformed managed
+            # file. But an unexpected import/apply error here was silent — making
+            # admin-pinned values silently revert to the user's with zero
+            # diagnostics. Log it (module `logger` isn't defined yet at import).
+            logging.getLogger(__name__).warning(
+                "gateway: managed-scope overlay failed to apply (%s); "
+                "admin-pinned config values may not be enforced this process",
+                _mse,
+            )
         # Top-level simple values (fallback only — don't override .env)
         for _key, _val in _cfg.items():
             if isinstance(_val, (str, int, float, bool)) and _key not in os.environ:
@@ -11530,8 +11539,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         try:
             _pcfg = _load_gateway_config()
             _redact_pii = bool((_pcfg.get("privacy") or {}).get("redact_pii", False))
-        except Exception:
-            pass
+        except Exception as _pii_cfg_err:
+            # FABLE5 M13: fail CLOSED. A transient config-read failure (e.g. a
+            # concurrent config write mid-run) must not silently disable PII
+            # redaction and leak PII into the prompt/transcript — we can't
+            # confirm the user's setting, so redact this turn and log it.
+            _redact_pii = True
+            logger.warning(
+                "gateway: privacy config read failed (%s); redacting PII this "
+                "turn (fail-closed)", _pii_cfg_err,
+            )
 
         # Build the context prompt to inject
         context_prompt = build_session_context_prompt(context, redact_pii=_redact_pii)
