@@ -322,6 +322,17 @@ Before presenting to the attorney:
 - [ ] FELA featherweight causation standard noted in liability section
 - [ ] RRTA tax treatment noted in wage-loss section
 
+**Isolation gate (mandatory when `legal-casegraph` is available and a matter
+index exists):** run on every output file before attorney handoff; must exit 0
+with all WARNs resolved. Intake outputs must reference only THIS matter's
+people, places, and identifiers:
+
+```
+python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> <output.md> --fingerprints <store>
+```
+
+This gate supplements — never replaces — the checklist above and attorney review.
+
 ## Pitfalls
 
 - DO NOT assume client facts are complete — the missing-information list IS the product

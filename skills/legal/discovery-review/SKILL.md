@@ -77,6 +77,21 @@ Load this skill when an attorney or legal professional needs to:
 
 ### Step 0: Production Preflight
 
+**Casegraph first (mechanized preflight):** if the `legal-casegraph` skill is
+available, run it before any manual preflight — it performs the manifest,
+hash, Bates-range, duplicate, and readability checks below deterministically:
+
+```
+python skills/legal/casegraph/scripts/casegraph.py build  <matter_dir>
+python skills/legal/casegraph/scripts/casegraph.py status <matter_dir>   # must exit 0 (not stale)
+```
+
+Use the build report's duplicate, unreadable, and Bates gap/overlap findings as
+the preflight results — verified, not re-derived by the model. Query the index
+(`query --bates/--grep/--entity`) instead of re-reading documents already
+indexed. The manual checklist below remains authoritative for anything the
+tool flags as unreadable or cannot parse.
+
 Before processing any document, verify source integrity and citation provenance:
 
 - **Source Manifest:** Confirm all files have stable identifiers (file hash, Bates range, or
@@ -364,6 +379,18 @@ Before presenting to the attorney, confirm:
 - [ ] Issue coding matrix is internally consistent (no orphan codes, no uncoded documents)
 - [ ] Chronology is complete (no date gaps without explicit notation)
 - [ ] All attorney-review-required items are flagged
+
+**Machine gates (mandatory when `legal-casegraph` is available):** run both on
+every output file; both must exit 0, and every WARN must be resolved
+(register the entity with `add-entity`, or investigate as possible
+contamination/hallucination) before attorney handoff:
+
+```
+python skills/legal/casegraph/scripts/casegraph.py verify-cites    <matter_dir> <output.md> --quotes
+python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> <output.md> --fingerprints <store>
+```
+
+These gates supplement — never replace — the checklist above and attorney review.
 
 ## Pitfalls
 

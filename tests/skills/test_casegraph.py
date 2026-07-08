@@ -25,6 +25,11 @@ CASEGRAPH = REPO_ROOT / "skills" / "legal" / "casegraph" / "scripts" / "casegrap
 
 
 def _load():
+    # Never write __pycache__ into skills/legal/ — the legal validator
+    # privacy-scans that tree and fails (correctly, fail-closed) on binary
+    # .pyc artifacts.
+    import sys
+    sys.dont_write_bytecode = True
     spec = importlib.util.spec_from_file_location("casegraph", CASEGRAPH)
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
