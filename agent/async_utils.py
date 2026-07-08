@@ -66,3 +66,47 @@ def safe_schedule_threadsafe(
             coro.close()
         log.log(log_level, "%s: %s", log_message, exc)
         return None
+
+
+def run_coroutine_sync(coro: Coroutine[Any, Any, Any], *, timeout: Optional[float] = None) -> Any:
+    """Run ``coro`` to completion from synchronous code, safe on any thread.
+
+    ``asyncio.run()`` raises ``RuntimeError`` when the calling thread already
+    has a running event loop (e.g. agent methods invoked directly from an
+    async frontend instead of via an executor) — and callers that wrap it in
+    a broad ``except`` silently lose the feature (FABLE5 L7). This helper
+    handles both cases:
+
+    - No running loop on this thread → plain ``asyncio.run`` (fast path; this
+      is the normal worker-thread case).
+    - Running loop on this thread → execute the coroutine on a short-lived
+      worker thread with its own loop and block for the result. This still
+      stalls the loop for the duration (callers on a loop thread should
+      really ``await``), but it returns the correct result instead of
+      raising — degraded, not broken.
+
+    ``timeout`` (seconds) applies to the coroutine itself via
+    ``asyncio.wait_for`` in both paths.
+    """
+    if timeout is not None:
+        coro = asyncio.wait_for(coro, timeout)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return asyncio.run(coro)
+
+    import threading
+    outcome: dict = {}
+
+    def _worker() -> None:
+        try:
+            outcome["value"] = asyncio.run(coro)
+        except BaseException as exc:  # propagate faithfully, incl. CancelledError
+            outcome["error"] = exc
+
+    t = threading.Thread(target=_worker, name="run_coroutine_sync", daemon=True)
+    t.start()
+    t.join()
+    if "error" in outcome:
+        raise outcome["error"]
+    return outcome.get("value")

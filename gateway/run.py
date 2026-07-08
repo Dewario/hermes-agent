@@ -7703,6 +7703,13 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         self._schedule_resume_pending_sessions()
         await self._finish_startup_restore()
 
+        # FABLE5 M20: asyncio.create_task() keeps only a WEAK reference — a
+        # background watcher created fire-and-forget can be garbage-collected
+        # mid-flight and silently stop (session expiry, kanban dispatch,
+        # platform reconnect...). _spawn_background_watcher holds strong refs
+        # for the runner's lifetime and logs if a watcher ever exits.
+        _spawn_watcher = self._spawn_background_watcher
+
         # Drain any recovered process watchers (from crash recovery checkpoint)
         try:
             from tools.process_registry import process_registry
@@ -7715,7 +7722,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             # Process in batches of 100 with event-loop yield points to avoid
             # O(n^2) event-loop blocking when recovering thousands of watchers.
             for i, watcher in enumerate(watchers):
-                asyncio.create_task(self._run_process_watcher(watcher))
+                _spawn_watcher(self._run_process_watcher(watcher),
+                               f"process_watcher:{watcher.get('session_id')}")
                 logger.info("Resumed watcher for recovered process %s", watcher.get("session_id"))
                 if i % 100 == 99:
                     await asyncio.sleep(0)
@@ -7723,18 +7731,18 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
             logger.error("Recovered watcher setup error: %s", e)
 
         # Start background session expiry watcher to finalize expired sessions
-        asyncio.create_task(self._session_expiry_watcher())
+        _spawn_watcher(self._session_expiry_watcher(), "session_expiry")
 
         # Start background kanban notifier — delivers `completed`, `blocked`,
         # `spawn_auto_blocked`, and `crashed` events to gateway subscribers
         # so human-in-the-loop workflows hear back without polling.
-        asyncio.create_task(self._kanban_notifier_watcher())
+        _spawn_watcher(self._kanban_notifier_watcher(), "kanban_notifier")
 
         # Start background kanban dispatcher — spawns workers for ready
         # tasks. Gated by `kanban.dispatch_in_gateway` (default True).
         # When false, users run `hermes kanban daemon` externally or
         # simply don't use kanban; this loop becomes a no-op.
-        asyncio.create_task(self._kanban_dispatcher_watcher())
+        _spawn_watcher(self._kanban_dispatcher_watcher(), "kanban_dispatcher")
 
         # Start background reconnection watcher for platforms that failed at startup
         if self._failed_platforms:
@@ -7743,19 +7751,19 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 len(self._failed_platforms),
                 ", ".join(p.value for p in self._failed_platforms),
             )
-        asyncio.create_task(self._platform_reconnect_watcher())
+        _spawn_watcher(self._platform_reconnect_watcher(), "platform_reconnect")
 
         # Start background handoff watcher — picks up CLI sessions marked
         # handoff_state='pending' in state.db and re-binds them to the
         # destination platform's home channel, then forges a synthetic user
         # turn so the agent kicks off the new chat.
-        asyncio.create_task(self._handoff_watcher())
+        _spawn_watcher(self._handoff_watcher(), "handoff")
 
         # Start background async-delegation watcher — drains completion events
         # from delegate_task(background=true) subagents and injects each
         # result back into its originating session as a new turn, covering the
         # idle case where the subagent finishes with no agent turn running.
-        asyncio.create_task(self._async_delegation_watcher())
+        _spawn_watcher(self._async_delegation_watcher(), "async_delegation")
 
         # Start the scale-to-zero idle watcher ONLY when this instance is opted
         # in (the NAS "Labs" HERMES_SCALE_TO_ZERO stamp), messaging is
@@ -7769,7 +7777,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     "scale-to-zero: armed (idle timeout %.0fs) — watching for idle",
                     self._scale_to_zero_idle_timeout_seconds(),
                 )
-                asyncio.create_task(self._scale_to_zero_watcher())
+                _spawn_watcher(self._scale_to_zero_watcher(), "scale_to_zero")
             else:
                 # Surface WHY an OPTED-IN instance didn't arm (a non-opted instance
                 # not arming is normal — stay silent there). Without this, a failed
@@ -7784,11 +7792,42 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # left behind by a prior instantiation (durable-volume restart, NS-570)
         # is ignored via its instantiation epoch; only a current-epoch marker
         # engages drain on the first tick.
-        asyncio.create_task(self._drain_control_watcher())
+        _spawn_watcher(self._drain_control_watcher(), "drain_control")
 
         logger.info("Press Ctrl+C to stop")
         
         return True
+
+    def _spawn_background_watcher(self, coro, name: str):
+        """Create a background watcher task with a STRONG reference (FABLE5 M20).
+
+        ``asyncio.create_task()`` alone keeps only a weak reference; a
+        fire-and-forget watcher can be garbage-collected mid-flight and
+        silently stop. References are held in ``_background_watcher_tasks``
+        until each task completes. Watchers are while-True loops, so any
+        completion other than cancellation is logged — an escaped exception
+        at error level with traceback, a clean return as a warning.
+        """
+        tasks = getattr(self, "_background_watcher_tasks", None)
+        if tasks is None:
+            tasks = set()
+            self._background_watcher_tasks = tasks
+        task = asyncio.create_task(coro, name=name)
+        tasks.add(task)
+
+        def _on_done(t, _name=name, _tasks=tasks):
+            _tasks.discard(t)
+            if t.cancelled():
+                return
+            exc = t.exception()
+            if exc is not None:
+                logger.error("Background watcher %s died: %s", _name, exc,
+                             exc_info=exc)
+            else:
+                logger.warning("Background watcher %s exited unexpectedly", _name)
+
+        task.add_done_callback(_on_done)
+        return task
 
     async def _handoff_watcher(self, interval: float = 2.0) -> None:
         """Background task that processes pending CLI→gateway session handoffs.
@@ -12449,7 +12488,10 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 watchers = process_registry.pending_watchers
                 process_registry.pending_watchers = []
                 for i, watcher in enumerate(watchers):
-                    asyncio.create_task(self._run_process_watcher(watcher))
+                    self._spawn_background_watcher(
+                        self._run_process_watcher(watcher),
+                        f"process_watcher:{watcher.get('session_id')}",
+                    )
                     if i % 100 == 99:
                         await asyncio.sleep(0)
             except Exception as e:
@@ -18557,40 +18599,62 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
             from agent.redact import RedactingFormatter
 
-            log_dir = _hermes_home / "logs"
-            log_dir.mkdir(parents=True, exist_ok=True)
-            file_handler = RotatingFileHandler(
-                log_dir / "tool_calls.log",
-                maxBytes=5 * 1024 * 1024,
-                backupCount=3,
-                encoding="utf-8",
-            )
-            file_handler.setFormatter(RedactingFormatter("%(message)s"))
-            tool_logger = logging.getLogger(f"hermes.tool_calls.{id(log_queue)}")
-            tool_logger.setLevel(logging.INFO)
-            tool_logger.propagate = False
-            tool_logger.addHandler(file_handler)
-            try:
+            # FABLE5 M20: everything below touches disk (mkdir, log writes,
+            # and 5MB×3 rotation copies), so it must not run on the event
+            # loop — a slow disk or a rotation would stall every session.
+            # Setup and each drained batch run via asyncio.to_thread.
+            def _setup_handler():
+                log_dir = _hermes_home / "logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
+                fh = RotatingFileHandler(
+                    log_dir / "tool_calls.log",
+                    maxBytes=5 * 1024 * 1024,
+                    backupCount=3,
+                    encoding="utf-8",
+                )
+                fh.setFormatter(RedactingFormatter("%(message)s"))
+                tl = logging.getLogger(f"hermes.tool_calls.{id(log_queue)}")
+                tl.setLevel(logging.INFO)
+                tl.propagate = False
+                tl.addHandler(fh)
+                return fh, tl
+
+            def _drain_queue_nonblocking():
+                lines = []
                 while True:
                     try:
-                        tool_logger.info("%s", log_queue.get_nowait())
+                        lines.append(log_queue.get_nowait())
                     except queue.Empty:
+                        break
+                return lines
+
+            def _write_batch(tl, lines):
+                for line in lines:
+                    tl.info("%s", line)
+
+            file_handler, tool_logger = await asyncio.to_thread(_setup_handler)
+            try:
+                while True:
+                    lines = _drain_queue_nonblocking()
+                    if lines:
+                        try:
+                            await asyncio.to_thread(_write_batch, tool_logger, lines)
+                        except Exception as e:
+                            logger.error("write_tool_log error: %s", e)
+                            await asyncio.sleep(1)
+                    else:
                         await asyncio.sleep(0.3)
-                    except Exception as e:
-                        logger.error("write_tool_log error: %s", e)
-                        await asyncio.sleep(1)
             except asyncio.CancelledError:
                 pass
             finally:
                 # Drain remaining entries before closing so late tool calls
-                # from the final iteration aren't lost.
-                while True:
-                    try:
-                        tool_logger.info("%s", log_queue.get_nowait())
-                    except queue.Empty:
-                        break
-                    except Exception:
-                        break
+                # from the final iteration aren't lost. Shutdown path — the
+                # brief blocking write here is acceptable and must not be
+                # interrupted by another cancellation.
+                try:
+                    _write_batch(tool_logger, _drain_queue_nonblocking())
+                except Exception:
+                    pass
                 tool_logger.removeHandler(file_handler)
                 try:
                     file_handler.flush()
@@ -18968,13 +19032,15 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         # Bridge sync event_callback → async hooks.emit for lifecycle events
         # (e.g. session:compress fires after context compression splits a session)
         def _event_callback_sync(event_type: str, context: dict) -> None:
-            try:
-                asyncio.run_coroutine_threadsafe(
-                    _hooks_ref.emit(event_type, context),
-                    _loop_for_step,
-                )
-            except Exception as _e:
-                logger.debug("event_callback hook error: %s", _e)
+            # safe_schedule_threadsafe closes the coroutine if scheduling
+            # fails (shutdown race) — raw run_coroutine_threadsafe leaks it
+            # with a "never awaited" warning.
+            safe_schedule_threadsafe(
+                _hooks_ref.emit(event_type, context),
+                _loop_for_step,
+                logger=logger,
+                log_message="event_callback hook scheduling error",
+            )
 
         # Bridge sync status_callback → async adapter.send for context pressure
         _status_adapter = self._adapter_for_source(source)

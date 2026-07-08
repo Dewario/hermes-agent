@@ -1992,7 +1992,31 @@ class AIAgent:
             self._flushed_db_message_ids = set()
             self._last_flushed_db_idx = len(messages)
         except Exception as e:
-            logger.warning("Session DB append_message failed: %s", e)
+            # FABLE5 L7: a failed persist means this conversation may not be
+            # saved/resumable — that must reach the user, not just a log line
+            # nobody watches. Error-level with traceback for diagnosis, plus a
+            # one-time user-visible warning per session (persist runs on many
+            # exit paths; repeating the notice every flush would be spam).
+            logger.error(
+                "Session DB persist FAILED for session %s (conversation may "
+                "not be saved/resumable): %s",
+                getattr(self, "session_id", "?"), e, exc_info=True,
+            )
+            if not getattr(self, "_session_db_persist_fail_notified", False):
+                self._session_db_persist_fail_notified = True
+                _notice = (
+                    "⚠️ Session save failed — this conversation may not be "
+                    "resumable. Check disk space/permissions for the session "
+                    "database, then see the log for details."
+                )
+                try:
+                    self._emit_warning(_notice)
+                except Exception:
+                    pass
+                try:
+                    self._safe_print(f"\n{_notice}\n")
+                except Exception:
+                    pass
 
     def _get_messages_up_to_last_assistant(self, messages: List[Dict]) -> List[Dict]:
         """
@@ -5181,8 +5205,13 @@ class AIAgent:
         description = ""
         try:
             from tools.vision_tools import vision_analyze_tool
+            from agent.async_utils import run_coroutine_sync
 
-            result_json = asyncio.run(
+            # FABLE5 L7: asyncio.run() raises if this sync fallback is ever
+            # reached on a thread with a running loop, and the broad except
+            # below would swallow that into "Image analysis failed" — losing
+            # vision silently. run_coroutine_sync handles both threading cases.
+            result_json = run_coroutine_sync(
                 vision_analyze_tool(image_url=vision_source, user_prompt=analysis_prompt)
             )
             result = json.loads(result_json) if isinstance(result_json, str) else {}
