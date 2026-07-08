@@ -203,6 +203,12 @@ def interruptible_api_call(agent, api_kwargs: dict):
     # a network bug and surfaced to the caller. (PR #6600 — cascading interrupt
     # hang.)
     _request_cancelled = {"value": False}
+    # FABLE5 H10: owning-thread id for an in-flight Anthropic request. The
+    # Anthropic client is shared-per-agent (not request-local like the OpenAI
+    # one), so the stale/interrupt close sites use this to tell whether they run
+    # on the worker (owner → close+rebuild) or a stranger thread (→ abort the
+    # transport + rebuild lazily), mirroring _close_request_client_once (#29507).
+    _anthropic_owner = {"tid": None}
 
     def _set_request_client(client):
         with request_client_lock:
@@ -260,7 +266,13 @@ def interruptible_api_call(agent, api_kwargs: dict):
                     on_first_delta=getattr(agent, "_codex_on_first_delta", None),
                 )
             elif agent.api_mode == "anthropic_messages":
-                result["response"] = agent._anthropic_messages_create(api_kwargs)
+                # FABLE5 H10: record the worker thread so a stranger-thread
+                # close aborts the transport instead of racing client.close().
+                _anthropic_owner["tid"] = threading.get_ident()
+                try:
+                    result["response"] = agent._anthropic_messages_create(api_kwargs)
+                finally:
+                    _anthropic_owner["tid"] = None
             elif agent.api_mode == "bedrock_converse":
                 # Bedrock uses boto3 directly — no OpenAI client needed.
                 # normalize_converse_response produces an OpenAI-compatible
@@ -557,8 +569,14 @@ def interruptible_api_call(agent, api_kwargs: dict):
                 )
             try:
                 if agent.api_mode == "anthropic_messages":
-                    agent._anthropic_client.close()
-                    agent._rebuild_anthropic_client()
+                    # FABLE5 H10: this runs on the stale-call detector (stranger)
+                    # thread. Only the owner may close()+rebuild the shared client;
+                    # a stranger aborts the transport and defers the rebuild.
+                    if _anthropic_owner["tid"] not in (None, threading.get_ident()):
+                        agent._abort_anthropic_client(reason="stale_call_kill")
+                    else:
+                        agent._anthropic_client.close()
+                        agent._rebuild_anthropic_client()
                 else:
                     _close_request_client_once("stale_call_kill")
             except Exception:
@@ -596,8 +614,14 @@ def interruptible_api_call(agent, api_kwargs: dict):
             # seed future retries.
             try:
                 if agent.api_mode == "anthropic_messages":
-                    agent._anthropic_client.close()
-                    agent._rebuild_anthropic_client()
+                    # FABLE5 H10: interrupt-check runs on a stranger thread — abort
+                    # the transport (FD-safe) and defer the rebuild; only the owner
+                    # closes()+rebuilds the shared Anthropic client.
+                    if _anthropic_owner["tid"] not in (None, threading.get_ident()):
+                        agent._abort_anthropic_client(reason="interrupt_abort")
+                    else:
+                        agent._anthropic_client.close()
+                        agent._rebuild_anthropic_client()
                 else:
                     _close_request_client_once("interrupt_abort")
             except Exception:
@@ -2891,7 +2915,11 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             # may hold dead sockets from the same provider outage.
             if agent.api_mode == "anthropic_messages":
                 try:
-                    agent._anthropic_client.close()
+                    # FABLE5 H10: this stale-stream detector runs on the monitor
+                    # (stranger) thread. Abort the old client's sockets (FD-safe)
+                    # rather than close()-ing it while the worker's SSL BIO is
+                    # live, then swap in a fresh client for the reconnect.
+                    agent._abort_anthropic_client(reason="stale_stream_kill")
                     agent._rebuild_anthropic_client()
                 except Exception:
                     pass
@@ -2919,7 +2947,10 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             )
             try:
                 if agent.api_mode == "anthropic_messages":
-                    agent._anthropic_client.close()
+                    # FABLE5 H10: interrupt-check runs on the monitor (stranger)
+                    # thread — abort the transport (FD-safe) then rebuild, rather
+                    # than racing client.close() against the live worker.
+                    agent._abort_anthropic_client(reason="stream_interrupt_abort")
                     agent._rebuild_anthropic_client()
                 else:
                     _close_request_client_once("stream_interrupt_abort")

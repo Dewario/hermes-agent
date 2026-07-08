@@ -14595,6 +14595,64 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         except TypeError:
             executor.shutdown(wait=False)
 
+    # ── FABLE5 H9: abandoned-worker containment ──────────────────────────────
+    # An inactivity timeout breaks out of the poll loop and interrupts the agent
+    # cooperatively, but a worker wedged in an uninterruptible call does NOT
+    # honor that interrupt. Cancelling the asyncio wrapper does NOT free the OS
+    # thread either — it keeps its slot in the fixed 10-worker pool until the
+    # wedged call finally returns. Without containment, ~10 such hangs exhaust
+    # the pool and every session on every platform blocks forever inside
+    # run_in_executor. We track how many workers are simultaneously abandoned
+    # and, once they approach the pool size, RECYCLE the pool so new sessions get
+    # fresh workers; the wedged threads drain in the background.
+    _EXECUTOR_MAX_WORKERS = 10
+
+    def _executor_lock_ref(self) -> "threading.Lock":
+        lock = getattr(self, "_executor_lock", None)
+        if lock is None:
+            lock = threading.Lock()
+            self._executor_lock = lock
+        return lock
+
+    def _note_executor_worker_abandoned(self) -> None:
+        """Record a worker abandoned by an inactivity timeout; recycle the pool
+        if too many are wedged at once."""
+        with self._executor_lock_ref():
+            abandoned = getattr(self, "_executor_abandoned", 0) + 1
+            self._executor_abandoned = abandoned
+        logger.warning(
+            "gateway executor: %d worker(s) abandoned after inactivity timeout "
+            "(pool size %d)", abandoned, self._EXECUTOR_MAX_WORKERS,
+        )
+        if abandoned >= self._EXECUTOR_MAX_WORKERS - 2:
+            logger.error(
+                "gateway executor: %d/%d workers wedged — recycling the pool so "
+                "new sessions are not starved (wedged threads drain in the "
+                "background)", abandoned, self._EXECUTOR_MAX_WORKERS,
+            )
+            self._recycle_executor()
+
+    def _note_executor_worker_recovered(self) -> None:
+        """A previously-abandoned worker finally finished — free its slot in the
+        wedged-count so a later timeout doesn't recycle prematurely."""
+        with self._executor_lock_ref():
+            if getattr(self, "_executor_abandoned", 0) > 0:
+                self._executor_abandoned -= 1
+
+    def _recycle_executor(self) -> None:
+        """Swap in a fresh executor; abandon the old one (its wedged threads
+        drain on their own). Never blocks — shutdown(wait=False) and no
+        cancel_futures so in-flight non-wedged work isn't dropped."""
+        with self._executor_lock_ref():
+            old = getattr(self, "_executor", None)
+            self._executor = None
+            self._executor_abandoned = 0
+        if old is not None:
+            try:
+                old.shutdown(wait=False)
+            except Exception:
+                pass
+
     def _decide_image_input_mode(
         self,
         *,
@@ -19090,6 +19148,28 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # pool worker is freed.
                 if _timed_out_agent and hasattr(_timed_out_agent, "interrupt"):
                     _timed_out_agent.interrupt(_INTERRUPT_REASON_TIMEOUT)
+
+                # FABLE5 H9: the cooperative interrupt above may not free a worker
+                # wedged in an uninterruptible call, and cancelling the asyncio
+                # wrapper doesn't kill the OS thread. Track the abandoned worker
+                # (recycling the pool if too many wedge) and attach a done-callback
+                # that (a) retrieves the future's exception so it isn't silently
+                # swallowed and (b) decrements the wedged-count if the worker later
+                # frees itself.
+                if not _executor_task.done():
+                    self._note_executor_worker_abandoned()
+                    _recovered = {"v": False}
+
+                    def _on_abandoned_exec_done(fut, _self=self, _rec=_recovered):
+                        try:
+                            fut.exception()  # retrieve; avoid "never retrieved"
+                        except (asyncio.CancelledError, Exception):
+                            pass
+                        if not _rec["v"]:
+                            _rec["v"] = True
+                            _self._note_executor_worker_recovered()
+
+                    _executor_task.add_done_callback(_on_abandoned_exec_done)
 
                 _timeout_mins = int(_agent_timeout // 60) or 1
 
