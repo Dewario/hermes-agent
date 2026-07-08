@@ -5466,6 +5466,77 @@ class TestCustomEndpointApiKeyInheritance:
         )
 
 
+class TestRuntimeMainAtomicity:
+    """FABLE5 L4: multi-field runtime-main reads must never observe a torn
+    identity (one provider's endpoint paired with another's credential)."""
+
+    def teardown_method(self):
+        import agent.auxiliary_client as ac
+        ac.clear_runtime_main()
+
+    def test_snapshot_is_coherent_under_concurrent_writers(self):
+        import threading
+        import agent.auxiliary_client as ac
+
+        identities = [
+            dict(provider="custom", model="m-a", base_url="https://a.example/v1",
+                 api_key="key-A", api_mode="chat_completions"),
+            dict(provider="custom", model="m-b", base_url="https://b.example/v1",
+                 api_key="key-B", api_mode="responses"),
+        ]
+        stop = threading.Event()
+        torn: list = []
+
+        def writer():
+            i = 0
+            while not stop.is_set():
+                ident = identities[i % 2]
+                ac.set_runtime_main(ident["provider"], ident["model"],
+                                    base_url=ident["base_url"],
+                                    api_key=ident["api_key"],
+                                    api_mode=ident["api_mode"])
+                i += 1
+
+        def reader():
+            while not stop.is_set():
+                _p, _m, base, key, _mode = ac._runtime_main_snapshot()
+                if base and key:
+                    if (base.endswith("a.example/v1") and key != "key-A") or \
+                       (base.endswith("b.example/v1") and key != "key-B"):
+                        torn.append((base, key))
+                        return
+
+        threads = [threading.Thread(target=writer)] + \
+                  [threading.Thread(target=reader) for _ in range(3)]
+        for t in threads:
+            t.start()
+        import time as _time
+        _time.sleep(0.5)
+        stop.set()
+        for t in threads:
+            t.join(timeout=5)
+        assert not torn, f"torn runtime-main identity observed: {torn[:3]}"
+
+    def test_same_host_inheritance_uses_one_snapshot(self, monkeypatch):
+        """Deterministic: the same-host credential check must source base_url
+        AND api_key from the same snapshot, not from live per-field reads."""
+        import agent.auxiliary_client as ac
+
+        # Live globals hold identity A...
+        ac.set_runtime_main("custom", "m-a",
+                            base_url="https://a.example/v1", api_key="key-A")
+        # ...but the snapshot (what a coherent read would return) says B.
+        monkeypatch.setattr(
+            ac, "_runtime_main_snapshot",
+            lambda: ("custom", "m-b", "https://b.example/v1", "key-B", ""),
+        )
+        # Aux endpoint matches B's origin -> must inherit B's key (the pair
+        # from the snapshot), proving both fields came from the snapshot.
+        assert ac._read_main_api_key_if_same_host("https://b.example/v1") == "key-B"
+        # A's origin no longer matches the snapshot identity -> no inheritance.
+        assert ac._read_main_api_key_if_same_host("https://a.example/v1") == ""
+
+
 # ── FABLE5 Batch 3 regressions ──────────────────────────────────────────────
 
 class TestFable5Batch3AsyncConversion:

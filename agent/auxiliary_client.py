@@ -2042,7 +2042,7 @@ def _read_main_provider() -> str:
     return ""
 
 
-def _read_main_api_key() -> str:
+def _read_main_api_key(override: Optional[str] = None) -> str:
     """Read the user's main model API key from the runtime override or config.
 
     Mirrors ``_read_main_model`` / ``_read_main_provider``: checks the
@@ -2050,12 +2050,17 @@ def _read_main_api_key() -> str:
     ``set_runtime_main`` when an AIAgent is active), then falls back to
     ``model.api_key`` in config.yaml.
 
+    ``override``: pass a value from ``_runtime_main_snapshot()`` when this
+    read must be coherent with other runtime-main fields (FABLE5 L4);
+    ``None`` reads the live global as before.
+
     Used by the ``custom`` provider fallback chain so that auxiliary tasks
     configured with an explicit ``base_url`` but empty ``api_key`` inherit
     the main model's credentials instead of falling to ``no-key-required``
     (issue #9318).
     """
-    override = _RUNTIME_MAIN_API_KEY
+    if override is None:
+        override = _RUNTIME_MAIN_API_KEY
     if isinstance(override, str) and override.strip():
         return override.strip()
     try:
@@ -2071,12 +2076,14 @@ def _read_main_api_key() -> str:
     return ""
 
 
-def _read_main_base_url() -> str:
+def _read_main_base_url(override: Optional[str] = None) -> str:
     """Read the main model's base_url from the runtime override or config.
 
-    Same override-then-config pattern as ``_read_main_api_key``.
+    Same override-then-config pattern as ``_read_main_api_key``, including
+    the snapshot ``override`` parameter (FABLE5 L4).
     """
-    override = _RUNTIME_MAIN_BASE_URL
+    if override is None:
+        override = _RUNTIME_MAIN_BASE_URL
     if isinstance(override, str) and override.strip():
         return override.strip()
     try:
@@ -2134,19 +2141,50 @@ def _read_main_api_key_if_same_host(aux_base_url: str) -> str:
     aux_origin = _base_url_origin(aux_base_url)
     if aux_origin is None:
         return ""
-    main_origin = _base_url_origin(_read_main_base_url())
+    # FABLE5 L4: base_url and api_key must come from ONE coherent runtime
+    # identity. Reading the globals separately could pair identity A's origin
+    # (which matches) with identity B's credential (which then leaks to A's
+    # endpoint) if another session's set_runtime_main() interleaves.
+    _, _, snap_base, snap_key, _ = _runtime_main_snapshot()
+    main_origin = _base_url_origin(_read_main_base_url(override=snap_base))
     if main_origin is None or aux_origin != main_origin:
         return ""
-    return _read_main_api_key()
+    return _read_main_api_key(override=snap_key)
 
 
-# Process-local override set by AIAgent at session/turn start. Single-threaded
-# per turn — no lock needed. Cleared by ``clear_runtime_main()``.
+# Process-local override set by AIAgent at session/turn start. A single turn
+# is single-threaded, but the gateway runs MULTIPLE sessions on threads in one
+# process, so another session's turn-start ``set_runtime_main()`` can execute
+# concurrently with this session's reads. FABLE5 L4: writers hold
+# ``_RUNTIME_MAIN_LOCK`` and multi-field readers use
+# ``_runtime_main_snapshot()`` so a read never sees a torn identity (e.g.
+# provider A's base_url paired with provider B's api_key). Individual globals
+# are kept (not folded into one object) because tests and callers patch them
+# by name.
+_RUNTIME_MAIN_LOCK = threading.Lock()
 _RUNTIME_MAIN_PROVIDER: str = ""
 _RUNTIME_MAIN_MODEL: str = ""
 _RUNTIME_MAIN_BASE_URL: str = ""
 _RUNTIME_MAIN_API_KEY: str = ""
 _RUNTIME_MAIN_API_MODE: str = ""
+
+
+def _runtime_main_snapshot() -> Tuple[str, str, str, str, str]:
+    """Coherent (provider, model, base_url, api_key, api_mode) under the lock.
+
+    Use this whenever a decision combines two or more runtime-main fields —
+    reading the globals one-by-one can interleave with another session's
+    ``set_runtime_main()`` and pair one identity's endpoint with another's
+    credential.
+    """
+    with _RUNTIME_MAIN_LOCK:
+        return (
+            _RUNTIME_MAIN_PROVIDER,
+            _RUNTIME_MAIN_MODEL,
+            _RUNTIME_MAIN_BASE_URL,
+            _RUNTIME_MAIN_API_KEY,
+            _RUNTIME_MAIN_API_MODE,
+        )
 
 
 def set_runtime_main(
@@ -2170,22 +2208,26 @@ def set_runtime_main(
     """
     global _RUNTIME_MAIN_PROVIDER, _RUNTIME_MAIN_MODEL
     global _RUNTIME_MAIN_BASE_URL, _RUNTIME_MAIN_API_KEY, _RUNTIME_MAIN_API_MODE
-    _RUNTIME_MAIN_PROVIDER = (provider or "").strip().lower()
-    _RUNTIME_MAIN_MODEL = (model or "").strip()
-    _RUNTIME_MAIN_BASE_URL = (base_url or "").strip()
-    _RUNTIME_MAIN_API_KEY = api_key.strip() if isinstance(api_key, str) else ""
-    _RUNTIME_MAIN_API_MODE = (api_mode or "").strip()
+    # FABLE5 L4: assign all five under the lock so a concurrent snapshot never
+    # observes a half-written identity.
+    with _RUNTIME_MAIN_LOCK:
+        _RUNTIME_MAIN_PROVIDER = (provider or "").strip().lower()
+        _RUNTIME_MAIN_MODEL = (model or "").strip()
+        _RUNTIME_MAIN_BASE_URL = (base_url or "").strip()
+        _RUNTIME_MAIN_API_KEY = api_key.strip() if isinstance(api_key, str) else ""
+        _RUNTIME_MAIN_API_MODE = (api_mode or "").strip()
 
 
 def clear_runtime_main() -> None:
     """Clear the runtime override (e.g. on session end)."""
     global _RUNTIME_MAIN_PROVIDER, _RUNTIME_MAIN_MODEL
     global _RUNTIME_MAIN_BASE_URL, _RUNTIME_MAIN_API_KEY, _RUNTIME_MAIN_API_MODE
-    _RUNTIME_MAIN_PROVIDER = ""
-    _RUNTIME_MAIN_MODEL = ""
-    _RUNTIME_MAIN_BASE_URL = ""
-    _RUNTIME_MAIN_API_KEY = ""
-    _RUNTIME_MAIN_API_MODE = ""
+    with _RUNTIME_MAIN_LOCK:
+        _RUNTIME_MAIN_PROVIDER = ""
+        _RUNTIME_MAIN_MODEL = ""
+        _RUNTIME_MAIN_BASE_URL = ""
+        _RUNTIME_MAIN_API_KEY = ""
+        _RUNTIME_MAIN_API_MODE = ""
 
 
 def _resolve_custom_runtime() -> Tuple[Optional[str], Optional[str], Optional[str]]:
@@ -3919,13 +3961,17 @@ def _resolve_auto(
     # provided or was incomplete.  ``set_runtime_main()`` now records
     # base_url/api_key/api_mode alongside provider/model, so custom:
     # providers get the full credential surface in Step 1 of the
-    # auto-detect chain.
-    if not runtime_base_url and _RUNTIME_MAIN_BASE_URL:
-        runtime_base_url = _RUNTIME_MAIN_BASE_URL
-    if not runtime_api_key and _RUNTIME_MAIN_API_KEY:
-        runtime_api_key = _RUNTIME_MAIN_API_KEY
-    if not runtime_api_mode and _RUNTIME_MAIN_API_MODE:
-        runtime_api_mode = _RUNTIME_MAIN_API_MODE
+    # auto-detect chain.  FABLE5 L4: take ONE snapshot so base_url, api_key
+    # and api_mode come from the same runtime identity — reading the globals
+    # separately can pair one identity's endpoint with another's credential
+    # when a concurrent session's set_runtime_main() interleaves.
+    _, _, _snap_base, _snap_key, _snap_mode = _runtime_main_snapshot()
+    if not runtime_base_url and _snap_base:
+        runtime_base_url = _snap_base
+    if not runtime_api_key and _snap_key:
+        runtime_api_key = _snap_key
+    if not runtime_api_mode and _snap_mode:
+        runtime_api_mode = _snap_mode
 
     # ── Warn once if OPENAI_BASE_URL is set but config.yaml uses a named
     #    provider (not 'custom').  This catches the common "env poisoning"
