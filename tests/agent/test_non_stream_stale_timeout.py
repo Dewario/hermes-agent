@@ -207,3 +207,28 @@ def test_openai_codex_stale_floor_tiers():
 
     assert openai_codex_stale_timeout_floor(55_000) == 900.0
     assert openai_codex_stale_timeout_floor(120_000) == 1200.0
+
+
+def test_anthropic_system_payload_counted():
+    """FABLE5 L9: the Anthropic `system` payload (often large, cache-controlled)
+    must be counted so context-tier stale-timeout scaling sees the real size."""
+    from agent.chat_completion_helpers import estimate_request_context_tokens
+    big_system = "x" * 400_000  # ~100K tokens of system prompt
+    with_system = {"messages": [{"role": "user", "content": "hi"}], "system": big_system}
+    without_system = {"messages": [{"role": "user", "content": "hi"}]}
+    assert estimate_request_context_tokens(with_system) > 90_000
+    # And it genuinely adds on top of the messages-only estimate.
+    assert (
+        estimate_request_context_tokens(with_system)
+        > estimate_request_context_tokens(without_system) + 50_000
+    )
+
+
+def test_anthropic_system_block_list_counted():
+    """`system` as a list of content blocks is also counted."""
+    from agent.chat_completion_helpers import estimate_request_context_tokens
+    payload = {
+        "messages": [{"role": "user", "content": "hi"}],
+        "system": [{"type": "text", "text": "y" * 200_000}],
+    }
+    assert estimate_request_context_tokens(payload) > 40_000

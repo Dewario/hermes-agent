@@ -104,6 +104,12 @@ def estimate_request_context_tokens(api_payload: Any) -> int:
             total_chars = _message_chars(messages)
             if "tools" in api_payload:
                 total_chars += _chars(api_payload.get("tools"))
+            # FABLE5 L9: Anthropic requests carry the (often large, cache-
+            # controlled) system prompt in a separate "system" key — count it so
+            # the stale-timeout context scaling sees the real request size rather
+            # than a fraction, which otherwise kills healthy long-prefill turns.
+            if "system" in api_payload:
+                total_chars += _message_chars(api_payload.get("system"))
             return total_chars // 4
 
         if "input" in api_payload:
