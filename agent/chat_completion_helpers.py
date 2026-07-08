@@ -3051,6 +3051,7 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             # error_classifier is the single source of truth for "what counts
             # as a content filter" (#32421).
             _content_filter_terminated = False
+            _stream_failover_reason = None
             try:
                 from agent.error_classifier import classify_api_error, FailoverReason
                 _cls = classify_api_error(
@@ -3061,8 +3062,27 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 _content_filter_terminated = (
                     _cls.reason == FailoverReason.content_policy_blocked
                 )
+                # FABLE5 M17: a stream that dies AFTER partial delivery due to a
+                # provider-STATE error (429 rate-limit, 402 billing, upstream
+                # throttle) is about to be swallowed into a finish_reason=length
+                # stub and routed through continuation retries.  Those retries
+                # hit the SAME provider that just throttled/refused us, so they
+                # re-hit the wall — up to 4 paid attempts — before the loop ever
+                # consults the fallback chain.  Tag the stub with the classified
+                # reason so the conversation loop escalates to the fallback
+                # provider immediately, exactly as the content-filter path does.
+                # server_error / plain network drops are intentionally NOT tagged:
+                # a fresh continuation request to the same provider usually
+                # succeeds, so continuation stays the cheaper first move there.
+                if _cls.reason in {
+                    FailoverReason.rate_limit,
+                    FailoverReason.billing,
+                    FailoverReason.upstream_rate_limit,
+                }:
+                    _stream_failover_reason = _cls.reason.value
             except Exception:
                 _content_filter_terminated = False
+                _stream_failover_reason = None
             _stub = SimpleNamespace(
                 id=PARTIAL_STREAM_STUB_ID,
                 model=getattr(agent, "model", "unknown"),
@@ -3074,6 +3094,8 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             )
             if _content_filter_terminated:
                 _stub._content_filter_terminated = True
+            if _stream_failover_reason:
+                _stub._stream_failover_reason = _stream_failover_reason
             return _stub
         raise result["error"]
     return result["response"]

@@ -553,3 +553,130 @@ class TestContentFilterStallActivatesFallback:
             "_try_activate_fallback — it should fall through to continuation."
         )
         assert result["completed"] is True
+
+    # ── FABLE5 M17: provider-state mid-stream errors escalate to fallback ──
+
+    @patch("run_agent.AIAgent._create_request_openai_client")
+    @patch("run_agent.AIAgent._close_request_openai_client")
+    def test_streaming_call_tags_rate_limit_stub(
+        self, _mock_close, mock_create, monkeypatch,
+    ):
+        """Layer 2: a stream that dies mid-delivery on a 429 tags the stub
+        with _stream_failover_reason='rate_limit' — continuation retries would
+        re-hit the throttled provider, so the loop must escalate to fallback."""
+
+        def _rate_limit_stall():
+            yield _make_stream_chunk(content="Starting the answer: ")
+            raise RuntimeError(
+                "Error code: 429 - too many requests; please retry after 30s"
+            )
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = (
+            lambda *a, **kw: _rate_limit_stall()
+        )
+        mock_create.return_value = mock_client
+
+        agent = _make_agent()
+        agent._fire_stream_delta = lambda text: None
+        agent._current_streamed_assistant_text = "Starting the answer: "
+
+        monkeypatch.setenv("HERMES_STREAM_RETRIES", "0")
+        response = agent._interruptible_streaming_api_call({})
+
+        assert response.id == PARTIAL_STREAM_STUB_ID
+        assert getattr(response, "_stream_failover_reason", None) == "rate_limit", (
+            "A mid-stream 429 must tag the stub so the loop routes to fallback "
+            "instead of burning continuation retries on the throttled provider."
+        )
+        # A rate-limit is not a content filter.
+        assert getattr(response, "_content_filter_terminated", False) is False
+
+    @patch("run_agent.AIAgent._create_request_openai_client")
+    @patch("run_agent.AIAgent._close_request_openai_client")
+    def test_plain_network_stall_not_failover_tagged(
+        self, _mock_close, mock_create, monkeypatch,
+    ):
+        """A plain network drop is NOT provider-state — it must not be tagged
+        with a failover reason, so the cheaper same-provider continuation still
+        runs instead of needlessly switching providers."""
+
+        def _network_stall():
+            yield _make_stream_chunk(content="Writing: ")
+            raise RuntimeError("connection reset by peer")
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = (
+            lambda *a, **kw: _network_stall()
+        )
+        mock_create.return_value = mock_client
+
+        agent = _make_agent()
+        agent._fire_stream_delta = lambda text: None
+        agent._current_streamed_assistant_text = "Writing: "
+
+        monkeypatch.setenv("HERMES_STREAM_RETRIES", "0")
+        response = agent._interruptible_streaming_api_call({})
+
+        assert response.id == PARTIAL_STREAM_STUB_ID
+        assert getattr(response, "_stream_failover_reason", None) is None, (
+            "A plain network drop usually clears on a same-provider retry — "
+            "tagging it for failover would waste a provider switch."
+        )
+
+    def test_rate_limit_tagged_stub_activates_fallback_first_pass(self, loop_agent):
+        """Layer 3: a stub tagged _stream_failover_reason activates fallback on
+        the FIRST pass (zero continuation retries) and threads the classified
+        reason into activation so the primary-provider cooldown is armed."""
+        from tests.run_agent.test_run_agent import _mock_assistant_msg, _mock_response
+        from agent.error_classifier import FailoverReason
+
+        def _rl_stub():
+            return SimpleNamespace(
+                id=PARTIAL_STREAM_STUB_ID,
+                model="deepseek/deepseek-v4",
+                choices=[SimpleNamespace(
+                    index=0,
+                    message=_mock_assistant_msg(content="Partial answer..."),
+                    finish_reason=FINISH_REASON_LENGTH,
+                )],
+                usage=None,
+                _dropped_tool_names=None,
+                _stream_failover_reason="rate_limit",
+            )
+
+        recovery = _mock_response(
+            content="Done on the fallback provider.", finish_reason="stop",
+        )
+        loop_agent.client.chat.completions.create.side_effect = [_rl_stub(), recovery]
+        loop_agent._fallback_chain = [
+            {"provider": "openrouter", "model": "anthropic/claude-sonnet-4.7"},
+        ]
+        loop_agent._fallback_index = 0
+        fb_calls = {"n": 0, "reason": "unset"}
+
+        def _fake_activate(reason=None):
+            fb_calls["n"] += 1
+            fb_calls["reason"] = reason
+            loop_agent._fallback_index = len(loop_agent._fallback_chain)
+            return True
+
+        with (
+            patch.object(loop_agent, "_persist_session"),
+            patch.object(loop_agent, "_save_trajectory"),
+            patch.object(loop_agent, "_cleanup_task_resources"),
+            patch.object(loop_agent, "_try_activate_fallback",
+                         side_effect=_fake_activate),
+        ):
+            result = loop_agent.run_conversation("write me a long file")
+
+        assert fb_calls["n"] == 1, (
+            "A rate-limit-tagged stub must activate fallback exactly once, on "
+            "the first pass — not after exhausting continuation retries."
+        )
+        assert fb_calls["reason"] == FailoverReason.rate_limit, (
+            "The classified reason must be threaded into fallback activation so "
+            "the primary-provider cooldown is armed correctly."
+        )
+        assert result["final_response"] == "Done on the fallback provider."
+        assert result["completed"] is True
