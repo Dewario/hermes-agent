@@ -1498,6 +1498,17 @@ def try_activate_fallback(agent, reason: "FailoverReason | None" = None) -> bool
     # Use centralized router for client construction.
     # raw_codex=True because the main agent needs direct responses.stream()
     # access for Codex providers.
+    # FABLE5 H11: snapshot of the agent identity taken just before the first
+    # mutation, so a failure partway through activation can be rolled back
+    # before recursing to the next chain entry (see the except handler).
+    _prev_identity = None
+    _IDENTITY_ATTRS = (
+        "model", "provider", "base_url", "api_mode", "api_key",
+        "_config_context_length", "_anthropic_api_key", "_anthropic_base_url",
+        "_anthropic_client", "client", "_client_kwargs", "_use_prompt_caching",
+        "_use_native_cache_layout", "_fallback_activated", "_credential_pool",
+        "_is_anthropic_oauth",
+    )
     try:
         from agent.auxiliary_client import resolve_provider_client
         # Pass base_url and api_key from fallback config so custom
@@ -1576,6 +1587,15 @@ def try_activate_fallback(agent, reason: "FailoverReason | None" = None) -> bool
 
         old_model = agent.model
         old_provider = agent.provider
+
+        # FABLE5 H11: capture the pre-mutation identity so a failure below
+        # (build_anthropic_client, _replace_primary_openai_client, the
+        # network-probing get_model_context_length, ...) can be rolled back
+        # instead of leaving a half-applied fallback for the next chain entry.
+        _sentinel = object()
+        _prev_identity = {
+            a: getattr(agent, a, _sentinel) for a in _IDENTITY_ATTRS
+        }
 
         # Clear the per-config context_length override so the fallback
         # model's actual context window is resolved instead of inheriting
@@ -1764,6 +1784,20 @@ def try_activate_fallback(agent, reason: "FailoverReason | None" = None) -> bool
         _reset_stale_streak(agent)
         return True
     except Exception as e:
+        # FABLE5 H11: roll back any partially-applied identity before recursing,
+        # so the next chain entry (or chain exhaustion) doesn't run with this
+        # failed entry's model/provider/client half-applied (e.g. api_mode set to
+        # "anthropic_messages" while _anthropic_client was never built).
+        if _prev_identity is not None:
+            for _a, _v in _prev_identity.items():
+                try:
+                    if _v is _sentinel:
+                        if hasattr(agent, _a):
+                            delattr(agent, _a)
+                    else:
+                        setattr(agent, _a, _v)
+                except Exception:
+                    pass
         if fb_provider == "nous":
             unavailable.add(fb_key)
         logger.error("Failed to activate fallback %s: %s", fb_model, e)
