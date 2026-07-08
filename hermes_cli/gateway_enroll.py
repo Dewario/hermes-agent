@@ -66,9 +66,12 @@ def _resolve_connector_url(override: Optional[str]) -> Optional[str]:
     raw = (override or os.environ.get("GATEWAY_RELAY_URL", "")).strip()
     if not raw:
         try:
-            from gateway.run import _load_gateway_config  # late import to avoid cycle
+            # M14: read via the side-effect-free helper so this CLI command
+            # does not import gateway.run and get flipped into gateway mode
+            # (HERMES_QUIET / HERMES_EXEC_ASK) just to look up the relay URL.
+            from gateway.config_helpers import load_raw_gateway_config
 
-            cfg = (_load_gateway_config().get("gateway") or {})
+            cfg = (load_raw_gateway_config().get("gateway") or {})
             raw = str(cfg.get("relay_url", "") or "").strip()
         except Exception:
             raw = ""
