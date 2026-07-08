@@ -34,6 +34,17 @@ tmp/
 temp_vision_images/
 hermes-*/*
 examples/
+# Legal discovery pilot ephemeral outputs
+pilot_outputs/
+pilot/COMMAND_LEDGER.jsonl
+.pytest_tmp/
+# Local codegraph / Shadow index cache (not source)
+.codegraph/
+# LGD2-008 goldens under legal discovery skills (exception to examples/ ignore)
+!skills/legal/discovery-intake/examples/
+!skills/legal/discovery-intake/examples/**
+!skills/legal/discovery-review/examples/
+!skills/legal/discovery-review/examples/**
 tests/quick_test_dataset.jsonl
 tests/sample_dataset.jsonl
 run_datagen_kimik2-thinking.sh
