@@ -1386,9 +1386,19 @@ def _clear_planned_restart_notification() -> None:
     _planned_restart_notification_path().unlink(missing_ok=True)
 
 
-# Mark this process as a gateway so cli.py's module-level load_cli_config()
-# knows not to clobber TERMINAL_CWD if lazily imported.
-os.environ["_HERMES_GATEWAY"] = "1"
+# FABLE5 M14 (hard half): process-MODE environment mutations no longer run at
+# import time. Importing this module used to set _HERMES_GATEWAY=1,
+# HERMES_QUIET=1, HERMES_EXEC_ASK=1 and rewrite TERMINAL_CWD — silently
+# flipping any process that merely imported gateway.run (CLI helpers, tools)
+# into gateway mode. Those mutations now live in apply_gateway_process_env(),
+# called at the top of start_gateway() and main(). Verified safe: nothing
+# imported by this module reads the flags at import time (cli.py's
+# module-level _HERMES_GATEWAY guard runs only when cli is imported, which
+# does not happen during `import gateway.run`).
+#
+# Still at import (shared, non-mode-flipping, and module-level constants
+# below depend on them): SSL cert setup, sys.path, ~/.hermes/.env load, and
+# the config.yaml→env bridge.
 
 _ensure_ssl_certs()
 
@@ -1853,35 +1863,48 @@ try:
 except Exception as _bootstrap_exc:
     print(f"  Warning: deprecation check failed: {_bootstrap_exc}", file=sys.stderr)
 
-# Gateway runs in quiet mode - suppress debug output and use cwd directly (no temp dirs)
-os.environ["HERMES_QUIET"] = "1"
+def apply_gateway_process_env() -> None:
+    """Apply gateway process-MODE environment (FABLE5 M14, hard half).
 
-# Enable interactive exec approval for dangerous commands on messaging platforms
-os.environ["HERMES_EXEC_ASK"] = "1"
+    Called at the top of ``start_gateway()`` and ``main()`` — NOT at import
+    time — so merely importing this module can no longer flip a CLI/helper
+    process into gateway mode. Idempotent.
 
-# Set terminal working directory for messaging platforms.
-# config.yaml terminal.cwd is the canonical source (bridged to TERMINAL_CWD
-# by the config bridge above).  Placeholder values are resolved per-backend —
-# see gateway/cwd_placeholder.py for the three-case contract (local vs docker
-# mount-off vs docker mount-on).  MESSAGING_CWD is a backward-compat fallback.
-from gateway.cwd_placeholder import CWD_PLACEHOLDERS, resolve_placeholder_terminal_cwd
+    Sets:
+    - ``_HERMES_GATEWAY=1`` — marks the process as a gateway so cli.py's
+      module-level load_cli_config() knows not to clobber TERMINAL_CWD if
+      lazily imported later.
+    - ``HERMES_QUIET=1`` — suppress debug output, use cwd directly.
+    - ``HERMES_EXEC_ASK=1`` — interactive exec approval for dangerous
+      commands on messaging platforms (security control: must be active
+      before any platform starts handling messages, which start_gateway
+      guarantees).
+    - ``TERMINAL_CWD`` — resolved per-backend from config/placeholders; see
+      gateway/cwd_placeholder.py for the three-case contract. MESSAGING_CWD
+      is a backward-compat fallback.
+    """
+    os.environ["_HERMES_GATEWAY"] = "1"
+    os.environ["HERMES_QUIET"] = "1"
+    os.environ["HERMES_EXEC_ASK"] = "1"
 
-_configured_cwd = os.environ.get("TERMINAL_CWD", "")
-if not _configured_cwd or _configured_cwd in CWD_PLACEHOLDERS:
-    _resolved_cwd = resolve_placeholder_terminal_cwd(
-        configured_cwd=_configured_cwd,
-        terminal_backend=os.environ.get("TERMINAL_ENV", ""),
-        messaging_cwd=os.getenv("MESSAGING_CWD"),
-        docker_mount_cwd_to_workspace=os.getenv(
-            "TERMINAL_DOCKER_MOUNT_CWD_TO_WORKSPACE", "false"
-        ).lower()
-        in {"true", "1", "yes"},
-        home_fallback=str(Path.home()),
-    )
-    if _resolved_cwd is None:
-        os.environ.pop("TERMINAL_CWD", None)
-    else:
-        os.environ["TERMINAL_CWD"] = _resolved_cwd
+    from gateway.cwd_placeholder import CWD_PLACEHOLDERS, resolve_placeholder_terminal_cwd
+
+    _configured_cwd = os.environ.get("TERMINAL_CWD", "")
+    if not _configured_cwd or _configured_cwd in CWD_PLACEHOLDERS:
+        _resolved_cwd = resolve_placeholder_terminal_cwd(
+            configured_cwd=_configured_cwd,
+            terminal_backend=os.environ.get("TERMINAL_ENV", ""),
+            messaging_cwd=os.getenv("MESSAGING_CWD"),
+            docker_mount_cwd_to_workspace=os.getenv(
+                "TERMINAL_DOCKER_MOUNT_CWD_TO_WORKSPACE", "false"
+            ).lower()
+            in {"true", "1", "yes"},
+            home_fallback=str(Path.home()),
+        )
+        if _resolved_cwd is None:
+            os.environ.pop("TERMINAL_CWD", None)
+        else:
+            os.environ["TERMINAL_CWD"] = _resolved_cwd
 
 from gateway.config import (
     ChannelOverride,
@@ -2685,6 +2708,84 @@ def _drain_gateway_watch_events(completion_queue) -> "list[dict]":
 # adapter for plugin platforms.  Set in GatewayRunner.__init__().
 import weakref as _weakref
 _gateway_runner_ref: _weakref.ref = lambda: None
+
+
+# ── Public surface for external consumers (FABLE5 L8) ──────────────────────
+#
+# Everything below is the STABLE API for code outside this module
+# (slash_commands, api_server, send_message_tool, tui_gateway, platform
+# plugins). External code must import these names, never the underscore
+# privates — renaming a private then passes CI (the reach-in contract test
+# enforces this) instead of ImportError-ing in production on first use.
+#
+# All function entries are late-binding wrappers (they resolve the private
+# at CALL time), so the extensive existing test practice of monkeypatching
+# the privates (e.g. ``patch("gateway.run._resolve_gateway_model", ...)``)
+# continues to affect consumers unchanged.
+
+#: Sentinel stored in ``_running_agents`` while an agent is still starting.
+AGENT_PENDING_SENTINEL = _AGENT_PENDING_SENTINEL
+
+#: Interrupt reason used by /stop.
+INTERRUPT_REASON_STOP = _INTERRUPT_REASON_STOP
+
+
+def gateway_home():
+    """Hermes home directory the gateway is using (late-binds ``_hermes_home``)."""
+    return _hermes_home
+
+
+def get_gateway_config() -> dict:
+    """Raw gateway config dict (managed-overlay + normalization applied)."""
+    return _load_gateway_config()
+
+
+def resolve_gateway_model(config: "dict | None" = None) -> str:
+    return _resolve_gateway_model(config)
+
+
+def platform_config_key(platform: "Platform") -> str:
+    return _platform_config_key(platform)
+
+
+def get_gateway_runner():
+    """The live GatewayRunner instance, or None (derefs the weak ref)."""
+    try:
+        return _gateway_runner_ref()
+    except Exception:
+        return None
+
+
+def telegramize_command_mentions(text: str, platform: Any) -> str:
+    return _telegramize_command_mentions(text, platform)
+
+
+def redact_approval_command(cmd: "str | None") -> str:
+    return _redact_approval_command(cmd)
+
+
+def resolve_runtime_agent_kwargs() -> dict:
+    return _resolve_runtime_agent_kwargs()
+
+
+def resolve_runtime_agent_kwargs_for_provider(provider: str) -> dict:
+    return _resolve_runtime_agent_kwargs_for_provider(provider)
+
+
+def resolve_hermes_bin():
+    return _resolve_hermes_bin()
+
+
+def current_max_iterations() -> int:
+    return _current_max_iterations()
+
+
+def home_target_env_var(platform_name: str) -> str:
+    return _home_target_env_var(platform_name)
+
+
+def home_thread_env_var(platform_name: str) -> str:
+    return _home_thread_env_var(platform_name)
 
 
 def _normalize_empty_agent_response(
@@ -21178,6 +21279,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
                  Useful for systemd services to avoid restart-loop deadlocks
                  when the previous process hasn't fully exited yet.
     """
+    # M14: gateway process-mode env (_HERMES_GATEWAY/QUIET/EXEC_ASK/
+    # TERMINAL_CWD) applies HERE, not at import — see apply_gateway_process_env.
+    apply_gateway_process_env()
+
     # Snapshot the checkout revision now, while sys.modules still matches disk,
     # so a later `git pull` under this long-lived process can be detected (and
     # risky work like model switching refused) instead of crashing on a stale
@@ -21732,6 +21837,10 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
 
 def main():
     """CLI entry point for the gateway."""
+    # M14: apply gateway process-mode env before anything else in this
+    # process reads the flags (start_gateway re-applies; idempotent).
+    apply_gateway_process_env()
+
     # Force UTF-8 stdio on Windows — gateway logs and startup banner would
     # otherwise UnicodeEncodeError on cp1252 consoles.  No-op on POSIX.
     try:

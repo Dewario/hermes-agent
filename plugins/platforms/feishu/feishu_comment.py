@@ -974,13 +974,13 @@ def build_whole_comment_prompt(
 
 def _resolve_model_and_runtime() -> Tuple[str, dict]:
     """Resolve model and provider credentials, same as gateway message handling."""
-    from gateway.run import _load_gateway_config, _resolve_gateway_model
+    from gateway.run import get_gateway_config, resolve_gateway_model
 
-    user_config = _load_gateway_config()
-    model = _resolve_gateway_model(user_config)
+    user_config = get_gateway_config()
+    model = resolve_gateway_model(user_config)
 
-    from gateway.run import _resolve_runtime_agent_kwargs
-    runtime_kwargs = _resolve_runtime_agent_kwargs()
+    from gateway.run import resolve_runtime_agent_kwargs
+    runtime_kwargs = resolve_runtime_agent_kwargs()
 
     # Fall back to provider's default model if none configured
     if not model and runtime_kwargs.get("provider"):
