@@ -11,7 +11,29 @@ import pytest
 from agent.file_safety import (
     _BLOCKED_PROJECT_ENV_BASENAMES,
     get_read_block_error,
+    is_write_denied,
 )
+
+
+# ---------------------------------------------------------------------------
+# FABLE5 M1: shell startup / login files must be write-denied on the file-tool
+# path, matching the terminal approval gate (tools/approval.py _SHELL_RC_FILES).
+# ---------------------------------------------------------------------------
+
+
+class TestShellRcWriteDenied:
+    @pytest.mark.parametrize("name", [
+        ".bashrc", ".bash_profile", ".bash_login", ".profile",
+        ".zshrc", ".zprofile", ".zshenv", ".zlogin", ".kshrc", ".cshrc",
+    ])
+    def test_shell_rc_write_denied(self, name):
+        assert is_write_denied(os.path.join("~", name)) is True
+        assert is_write_denied(os.path.join(os.path.expanduser("~"), name)) is True
+
+    def test_normal_home_file_not_denied(self):
+        # A regular file in home is still writable -- no over-blocking.
+        assert is_write_denied(os.path.join("~", "notes.txt")) is False
+        assert is_write_denied(os.path.join("~", "project", "main.py")) is False
 
 
 # ---------------------------------------------------------------------------

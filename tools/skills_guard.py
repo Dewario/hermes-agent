@@ -621,6 +621,38 @@ def scan_file(file_path: Path, rel_path: str = "") -> List[Finding]:
                 ))
                 break  # one finding per line for invisible chars
 
+    # FABLE5 H2: the per-line scan above misses a payload split across a
+    # newline (e.g. a `curl ...\n...$API_KEY` exfil, or an injection phrase
+    # wrapped over two list items). Run the purpose-built whole-buffer scanner
+    # over the full text as well -- its bounded `(?:\w+\s+){0,8}` filler (where
+    # \s crosses newlines) catches multi-line splits without the false
+    # positives a naive line-join would cause. scope="all" is the narrow
+    # injection+exfil set, chosen to keep benign skills clean.
+    try:
+        from tools.threat_patterns import scan_for_threats
+        seen_buf = set()
+        for pid in scan_for_threats(content, scope="all"):
+            if pid.startswith("invisible_unicode"):
+                continue  # already covered per-line above
+            if pid in seen_buf:
+                continue
+            seen_buf.add(pid)
+            findings.append(Finding(
+                pattern_id=f"buf:{pid}",
+                severity="high",
+                category="injection",
+                file=rel_path,
+                line=0,
+                match=pid,
+                description=(
+                    f"whole-buffer threat pattern '{pid}' "
+                    "(multi-line / obfuscation-aware scan)"
+                ),
+            ))
+    except Exception:
+        # Never let the supplementary scan break the primary per-line result.
+        pass
+
     return findings
 
 
@@ -663,7 +695,9 @@ def scan_skill(skill_path: Path, source: str = "community") -> ScanResult:
         for f in skill_path.rglob("*"):
             if f.is_file():
                 rel = str(f.relative_to(skill_path))
-                if ignore(rel):
+                # FABLE5 H1: honor ignore only for docs/data; code/executables
+                # and symlinks are always scanned (they get installed anyway).
+                if ignore(rel) and not _is_never_ignorable_path(f):
                     continue
                 all_findings.extend(scan_file(f, rel))
     elif skill_path.is_file():
@@ -822,7 +856,9 @@ def _check_structure(skill_dir: Path, ignore=None) -> List[Finding]:
             continue
 
         rel = str(f.relative_to(skill_dir))
-        if ignore(rel):
+        # FABLE5 H1: a code/executable file or symlink cannot be hidden from the
+        # structural check via `.skillignore`; only docs/data may be excluded.
+        if ignore(rel) and not _is_never_ignorable_path(f):
             continue
         file_count += 1
 
@@ -961,6 +997,36 @@ _SKILL_IGNORE_FILENAMES = (".skillignore", ".clawhubignore")
 # which can never be un-scanned via the ignore file.
 _ALWAYS_IGNORED_NAMES = set(_SKILL_IGNORE_FILENAMES)
 _NEVER_IGNORABLE = {"SKILL.md"}
+
+# FABLE5 H1: `install_from_quarantine` moves the ENTIRE scanned directory into
+# the skills tree, so any file a skill-shipped `.skillignore` excludes from
+# scanning is still installed. A `.skillignore` may legitimately exclude dev/
+# doc artifacts (SKILL-original.md, docs/, release-notes.md) -- but it must not
+# be usable to hide an executable/code payload or a symlink from the scanner.
+# Files with these extensions (and all symlinks) are ALWAYS scanned regardless
+# of ignore; docs/data (.md/.txt/.json/...) remain ignorable.
+_NEVER_IGNORE_EXTENSIONS = frozenset({
+    ".sh", ".bash", ".zsh", ".fish", ".ksh",
+    ".py", ".pyw", ".pyc", ".pyo",
+    ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
+    ".rb", ".pl", ".pm", ".php", ".lua", ".tcl",
+    ".ps1", ".psm1", ".psd1", ".bat", ".cmd", ".vbs", ".vbe", ".wsf", ".wsh",
+    ".exe", ".dll", ".so", ".dylib", ".bin", ".com", ".scr", ".msi", ".cpl",
+    ".jar", ".class", ".wasm", ".appimage", ".deb", ".rpm", ".apk",
+    ".rs", ".go", ".c", ".cc", ".cpp", ".h", ".hpp", ".java", ".swift",
+})
+
+
+def _is_never_ignorable_path(f: Path) -> bool:
+    """True when a path must be scanned even if `.skillignore` matches it: any
+    symlink (escape vector) or any executable/code file (payload vector). See
+    _NEVER_IGNORE_EXTENSIONS (FABLE5 H1)."""
+    try:
+        if f.is_symlink():
+            return True
+    except OSError:
+        return True
+    return f.suffix.lower() in _NEVER_IGNORE_EXTENSIONS
 
 
 def _load_skill_ignore(skill_dir: Path):
