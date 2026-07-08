@@ -51,6 +51,26 @@ def build_write_denied_paths(home: str) -> set[str]:
             os.path.join(home, ".npmrc"),
             os.path.join(home, ".pypirc"),
             os.path.join(home, ".git-credentials"),
+            # Shell startup / login files (FABLE5 M1). Writing one plants a
+            # command that runs at the user's next shell or login -- a classic
+            # persistence vector. The terminal approval gate already treats
+            # these as sensitive writes (tools/approval.py _SHELL_RC_FILES); the
+            # silent file-tool write path must not be the unpaired door. A
+            # genuine "edit my .bashrc" request can still go through the
+            # terminal tool, which prompts for approval.
+            os.path.join(home, ".bashrc"),
+            os.path.join(home, ".bash_profile"),
+            os.path.join(home, ".bash_login"),
+            os.path.join(home, ".bash_logout"),
+            os.path.join(home, ".profile"),
+            os.path.join(home, ".zshrc"),
+            os.path.join(home, ".zprofile"),
+            os.path.join(home, ".zshenv"),
+            os.path.join(home, ".zlogin"),
+            os.path.join(home, ".zlogout"),
+            os.path.join(home, ".kshrc"),
+            os.path.join(home, ".cshrc"),
+            os.path.join(home, ".tcshrc"),
             "/etc/sudoers",
             "/etc/passwd",
             "/etc/shadow",
