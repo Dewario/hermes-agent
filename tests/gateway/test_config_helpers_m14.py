@@ -59,6 +59,36 @@ def test_importing_helper_does_not_enter_gateway_mode():
     assert "OK" in result.stdout
 
 
+def test_importing_gateway_run_does_not_flip_process_mode():
+    """M14 hard half: `import gateway.run` must not set the gateway
+    process-mode env (_HERMES_GATEWAY / HERMES_QUIET / HERMES_EXEC_ASK) —
+    those now apply in apply_gateway_process_env(), called from
+    start_gateway()/main(). Clean subprocess so prior imports can't fool it."""
+    code = textwrap.dedent(
+        """
+        import os
+        for k in ("_HERMES_GATEWAY", "HERMES_QUIET", "HERMES_EXEC_ASK"):
+            os.environ.pop(k, None)
+        import gateway.run as gr
+        for k in ("_HERMES_GATEWAY", "HERMES_QUIET", "HERMES_EXEC_ASK"):
+            assert os.environ.get(k) != "1", f"import set {k}"
+        # The startup path must still arm all three (incl. the EXEC_ASK
+        # security control) before platforms start.
+        gr.apply_gateway_process_env()
+        for k in ("_HERMES_GATEWAY", "HERMES_QUIET", "HERMES_EXEC_ASK"):
+            assert os.environ.get(k) == "1", f"apply did not set {k}"
+        print("OK")
+        """
+    )
+    repo = Path(__file__).resolve().parents[2]
+    result = subprocess.run(
+        [sys.executable, "-c", code], cwd=str(repo),
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, f"stdout={result.stdout}\nstderr={result.stderr}"
+    assert "OK" in result.stdout
+
+
 def test_run_delegates_and_preserves_home_monkeypatch(monkeypatch, tmp_path):
     """gateway.run._load_gateway_config still works (delegates to the helper)
     and honors the gateway.run._hermes_home monkeypatch contract that existing

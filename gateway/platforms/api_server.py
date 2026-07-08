@@ -1222,8 +1222,8 @@ class APIServerAdapter(BasePlatformAdapter):
         if not session_key:
             return None
         try:
-            from gateway.run import _gateway_runner_ref
-            runner = _gateway_runner_ref()
+            from gateway.run import get_gateway_runner
+            runner = get_gateway_runner()
             if runner is None:
                 return None
             override = runner._session_model_overrides.get(session_key)
@@ -1264,17 +1264,17 @@ class APIServerAdapter(BasePlatformAdapter):
         """
         from run_agent import AIAgent
         from gateway.run import (
-            _current_max_iterations,
-            _resolve_runtime_agent_kwargs,
-            _resolve_gateway_model,
-            _load_gateway_config,
+            current_max_iterations,
+            resolve_runtime_agent_kwargs,
+            resolve_gateway_model,
+            get_gateway_config,
             GatewayRunner,
         )
         from hermes_cli.tools_config import _get_platform_tools
 
-        runtime_kwargs = _resolve_runtime_agent_kwargs()
+        runtime_kwargs = resolve_runtime_agent_kwargs()
         reasoning_config = GatewayRunner._load_reasoning_config()
-        model = _resolve_gateway_model()
+        model = resolve_gateway_model()
 
         # When the primary provider's auth fails (expired token / 429 quota
         # cap), _resolve_runtime_agent_kwargs() falls through to the fallback
@@ -1303,8 +1303,8 @@ class APIServerAdapter(BasePlatformAdapter):
                 # without an explicit api_key/base_url still gets the right
                 # provider auth instead of the default provider's key.
                 try:
-                    from gateway.run import _resolve_runtime_agent_kwargs_for_provider
-                    provider_kwargs = _resolve_runtime_agent_kwargs_for_provider(
+                    from gateway.run import resolve_runtime_agent_kwargs_for_provider
+                    provider_kwargs = resolve_runtime_agent_kwargs_for_provider(
                         route["provider"]
                     )
                     provider_kwargs.pop("model", None)
@@ -1333,10 +1333,10 @@ class APIServerAdapter(BasePlatformAdapter):
                 gateway_session_key or session_id,
             )
 
-        user_config = _load_gateway_config()
+        user_config = get_gateway_config()
         enabled_toolsets = sorted(_get_platform_tools(user_config, "api_server"))
 
-        max_iterations = _current_max_iterations()
+        max_iterations = current_max_iterations()
 
         # Load fallback provider chain so the API server platform has the
         # same fallback behaviour as Telegram/Discord/Slack (fixes #4954).
@@ -4305,9 +4305,9 @@ class APIServerAdapter(BasePlatformAdapter):
                     # transport: API/desktop clients would otherwise receive the
                     # raw command Tirith flagged. Reuse the gateway seam.
                     if "command" in event:
-                        from gateway.run import _redact_approval_command
+                        from gateway.run import redact_approval_command
 
-                        event["command"] = _redact_approval_command(event.get("command"))
+                        event["command"] = redact_approval_command(event.get("command"))
                     event.update({
                         "event": "approval.request",
                         "run_id": run_id,
