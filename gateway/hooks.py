@@ -190,10 +190,19 @@ class HookRegistry:
 
         for fn in self._resolve_handlers(event_type):
             try:
-                result = fn(event_type, context)
-                # Support both sync and async handlers
-                if asyncio.iscoroutine(result):
-                    await result
+                # FABLE5 M20: user-authored SYNC handlers must not run on the
+                # event loop — a hook doing blocking IO (requests, file writes,
+                # sleep) would freeze the whole gateway for every session. Run
+                # them on a worker thread; async handlers are awaited in-loop
+                # as before.
+                if asyncio.iscoroutinefunction(fn):
+                    await fn(event_type, context)
+                else:
+                    result = await asyncio.to_thread(fn, event_type, context)
+                    # Belt-and-suspenders: a sync callable may still return a
+                    # coroutine (wrapped async fns) — await it here.
+                    if asyncio.iscoroutine(result):
+                        await result
             except Exception as e:
                 print(f"[hooks] Error in handler for '{event_type}': {e}", flush=True)
 
@@ -217,9 +226,14 @@ class HookRegistry:
         results: List[Any] = []
         for fn in self._resolve_handlers(event_type):
             try:
-                result = fn(event_type, context)
-                if asyncio.iscoroutine(result):
-                    result = await result
+                # FABLE5 M20: same off-loop treatment for sync handlers as
+                # emit() — see comment there.
+                if asyncio.iscoroutinefunction(fn):
+                    result = await fn(event_type, context)
+                else:
+                    result = await asyncio.to_thread(fn, event_type, context)
+                    if asyncio.iscoroutine(result):
+                        result = await result
                 if result is not None:
                     results.append(result)
             except Exception as e:
