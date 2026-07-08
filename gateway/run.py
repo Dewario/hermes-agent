@@ -9886,7 +9886,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                             message_id=event.message_id,
                             channel_prompt=event.channel_prompt,
                         )
-                        adapter._pending_messages[_quick_key] = queued_event
+                        # M15: merge instead of overwrite — a message that
+                        # arrived (and merged) moments earlier while the agent
+                        # was still starting must not be silently dropped by a
+                        # following /steer.
+                        merge_pending_message_event(
+                            adapter._pending_messages,
+                            _quick_key,
+                            queued_event,
+                            merge_text=True,
+                        )
                     return "Agent still starting — /steer queued for the next turn."
                 if running_agent and hasattr(running_agent, "steer"):
                     try:
@@ -9908,7 +9917,13 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         message_id=event.message_id,
                         channel_prompt=event.channel_prompt,
                     )
-                    adapter._pending_messages[_quick_key] = queued_event
+                    # M15: merge instead of overwrite (see above).
+                    merge_pending_message_event(
+                        adapter._pending_messages,
+                        _quick_key,
+                        queued_event,
+                        merge_text=True,
+                    )
                 return "No active agent — /steer queued for the next turn."
 
             # /model must not be used while the agent is running.
