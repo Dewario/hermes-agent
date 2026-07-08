@@ -277,7 +277,10 @@ def parse_bates_range(value: str) -> Optional[Tuple[str, int, int]]:
 
 
 def bates_from_filename(name: str) -> Optional[Tuple[str, int]]:
-    m = _BATES_TOKEN_RE.search(name.upper())
+    # Underscores are word characters, so "scan_TVRR-PROD-000010.pdf" would
+    # otherwise never get a word boundary before TVRR and mis-parse as
+    # prefix "PROD". Treat underscores as separators for filename parsing.
+    m = _BATES_TOKEN_RE.search(name.upper().replace("_", " "))
     if m:
         return m.group(1), int(m.group(2))
     return None
@@ -809,6 +812,10 @@ def _candidate_names(text: str, subspans: bool = False) -> Iterable[str]:
     fingerprint check (recall matters); WARN reporting uses maximal spans only
     (readability matters).
     """
+    # NFKC first: fullwidth/compatibility homoglyphs (e.g. 'Ｍarcus') must
+    # fold to ASCII BEFORE the [A-Z]-anchored candidate regex runs, or a
+    # homoglyph-spelled name evades extraction entirely (red-team finding).
+    text = unicodedata.normalize("NFKC", text)
     # Strip code fences and markdown emphasis to reduce false positives.
     text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
     text = text.replace("**", " ")
