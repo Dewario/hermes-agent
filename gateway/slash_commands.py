@@ -7,10 +7,11 @@ lifting them into a mixin that ``GatewayRunner`` inherits keeps every
 ``self._handle_*_command`` dispatch + test reference working via the MRO, while
 removing the bulk from run.py.
 
-Module-level run.py helpers a handler needs (``_hermes_home``,
-``_load_gateway_config``, ``_resolve_gateway_model``, etc.) are imported lazily
-inside the handler body — a deferred ``from gateway.run import ...`` resolves at
-call time (run.py fully loaded by then), avoiding an import cycle.
+Module-level run.py helpers a handler needs (``gateway_home``,
+``get_gateway_config``, ``resolve_gateway_model``, etc. — the PUBLIC surface;
+see the L8 block in run.py) are imported lazily inside the handler body — a
+deferred ``from gateway.run import ...`` resolves at call time (run.py fully
+loaded by then), avoiding an import cycle.
 """
 
 from __future__ import annotations
@@ -527,7 +528,7 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_status_command(self, event: MessageEvent) -> str:
         """Handle /status command."""
-        from gateway.run import _AGENT_PENDING_SENTINEL, _load_gateway_config, _resolve_gateway_model
+        from gateway.run import AGENT_PENDING_SENTINEL, get_gateway_config, resolve_gateway_model
 
         source = event.source
         session_entry = await self.async_session_store.get_or_create_session(source)
@@ -539,7 +540,7 @@ class GatewaySlashCommandsMixin:
         # model/context display, but it still occupies the session slot.
         session_key = session_entry.session_key
         agent = self._running_agents.get(session_key)
-        is_running = agent is not None and agent is not _AGENT_PENDING_SENTINEL
+        is_running = agent is not None and agent is not AGENT_PENDING_SENTINEL
 
         # Count pending /queue follow-ups (slot + overflow).
         adapter = self.adapters.get(source.platform) if source else None
@@ -605,7 +606,7 @@ class GatewaySlashCommandsMixin:
         base_url = ""
         context_used = 0
         context_total = 0
-        if status_agent is not None and status_agent is not _AGENT_PENDING_SENTINEL:
+        if status_agent is not None and status_agent is not AGENT_PENDING_SENTINEL:
             model_name = _clean_str(getattr(status_agent, "model", ""))
             provider_name = _clean_str(getattr(status_agent, "provider", ""))
             base_url = _clean_str(getattr(status_agent, "base_url", ""))
@@ -622,11 +623,11 @@ class GatewaySlashCommandsMixin:
         user_config: dict[str, Any] = {}
         if not model_name or not provider_name or not context_total:
             try:
-                user_config = _load_gateway_config()
+                user_config = get_gateway_config()
             except Exception:
                 user_config = {}
         if not model_name:
-            model_name = _resolve_gateway_model(user_config)
+            model_name = resolve_gateway_model(user_config)
         if not provider_name:
             model_cfg = user_config.get("model", {}) if isinstance(user_config, dict) else {}
             if isinstance(model_cfg, dict):
@@ -994,7 +995,7 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_agents_command(self, event: MessageEvent) -> str:
         """Handle /agents command - list active agents and running tasks."""
-        from gateway.run import _AGENT_PENDING_SENTINEL
+        from gateway.run import AGENT_PENDING_SENTINEL
         from tools.process_registry import format_uptime_short, process_registry
 
         now = time.time()
@@ -1007,7 +1008,7 @@ class GatewaySlashCommandsMixin:
         for session_key, agent in running_agents.items():
             started = float(running_started.get(session_key, now))
             elapsed = max(0, int(now - started))
-            is_pending = agent is _AGENT_PENDING_SENTINEL
+            is_pending = agent is AGENT_PENDING_SENTINEL
             agent_rows.append(
                 {
                     "session_key": session_key,
@@ -1094,18 +1095,18 @@ class GatewaySlashCommandsMixin:
 
         The session is preserved so the user can continue the conversation.
         """
-        from gateway.run import _AGENT_PENDING_SENTINEL, _INTERRUPT_REASON_STOP
+        from gateway.run import AGENT_PENDING_SENTINEL, INTERRUPT_REASON_STOP
         source = event.source
         session_entry = await self.async_session_store.get_or_create_session(source)
         session_key = session_entry.session_key
 
         agent = self._running_agents.get(session_key)
-        if agent is _AGENT_PENDING_SENTINEL:
+        if agent is AGENT_PENDING_SENTINEL:
             # Force-clean the sentinel so the session is unlocked.
             await self._interrupt_and_clear_session(
                 session_key,
                 source,
-                interrupt_reason=_INTERRUPT_REASON_STOP,
+                interrupt_reason=INTERRUPT_REASON_STOP,
                 invalidation_reason="stop_command_pending",
             )
             logger.info("STOP (pending) for session %s — sentinel cleared", session_key)
@@ -1116,7 +1117,7 @@ class GatewaySlashCommandsMixin:
             await self._interrupt_and_clear_session(
                 session_key,
                 source,
-                interrupt_reason=_INTERRUPT_REASON_STOP,
+                interrupt_reason=INTERRUPT_REASON_STOP,
                 invalidation_reason="stop_command_handler",
             )
             return EphemeralReply(t("gateway.stop.stopped"))
@@ -1133,7 +1134,7 @@ class GatewaySlashCommandsMixin:
                 await self._interrupt_and_clear_session(
                     sibling_key,
                     source,
-                    interrupt_reason=_INTERRUPT_REASON_STOP,
+                    interrupt_reason=INTERRUPT_REASON_STOP,
                     invalidation_reason="stop_command_thread_sibling",
                 )
             logger.info(
@@ -1261,7 +1262,7 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_restart_command(self, event: MessageEvent) -> Union[str, EphemeralReply]:
         """Handle /restart command - drain active work, then restart the gateway."""
-        from gateway.run import _hermes_home
+        from gateway.run import gateway_home
         # Defensive idempotency check: if the previous gateway process
         # recorded this same /restart (same platform + update_id) and the new
         # process is seeing it *again*, this is a re-delivery caused by PTB's
@@ -1311,7 +1312,7 @@ class GatewaySlashCommandsMixin:
                 except Exception:
                     self._restart_command_source = event.source
             atomic_json_write(
-                _hermes_home / ".restart_notify.json",
+                gateway_home() / ".restart_notify.json",
                 notify_data,
                 indent=None,
             )
@@ -1331,7 +1332,7 @@ class GatewaySlashCommandsMixin:
             if event.platform_update_id is not None:
                 dedup_data["update_id"] = event.platform_update_id
             atomic_json_write(
-                _hermes_home / ".restart_last_processed.json",
+                gateway_home() / ".restart_last_processed.json",
                 dedup_data,
                 indent=None,
             )
@@ -1368,7 +1369,7 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_help_command(self, event: MessageEvent) -> str:
         """Handle /help command - list available commands."""
-        from gateway.run import _telegramize_command_mentions
+        from gateway.run import telegramize_command_mentions
         from hermes_cli.commands import gateway_help_lines
         lines = [
             t("gateway.help.header"),
@@ -1387,13 +1388,13 @@ class GatewaySlashCommandsMixin:
                     lines.append(t("gateway.help.more_use_commands", count=len(sorted_cmds) - 10))
         except Exception:
             pass
-        return _telegramize_command_mentions(
+        return telegramize_command_mentions(
             "\n".join(lines),
             getattr(getattr(event, "source", None), "platform", None),
         )
 
     async def _handle_commands_command(self, event: MessageEvent) -> str:
-        from gateway.run import _telegramize_command_mentions
+        from gateway.run import telegramize_command_mentions
         from hermes_cli.commands import gateway_help_lines
 
         raw_args = event.get_command_args().strip()
@@ -1443,7 +1444,7 @@ class GatewaySlashCommandsMixin:
             lines.extend(["", " | ".join(nav_parts)])
         if page != requested_page:
             lines.append(t("gateway.commands.out_of_range", requested=requested_page, page=page))
-        return _telegramize_command_mentions(
+        return telegramize_command_mentions(
             "\n".join(lines),
             getattr(getattr(event, "source", None), "platform", None),
         )
@@ -1459,7 +1460,7 @@ class GatewaySlashCommandsMixin:
           /model <name> --provider <provider> — switch provider + model
           /model --provider <provider>        — switch to provider, auto-detect model
         """
-        from gateway.run import _hermes_home, _load_gateway_config
+        from gateway.run import gateway_home, get_gateway_config
         import yaml
         from hermes_cli.model_switch import (
             switch_model as _switch_model, parse_model_flags,
@@ -1502,9 +1503,9 @@ class GatewaySlashCommandsMixin:
         current_api_key = ""
         user_provs = None
         custom_provs = None
-        config_path = (_command_profile_home or _hermes_home) / "config.yaml"
+        config_path = (_command_profile_home or gateway_home()) / "config.yaml"
         try:
-            cfg = _load_gateway_config()
+            cfg = get_gateway_config()
             if cfg:
                 model_cfg = cfg.get("model", {})
                 if isinstance(model_cfg, dict):
@@ -1609,7 +1610,7 @@ class GatewaySlashCommandsMixin:
                                 session_key=_session_key,
                                 source=event.source,
                                 custom_providers=custom_provs,
-                                load_gateway_config=_load_gateway_config,
+                                load_gateway_config=get_gateway_config,
                             )
                         except Exception as exc:
                             logger.debug("preflight-compression switch warning failed: %s", exc)
@@ -1740,7 +1741,7 @@ class GatewaySlashCommandsMixin:
                         from hermes_cli.model_switch import resolve_display_context_length
                         _sw_config_ctx = None
                         try:
-                            _sw_cfg = _load_gateway_config()
+                            _sw_cfg = get_gateway_config()
                             _sw_model_cfg = _sw_cfg.get("model", {})
                             if isinstance(_sw_model_cfg, dict):
                                 _sw_raw = _sw_model_cfg.get("context_length")
@@ -1867,7 +1868,7 @@ class GatewaySlashCommandsMixin:
                 session_key=session_key,
                 source=source,
                 custom_providers=custom_provs,
-                load_gateway_config=_load_gateway_config,
+                load_gateway_config=get_gateway_config,
             )
         except Exception as exc:
             logger.debug("preflight-compression switch warning failed: %s", exc)
@@ -2008,7 +2009,7 @@ class GatewaySlashCommandsMixin:
             from hermes_cli.model_switch import resolve_display_context_length
             _sw2_config_ctx = None
             try:
-                _sw2_cfg = _load_gateway_config()
+                _sw2_cfg = get_gateway_config()
                 _sw2_model_cfg = _sw2_cfg.get("model", {})
                 if isinstance(_sw2_model_cfg, dict):
                     _sw2_raw = _sw2_model_cfg.get("context_length")
@@ -2144,14 +2145,14 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_personality_command(self, event: MessageEvent) -> str:
         """Handle /personality command - list or set a personality."""
-        from gateway.run import _hermes_home, _load_gateway_config
+        from gateway.run import gateway_home, get_gateway_config
         from hermes_constants import display_hermes_home
 
         args = event.get_command_args().strip().lower()
-        config_path = _hermes_home / 'config.yaml'
+        config_path = gateway_home() / 'config.yaml'
 
         try:
-            config = _load_gateway_config()
+            config = get_gateway_config()
             personalities = cfg_get(config, "agent", "personalities", default={})
         except Exception:
             config = {}
@@ -2490,14 +2491,14 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_set_home_command(self, event: MessageEvent) -> str:
         """Handle /sethome command -- set the current chat as the platform's home channel."""
-        from gateway.run import _home_target_env_var, _home_thread_env_var
+        from gateway.run import home_target_env_var, home_thread_env_var
         source = event.source
         platform_name = source.platform.value if source.platform else "unknown"
         chat_id = source.chat_id
         chat_name = source.chat_name or chat_id
 
-        env_key = _home_target_env_var(platform_name)
-        thread_env_key = _home_thread_env_var(platform_name)
+        env_key = home_target_env_var(platform_name)
+        thread_env_key = home_thread_env_var(platform_name)
         thread_id = source.thread_id
 
         # Save to .env so it persists across restarts
@@ -2609,14 +2610,14 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_rollback_command(self, event: MessageEvent) -> str:
         """Handle /rollback command — list or restore filesystem checkpoints."""
-        from gateway.run import _hermes_home
+        from gateway.run import gateway_home
         from tools.checkpoint_manager import CheckpointManager, format_checkpoint_list
 
         # Read checkpoint config from config.yaml
         cp_cfg = {}
         try:
             import yaml as _y
-            _cfg_path = _hermes_home / "config.yaml"
+            _cfg_path = gateway_home() / "config.yaml"
             if _cfg_path.exists():
                 with open(_cfg_path, encoding="utf-8") as _f:
                     _data = _y.safe_load(_f) or {}
@@ -2708,8 +2709,8 @@ class GatewaySlashCommandsMixin:
         """Save a dot-separated key to config.yaml (shared by /reasoning, /fast
         and their interactive pickers)."""
         import yaml
-        from gateway.run import _hermes_home
-        config_path = _hermes_home / "config.yaml"
+        from gateway.run import gateway_home
+        config_path = gateway_home() / "config.yaml"
         try:
             user_config = {}
             if config_path.exists():
@@ -2862,7 +2863,7 @@ class GatewaySlashCommandsMixin:
             /reasoning show|on               Show model reasoning in responses
             /reasoning hide|off              Hide model reasoning from responses
         """
-        from gateway.run import _platform_config_key
+        from gateway.run import platform_config_key
 
         raw_args = event.get_command_args().strip()
         args, persist_global = self._parse_reasoning_command_args(raw_args)
@@ -2909,7 +2910,7 @@ class GatewaySlashCommandsMixin:
 
             # Interactive picker on platforms that support it (parity with the
             # /model picker). Falls through to the text status card otherwise.
-            _picker_platform_key = _platform_config_key(event.source.platform)
+            _picker_platform_key = platform_config_key(event.source.platform)
 
             async def _on_reasoning_choice(_chat_id: str, value: str) -> str:
                 return self._apply_reasoning_selection(
@@ -2939,7 +2940,7 @@ class GatewaySlashCommandsMixin:
             )
 
         # Typed argument path — same applier the picker uses.
-        platform_key = _platform_config_key(event.source.platform)
+        platform_key = platform_config_key(event.source.platform)
         return self._apply_reasoning_selection(
             session_key, platform_key, args, persist_global=persist_global
         )
@@ -2952,7 +2953,7 @@ class GatewaySlashCommandsMixin:
         Gate changes persist to config.yaml and evict the cached agent so the
         new setting takes effect on the next message.
         """
-        from gateway.run import _hermes_home
+        from gateway.run import gateway_home
         from hermes_cli.write_approval_commands import handle_pending_subcommand
         from tools import write_approval as wa
         from tools.memory_tool import load_on_disk_store
@@ -2960,7 +2961,7 @@ class GatewaySlashCommandsMixin:
         raw_args = event.get_command_args().strip()
         args = raw_args.split() if raw_args else []
         session_key = self._session_key_for_source(event.source)
-        config_path = _hermes_home / "config.yaml"
+        config_path = gateway_home() / "config.yaml"
 
         def _set_approval(enabled: bool):
             import yaml
@@ -3002,14 +3003,14 @@ class GatewaySlashCommandsMixin:
         the write-approval ``diff <id>``; the CLI also has an unrelated
         ``hermes skills diff <name>`` that diffs a bundled skill vs stock.)
         """
-        from gateway.run import _hermes_home
+        from gateway.run import gateway_home
         from hermes_cli.write_approval_commands import handle_pending_subcommand
         from tools import write_approval as wa
 
         raw_args = event.get_command_args().strip()
         args = raw_args.split() if raw_args else []
         session_key = self._session_key_for_source(event.source)
-        config_path = _hermes_home / "config.yaml"
+        config_path = gateway_home() / "config.yaml"
 
         gate_on = wa.write_approval_enabled(wa.SKILLS)
         wants_toggle = bool(args) and args[0].lower() in {"approval", "mode"}
@@ -3050,14 +3051,14 @@ class GatewaySlashCommandsMixin:
 
     async def _handle_fast_command(self, event: MessageEvent) -> Optional[str]:
         """Handle /fast — mirror the CLI Priority Processing toggle in gateway chats."""
-        from gateway.run import _load_gateway_config, _resolve_gateway_model
+        from gateway.run import get_gateway_config, resolve_gateway_model
         from hermes_cli.models import model_supports_fast_mode
 
         args = event.get_command_args().strip().lower()
         self._service_tier = self._load_service_tier()
 
-        user_config = _load_gateway_config()
-        model = _resolve_gateway_model(user_config)
+        user_config = get_gateway_config()
+        model = resolve_gateway_model(user_config)
         if not model_supports_fast_mode(model):
             return t("gateway.fast.not_supported")
 
@@ -3138,14 +3139,14 @@ class GatewaySlashCommandsMixin:
         ``display.platforms.<platform>.tool_progress`` so each channel can
         have its own verbosity level independently.
         """
-        from gateway.run import _hermes_home, _load_gateway_config, _platform_config_key
+        from gateway.run import gateway_home, get_gateway_config, platform_config_key
 
-        config_path = _hermes_home / "config.yaml"
-        platform_key = _platform_config_key(event.source.platform)
+        config_path = gateway_home() / "config.yaml"
+        platform_key = platform_config_key(event.source.platform)
 
         # --- check config gate ------------------------------------------------
         try:
-            user_config = _load_gateway_config()
+            user_config = get_gateway_config()
             gate_enabled = is_truthy_value(
                 cfg_get(user_config, "display", "tool_progress_command"),
                 default=False,
@@ -3207,11 +3208,11 @@ class GatewaySlashCommandsMixin:
         are respected but not modified here — edit config.yaml directly for
         per-platform control.
         """
-        from gateway.run import _hermes_home, _load_gateway_config, _platform_config_key, _resolve_gateway_model
+        from gateway.run import gateway_home, get_gateway_config, platform_config_key, resolve_gateway_model
         from gateway.runtime_footer import resolve_footer_config
 
-        config_path = _hermes_home / "config.yaml"
-        platform_key = _platform_config_key(event.source.platform)
+        config_path = gateway_home() / "config.yaml"
+        platform_key = platform_config_key(event.source.platform)
 
         # --- parse argument -------------------------------------------------
         arg = ""
@@ -3226,7 +3227,7 @@ class GatewaySlashCommandsMixin:
 
         # --- load config ----------------------------------------------------
         try:
-            user_config: dict = _load_gateway_config()
+            user_config: dict = get_gateway_config()
         except Exception as e:
             return t("gateway.config_read_failed", error=e)
 
@@ -3270,7 +3271,7 @@ class GatewaySlashCommandsMixin:
             # Show a preview using current agent state if available.
             from gateway.runtime_footer import format_runtime_footer
             preview = format_runtime_footer(
-                model=_resolve_gateway_model(user_config) or None,
+                model=resolve_gateway_model(user_config) or None,
                 context_tokens=0,
                 context_length=None,
                 fields=effective.get("fields") or ["model", "context_pct", "cwd"],
@@ -3353,9 +3354,9 @@ class GatewaySlashCommandsMixin:
             # unbound/default "cli" host source — see #50422. _platform_config_key
             # maps LOCAL->"cli" exactly like the live turn, avoiding a new
             # "local" vs "cli" mismatch.
-            from gateway.run import _platform_config_key
+            from gateway.run import platform_config_key
             platform_key = (
-                _platform_config_key(source.platform) if source.platform else None
+                platform_config_key(source.platform) if source.platform else None
             )
             model, runtime_kwargs = self._resolve_session_agent_runtime(
                 source=source,
@@ -4152,7 +4153,7 @@ class GatewaySlashCommandsMixin:
         so that rate limits, cost estimates, and detailed token breakdowns are
         available whenever the user asks, not only while the agent is running.
         """
-        from gateway.run import _AGENT_PENDING_SENTINEL
+        from gateway.run import AGENT_PENDING_SENTINEL
         source = event.source
         session_key = self._session_key_for_source(source)
 
@@ -4167,7 +4168,7 @@ class GatewaySlashCommandsMixin:
 
         # Try running agent first (mid-turn), then cached agent (between turns)
         agent = self._running_agents.get(session_key)
-        if not agent or agent is _AGENT_PENDING_SENTINEL:
+        if not agent or agent is AGENT_PENDING_SENTINEL:
             _cache_lock = getattr(self, "_agent_cache_lock", None)
             _cache = getattr(self, "_agent_cache", None)
             if _cache_lock and _cache is not None:
@@ -4180,9 +4181,9 @@ class GatewaySlashCommandsMixin:
         # Prefer the live agent; fall back to persisted billing data on the
         # SessionDB row so `/usage` still returns account info between turns
         # when no agent is resident.
-        provider = getattr(agent, "provider", None) if agent and agent is not _AGENT_PENDING_SENTINEL else None
-        base_url = getattr(agent, "base_url", None) if agent and agent is not _AGENT_PENDING_SENTINEL else None
-        api_key = getattr(agent, "api_key", None) if agent and agent is not _AGENT_PENDING_SENTINEL else None
+        provider = getattr(agent, "provider", None) if agent and agent is not AGENT_PENDING_SENTINEL else None
+        base_url = getattr(agent, "base_url", None) if agent and agent is not AGENT_PENDING_SENTINEL else None
+        api_key = getattr(agent, "api_key", None) if agent and agent is not AGENT_PENDING_SENTINEL else None
         if not provider and getattr(self, "_session_db", None) is not None:
             try:
                 _entry_for_billing = await self.async_session_store.get_or_create_session(source)
@@ -4738,7 +4739,7 @@ class GatewaySlashCommandsMixin:
         files are written so either the current gateway process or the next one
         can notify the user when the update finishes.
         """
-        from gateway.run import _hermes_home, _resolve_hermes_bin
+        from gateway.run import gateway_home, resolve_hermes_bin
         import json
         import shutil
         import subprocess
@@ -4767,13 +4768,13 @@ class GatewaySlashCommandsMixin:
         if not git_dir.exists():
             return t("gateway.update.not_git_repo")
 
-        hermes_cmd = _resolve_hermes_bin()
+        hermes_cmd = resolve_hermes_bin()
         if not hermes_cmd:
             return t("gateway.update.hermes_cmd_not_found")
 
-        pending_path = _hermes_home / ".update_pending.json"
-        output_path = _hermes_home / ".update_output.txt"
-        exit_code_path = _hermes_home / ".update_exit_code"
+        pending_path = gateway_home() / ".update_pending.json"
+        output_path = gateway_home() / ".update_output.txt"
+        exit_code_path = gateway_home() / ".update_exit_code"
         session_key = self._session_key_for_source(event.source)
         pending = {
             "platform": event.source.platform.value,

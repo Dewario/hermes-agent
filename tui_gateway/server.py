@@ -1334,9 +1334,9 @@ def _emit_approval_request(sid: str, data: dict | None) -> None:
         elif "allow_permanent" in payload:
             payload["choices"] = ["once", "session", "always", "deny"]
     if "command" in payload:
-        from gateway.run import _redact_approval_command
+        from gateway.run import redact_approval_command
 
-        payload["command"] = _redact_approval_command(payload.get("command"))
+        payload["command"] = redact_approval_command(payload.get("command"))
     _emit("approval.request", sid, payload)
 
 
