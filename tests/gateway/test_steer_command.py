@@ -187,5 +187,57 @@ async def test_steer_rejected_payload_returns_rejection_message():
     assert "rejected" in result.lower() or "empty" in result.lower()
 
 
+@pytest.mark.asyncio
+async def test_steer_pending_sentinel_merges_with_existing_pending():
+    """M15: a message that already merged into the pending slot while the
+    agent was still starting must NOT be dropped by a following /steer — the
+    steer text merges with it instead of overwriting."""
+    from gateway.run import _AGENT_PENDING_SENTINEL
+    from gateway.platforms.base import MessageType
+
+    runner, adapter = _make_runner(_session_entry())
+    sk = build_session_key(_make_source())
+    runner._running_agents[sk] = _AGENT_PENDING_SENTINEL
+
+    # An earlier user message is already queued for the next turn.
+    adapter._pending_messages[sk] = MessageEvent(
+        text="first message",
+        message_type=MessageType.TEXT,
+        source=_make_source(),
+        message_id="m0",
+    )
+
+    result = await runner._handle_message(_make_event("/steer and also this"))
+
+    assert result is not None
+    assert sk in adapter._pending_messages
+    # Both survive, merged in order — not clobbered down to only the steer text.
+    assert adapter._pending_messages[sk].text == "first message\nand also this"
+
+
+@pytest.mark.asyncio
+async def test_steer_missing_method_merges_with_existing_pending():
+    """M15: the 'running agent lacks steer()' fallback path must also merge
+    into an existing pending message, not overwrite it."""
+    from gateway.platforms.base import MessageType
+
+    runner, adapter = _make_runner(_session_entry())
+    sk = build_session_key(_make_source())
+    running_agent = MagicMock(spec=[])  # no steer() attribute
+    runner._running_agents[sk] = running_agent
+
+    adapter._pending_messages[sk] = MessageEvent(
+        text="first message",
+        message_type=MessageType.TEXT,
+        source=_make_source(),
+        message_id="m0",
+    )
+
+    result = await runner._handle_message(_make_event("/steer second"))
+
+    assert result is not None
+    assert adapter._pending_messages[sk].text == "first message\nsecond"
+
+
 if __name__ == "__main__":  # pragma: no cover
     pytest.main([__file__, "-v"])
