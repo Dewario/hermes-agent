@@ -839,6 +839,107 @@ def _candidate_names(text: str, subspans: bool = False) -> Iterable[str]:
                         yield sub
 
 
+_CHRONO_DATE_RE = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?Date(?:\*\*)?:\s*(?:\*\*)?"
+                             r"\[?(\d{4}-\d{2}-\d{2})\]?", re.MULTILINE)
+
+_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"]
+
+
+def _date_variants(iso: str) -> List[str]:
+    """Common renderings of an ISO date as they appear in source documents."""
+    y, m, d = iso.split("-")
+    mi, di = int(m), int(d)
+    month = _MONTHS[mi - 1]
+    return [
+        iso,
+        f"{month} {di}, {y}",
+        f"{month} {di} {y}",
+        f"{month[:3]} {di}, {y}",
+        f"{m}/{d}/{y}", f"{mi}/{di}/{y}",
+        f"{m}-{d}-{y}", f"{mi}-{di}-{y}",
+        f"{m}/{d}/{y[2:]}", f"{mi}/{di}/{y[2:]}",
+    ]
+
+
+def cmd_verify_chronology(args) -> int:
+    """Verify chronology entries: each dated event's Source citation must
+    resolve, and the date must appear (in a common rendering) in the cited
+    document's text.
+
+    Semantics: unresolved citation -> FAIL; date absent from a readable cited
+    doc -> WARN (dates are sometimes legitimately inferred — attorney list;
+    --strict escalates); cited doc unreadable -> WARN (cannot verify).
+    """
+    matter_dir = Path(args.matter_dir).resolve()
+    manifest = load_manifest(matter_dir)
+    rows = load_documents(matter_dir)
+    output_path = Path(args.output_file)
+    if not output_path.exists():
+        print(f"ERROR: output file not found: {output_path}")
+        return 2
+    text = _read_text_best_effort(output_path)
+    registered = set(manifest.get("bates_prefixes", []))
+    cache = _index_dir(matter_dir) / TEXT_CACHE_DIRNAME
+
+    failures: List[str] = []
+    warnings: List[str] = []
+    entries = 0
+
+    # Pair each Date: line with bates citations up to the next Date: line.
+    matches = list(_CHRONO_DATE_RE.finditer(text))
+    for i, m in enumerate(matches):
+        iso = m.group(1)
+        seg_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
+        segment = text[m.start():seg_end]
+        cites = [(p, n) for p, n in _extract_citations(segment) if p in registered]
+        if not cites:
+            continue  # no same-matter citation in this entry; not chronology-verifiable
+        entries += 1
+        entry_label = f"{iso} entry"
+        date_verified = False
+        for prefix, number in cites:
+            doc = _resolve_bates(rows, prefix, number)
+            if doc is None:
+                failures.append(f"{entry_label}: unresolved citation "
+                                f"{prefix}-{number:06d}")
+                continue
+            fp = cache / f"{doc['sha256']}.txt"
+            if not fp.exists() or doc.get("text_extractable") in ("none", "unsupported"):
+                warnings.append(f"{entry_label}: cited doc {doc['relpath']} is not "
+                                f"text-verifiable (unreadable/no cache) — manual check")
+                continue
+            doc_text = fp.read_text(encoding="utf-8")
+            if any(v in doc_text for v in _date_variants(iso)):
+                date_verified = True
+        if cites and not date_verified and not any(
+            w.startswith(entry_label) for w in warnings
+        ):
+            warnings.append(f"{entry_label}: date {iso} not found in any cited "
+                            f"document — verify the event date against sources")
+
+    passed = not failures and (not args.strict or not warnings)
+    report = {
+        "output_file": str(output_path),
+        "matter_id": manifest["matter_id"],
+        "entries_checked": entries,
+        "failures": failures,
+        "warnings": warnings,
+        "pass": passed,
+    }
+    if args.json:
+        print(json.dumps(report, indent=2))
+    else:
+        print(f"verify-chronology: {entries} dated+cited entries checked "
+              f"against matter '{manifest['matter_id']}'.")
+        for f_ in failures:
+            print(f"  FAIL: {f_}")
+        for w in warnings:
+            print(f"  WARN: {w}")
+        print("PASS" if passed else "FAIL")
+    return 0 if passed else 1
+
+
 # ── entity management ────────────────────────────────────────────────────────
 
 def cmd_add_entity(args) -> int:
@@ -964,6 +1065,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--quotes", action="store_true", help="also verify quoted strings appear in corpus")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_verify_cites)
+
+    p = sub.add_parser("verify-chronology",
+                       help="dated events must trace to docs containing the date (exit 1 on FAIL)")
+    p.add_argument("matter_dir")
+    p.add_argument("output_file")
+    p.add_argument("--strict", action="store_true", help="unresolved WARNs also fail")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_verify_chronology)
 
     p = sub.add_parser("check-isolation", help="cross-matter contamination gate (exit 1 on FAIL)")
     p.add_argument("matter_dir")

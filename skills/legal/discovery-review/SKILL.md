@@ -386,8 +386,9 @@ every output file; both must exit 0, and every WARN must be resolved
 contamination/hallucination) before attorney handoff:
 
 ```
-python skills/legal/casegraph/scripts/casegraph.py verify-cites    <matter_dir> <output.md> --quotes
-python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> <output.md> --fingerprints <store>
+python skills/legal/casegraph/scripts/casegraph.py verify-cites       <matter_dir> <output.md> --quotes
+python skills/legal/casegraph/scripts/casegraph.py verify-chronology  <matter_dir> <output.md>
+python skills/legal/casegraph/scripts/casegraph.py check-isolation    <matter_dir> <output.md> --fingerprints <store>
 ```
 
 These gates supplement — never replace — the checklist above and attorney review.

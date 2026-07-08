@@ -81,6 +81,7 @@ python skills/legal/casegraph/scripts/casegraph.py export-fingerprint C:\Matters
 |---|---|---|
 | `status` | index stale (files added/changed/removed) | — |
 | `verify-cites` | a cited bates number resolves to no indexed document; `--quotes`: a quoted string (≥20 chars) appears in no indexed document | — |
+| `verify-chronology` | a chronology entry's Source citation does not resolve | entry's date (any common rendering) not found in the cited document's text; cited document unreadable/unverifiable |
 | `check-isolation` | bates prefix not registered to this matter; identifier matching ANOTHER matter's fingerprint | capitalized name not in this matter's entity registry or the global legal allowlist |
 
 WARNs are an attorney-review list, not noise: a legitimate new name should be

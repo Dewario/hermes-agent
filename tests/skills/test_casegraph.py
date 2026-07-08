@@ -307,6 +307,65 @@ class TestIsolation:
         assert "cedar" not in blob and "whitfield" not in blob
 
 
+# ── verify-chronology ───────────────────────────────────────────────────────
+
+class TestVerifyChronology:
+    """Dated chronology events must trace to documents that contain the date."""
+
+    CHRONO_OK = (
+        "## Chronology\n\n"
+        "Date: 2024-11-13\n"
+        "Event: Incident report authored.\n"
+        "Source: TVRR-PROD-000001\n\n"
+    )
+    # Doc 000001's text says 2024-11-13 (its Date header); 2024-12-25 appears nowhere.
+    CHRONO_WRONG_DATE = (
+        "## Chronology\n\n"
+        "Date: 2024-12-25\n"
+        "Event: Alleged holiday inspection.\n"
+        "Source: TVRR-PROD-000001\n\n"
+    )
+    CHRONO_BAD_CITE = (
+        "## Chronology\n\n"
+        "Date: 2024-11-13\n"
+        "Event: Phantom document event.\n"
+        "Source: TVRR-PROD-000099\n\n"
+    )
+
+    def test_date_found_in_cited_doc_passes(self, matter, tmp_path):
+        out = _write(tmp_path / "c.md", self.CHRONO_OK)
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
+
+    def test_date_absent_warns_and_strict_fails(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md", self.CHRONO_WRONG_DATE)
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
+        assert "not found in any cited document" in capsys.readouterr().out
+        assert cg.main(["verify-chronology", str(matter), str(out), "--strict"]) == 1
+
+    def test_unresolved_citation_fails(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md", self.CHRONO_BAD_CITE)
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 1
+        assert "unresolved citation" in capsys.readouterr().out
+
+    def test_date_variant_renderings_match(self, matter, tmp_path):
+        # Doc says "2024-11-13" in its header; also add a doc with prose date.
+        prod = matter / "production"
+        _write(prod / "TVRR-PROD-000005.md",
+               "**Bates Range:** TVRR-PROD-000005 - TVRR-PROD-000005\n\n"
+               "On November 14, 2024 the crew reported the defect.\n")
+        assert cg.main(["build", str(matter)]) == 0
+        out = _write(tmp_path / "c.md",
+                     "Date: 2024-11-14\nEvent: Defect reported.\n"
+                     "Source: TVRR-PROD-000005\n")
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
+
+    def test_entry_without_citation_is_skipped(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md",
+                     "Date: 2024-11-13\nEvent: No source given.\n")
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
+        assert "0 dated+cited entries" in capsys.readouterr().out
+
+
 # ── entities & query ────────────────────────────────────────────────────────
 
 class TestEntitiesAndQuery:
