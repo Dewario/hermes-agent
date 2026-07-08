@@ -34,8 +34,13 @@ def _clean_env(monkeypatch):
         "GATEWAY_RELAY_WAKE_URL",
     ):
         monkeypatch.delenv(k, raising=False)
-    # Never read config.yaml off disk in these tests.
+    # Never read config.yaml off disk in these tests. Relay now reads config
+    # via the side-effect-free helper (M14), which takes a home arg; patch both
+    # the helper and the (delegating) run.py wrapper for full isolation.
     monkeypatch.setattr("gateway.run._load_gateway_config", lambda: {}, raising=False)
+    monkeypatch.setattr(
+        "gateway.config_helpers.load_raw_gateway_config", lambda *a, **k: {}, raising=False
+    )
 
 
 def _stub_post(captured: dict):
@@ -96,8 +101,8 @@ def test_relay_instance_id_absent_is_none():
 
 def test_relay_instance_id_from_config(monkeypatch):
     monkeypatch.setattr(
-        "gateway.run._load_gateway_config",
-        lambda: {"gateway": {"relay_instance_id": "inst-from-config"}},
+        "gateway.config_helpers.load_raw_gateway_config",
+        lambda *a, **k: {"gateway": {"relay_instance_id": "inst-from-config"}},
         raising=False,
     )
     assert relay.relay_instance_id() == "inst-from-config"
@@ -269,8 +274,8 @@ def test_relay_wake_url_absent_is_none():
 
 def test_relay_wake_url_from_config(monkeypatch):
     monkeypatch.setattr(
-        "gateway.run._load_gateway_config",
-        lambda: {"gateway": {"relay_wake_url": "https://wake.from-config/poke"}},
+        "gateway.config_helpers.load_raw_gateway_config",
+        lambda *a, **k: {"gateway": {"relay_wake_url": "https://wake.from-config/poke"}},
         raising=False,
     )
     assert relay.relay_wake_url() == "https://wake.from-config/poke"
