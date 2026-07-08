@@ -3686,6 +3686,7 @@ async def _retry_same_provider_async(
     effective_timeout: float,
     effective_extra_body: dict,
     reasoning_config: Optional[dict],
+    main_runtime: Any = None,
 ) -> Any:
     if task == "vision":
         _, retry_client, retry_model = resolve_vision_provider_client(
@@ -3703,6 +3704,7 @@ async def _retry_same_provider_async(
             base_url=resolved_base_url,
             api_key=resolved_api_key,
             api_mode=resolved_api_mode,
+            main_runtime=main_runtime,  # FABLE5 H4: mirror the sync twin (:3304)
         )
     if retry_client is None:
         raise RuntimeError(
@@ -4616,6 +4618,45 @@ def _resolve_auto(
 # below — never look up auth env vars ad-hoc.
 
 
+class _AsyncCopilotCompletionsAdapter:
+    """FABLE5 H5: async wrapper over CopilotACPClient's sync completions.
+
+    ``CopilotACPClient.chat.completions.create`` is a plain ``def``. Previously
+    ``_to_async_client`` returned the sync client unchanged, so the async aux
+    path's ``await client.chat.completions.create(...)`` awaited a plain
+    ``ChatCompletion`` and raised ``TypeError``. Mirror the Codex/Anthropic
+    async adapters: offload the blocking sync call to a thread."""
+
+    def __init__(self, sync_completions):
+        self._sync = sync_completions
+
+    async def create(self, **kwargs) -> Any:
+        import asyncio
+        return await asyncio.to_thread(self._sync.create, **kwargs)
+
+
+class _AsyncCopilotChatShim:
+    def __init__(self, adapter: "_AsyncCopilotCompletionsAdapter"):
+        self.completions = adapter
+
+
+class AsyncCopilotACPClient:
+    """Async-compatible facade over a sync CopilotACPClient (FABLE5 H5)."""
+
+    def __init__(self, sync_client):
+        self._sync = sync_client
+        self.api_key = getattr(sync_client, "api_key", None)
+        self.base_url = getattr(sync_client, "base_url", None)
+        self.chat = _AsyncCopilotChatShim(
+            _AsyncCopilotCompletionsAdapter(sync_client.chat.completions)
+        )
+
+    def close(self):
+        _close = getattr(self._sync, "close", None)
+        if callable(_close):
+            _close()
+
+
 def _to_async_client(sync_client, model: str, is_vision: bool = False):
     """Convert a sync client to its async counterpart, preserving Codex routing.
 
@@ -4642,7 +4683,9 @@ def _to_async_client(sync_client, model: str, is_vision: bool = False):
     try:
         from agent.copilot_acp_client import CopilotACPClient
         if isinstance(sync_client, CopilotACPClient):
-            return sync_client, model
+            # FABLE5 H5: wrap so `await client.chat.completions.create(...)` works
+            # on the async aux path instead of awaiting a sync ChatCompletion.
+            return AsyncCopilotACPClient(sync_client), model
     except ImportError:
         pass
 
@@ -4650,6 +4693,13 @@ def _to_async_client(sync_client, model: str, is_vision: bool = False):
         "api_key": sync_client.api_key,
         "base_url": str(sync_client.base_url),
     }
+    # FABLE5 M4: carry the sync client's default_query into the async client.
+    # Azure Foundry lifts `?api-version=...` out of the base URL and passes it as
+    # default_query (see :2473); without copying it, async aux calls hit the
+    # cleaned URL with no api-version and 404/400 while the sync path works.
+    _sync_query = getattr(sync_client, "_custom_query", None)
+    if _sync_query:
+        async_kwargs["default_query"] = dict(_sync_query)
     sync_base_url = str(sync_client.base_url)
     if base_url_host_matches(sync_base_url, "openrouter.ai"):
         async_kwargs["default_headers"] = build_or_headers()
@@ -5362,8 +5412,10 @@ def resolve_provider_client(
         default_model = "google/gemini-3-flash-preview"
         final_model = _normalize_resolved_model(model or default_model, provider)
         try:
-            from openai import OpenAI
-            client = OpenAI(api_key=token, base_url=base_url)
+            # FABLE5 L3: route through _create_openai_client so the Vertex client
+            # gets the same TLS/CA config and SDK-retry disablement (max_retries=0,
+            # #54465) as every other provider, instead of a bare OpenAI(...).
+            client = _create_openai_client(api_key=token, base_url=base_url)
         except Exception as exc:
             logger.warning("resolve_provider_client: cannot create Vertex "
                            "client: %s", exc)
@@ -5985,6 +6037,14 @@ def _refresh_nous_auxiliary_client(
     else:
         client = sync_client
 
+    # FABLE5 M5: evict every cached entry for this provider before storing the
+    # refreshed client. The poisoned (401) entry was cached under a different
+    # key than this refresh computes (original model=resolved_model, often None;
+    # here model=final_model), so a bare store would leave the stale client in
+    # place — the immediate retry succeeds, then the next call cache-hits the
+    # expired client and 401s again, a permanent refresh loop that also leaks
+    # entries. Mirror _refresh_provider_credentials and evict first.
+    _evict_cached_clients(cache_provider)
     cache_key = _client_cache_key(
         cache_provider,
         async_mode=async_mode,
@@ -7667,6 +7727,8 @@ async def async_call_llm(
             base_url=resolved_base_url,
             api_key=resolved_api_key,
             api_mode=resolved_api_mode,
+            # FABLE5 H4: sync twin + async auto path both pass this; without it
+            # a `custom:` main provider misroutes on the async path (#45472).
             main_runtime=main_runtime,
         )
         if client is None:
@@ -7904,6 +7966,7 @@ async def async_call_llm(
                     effective_timeout=effective_timeout,
                     effective_extra_body=effective_extra_body,
                     reasoning_config=reasoning_config,
+                    main_runtime=main_runtime,
                 )
 
         # ── Same-provider credential-pool recovery (mirrors sync) ─────
@@ -7942,6 +8005,7 @@ async def async_call_llm(
                         effective_timeout=effective_timeout,
                         effective_extra_body=effective_extra_body,
                         reasoning_config=reasoning_config,
+                        main_runtime=main_runtime,
                     )
                 except Exception as retry2_err:
                     if (_is_payment_error(retry2_err) or _is_auth_error(retry2_err)
