@@ -1128,7 +1128,9 @@ class TestExplicitProviderRouting:
         assert client is None
         assert model is None
         mock_openai.assert_not_called()
-        mock_mark.assert_called_once_with("openrouter", ttl=60)
+        mock_mark.assert_called_once_with(
+            "openrouter", ttl=60, reason="no credentials configured"
+        )
 
 class TestGetTextAuxiliaryClient:
     """Test the full resolution chain for get_text_auxiliary_client."""
@@ -4745,6 +4747,29 @@ class TestAuxUnhealthyCache:
         _mark_provider_unhealthy("codex")
         assert _is_provider_unhealthy("openai-codex") is True
 
+    def test_missing_credential_reason_not_labeled_payment(self, caplog):
+        """FABLE5 M6: a missing-credential skip must log its real cause, not
+        a "payment / credit error" — the mislabel sent operators chasing
+        billing when the fix was `hermes auth`."""
+        import logging
+        from agent.auxiliary_client import _mark_provider_unhealthy
+        with caplog.at_level(logging.WARNING, logger="agent.auxiliary_client"):
+            _mark_provider_unhealthy(
+                "nous", ttl=60, reason="no credentials configured"
+            )
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "no credentials configured" in msgs
+        assert "payment / credit error" not in msgs
+
+    def test_default_reason_is_payment(self, caplog):
+        """The payment-fallback callers keep the payment label by default."""
+        import logging
+        from agent.auxiliary_client import _mark_provider_unhealthy
+        with caplog.at_level(logging.WARNING, logger="agent.auxiliary_client"):
+            _mark_provider_unhealthy("openrouter")
+        msgs = " ".join(r.getMessage() for r in caplog.records)
+        assert "payment / credit error" in msgs
+
     def test_resolve_auto_skips_unhealthy_step2(self):
         """_resolve_auto Step-2 chain skips unhealthy providers."""
         from agent.auxiliary_client import (
@@ -5369,6 +5394,76 @@ class TestCustomEndpointApiKeyInheritance:
             )
 
         assert captured.get("api_key") == "no-key-required"
+
+    def test_same_host_different_scheme_port_does_not_inherit(self, monkeypatch):
+        """FABLE5 M2: an aux endpoint that shares the main host but on a
+        different scheme/port is a DIFFERENT origin — e.g. the trusted TLS
+        gateway on :8443 vs a plaintext service co-located on :8080. The main
+        credential must not be sent there (a hostname-only check would leak it,
+        potentially over plaintext)."""
+        import agent.auxiliary_client as ac
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        fake_config = {
+            "model": {
+                "api_key": "sk-main-config-key",
+                "base_url": "https://gw.example.com:8443/v1",
+            }
+        }
+        captured: dict = {}
+
+        def _capture_create(**kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        with patch("hermes_cli.config.load_config", return_value=fake_config), \
+             patch.object(ac, "_create_openai_client", side_effect=_capture_create):
+            client, model = resolve_provider_client(
+                "custom",
+                model="test-model",
+                explicit_base_url="http://gw.example.com:8080/v1",
+                explicit_api_key=None,
+            )
+
+        assert captured.get("api_key") == "no-key-required", (
+            "Same hostname but different scheme+port must be treated as a "
+            "different origin and must NOT inherit the main credential."
+        )
+
+    def test_default_port_matches_explicit_default_port(self, monkeypatch):
+        """FABLE5 M2: the origin comparison normalizes the default port, so
+        ``https://gw`` and ``https://gw:443`` are the same origin and the
+        same-gateway inheritance (#9318) still works."""
+        import agent.auxiliary_client as ac
+
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+        fake_config = {
+            "model": {
+                "api_key": "sk-main-config-key",
+                "base_url": "https://gw.example.com/v1",
+            }
+        }
+        captured: dict = {}
+
+        def _capture_create(**kwargs):
+            captured.update(kwargs)
+            return MagicMock()
+
+        with patch("hermes_cli.config.load_config", return_value=fake_config), \
+             patch.object(ac, "_create_openai_client", side_effect=_capture_create):
+            client, model = resolve_provider_client(
+                "custom",
+                model="test-model",
+                explicit_base_url="https://gw.example.com:443/v1",
+                explicit_api_key=None,
+            )
+
+        assert captured.get("api_key") == "sk-main-config-key", (
+            "https://gw and https://gw:443 are the same origin — the "
+            "same-gateway key inheritance must still apply."
+        )
 
 
 # ── FABLE5 Batch 3 regressions ──────────────────────────────────────────────

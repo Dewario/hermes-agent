@@ -1842,7 +1842,7 @@ def _try_openrouter(explicit_api_key: str = None, model: str = None) -> Tuple[Op
 
     or_key = explicit_api_key or os.getenv("OPENROUTER_API_KEY")
     if not or_key:
-        _mark_provider_unhealthy("openrouter", ttl=60)
+        _mark_provider_unhealthy("openrouter", ttl=60, reason="no credentials configured")
         return None, None
     logger.debug("Auxiliary client: OpenRouter")
     return _create_openai_client(api_key=or_key, base_url=OPENROUTER_BASE_URL,
@@ -1874,7 +1874,7 @@ def _try_nous(vision: bool = False) -> Tuple[Optional[OpenAI], Optional[str]]:
                 "Auxiliary: skipping Nous Portal (rate-limited, resets in %.0fs)",
                 _remaining,
             )
-            _mark_provider_unhealthy("nous", ttl=_remaining)
+            _mark_provider_unhealthy("nous", ttl=_remaining, reason="rate limited")
             return None, None
     except Exception:
         pass
@@ -1886,7 +1886,7 @@ def _try_nous(vision: bool = False) -> Tuple[Optional[OpenAI], Optional[str]]:
             "Auxiliary Nous client unavailable: no Nous authentication found "
             "(run: hermes auth)."
         )
-        _mark_provider_unhealthy("nous", ttl=60)
+        _mark_provider_unhealthy("nous", ttl=60, reason="no credentials configured")
         return None, None
     if runtime is None and nous:
         logger.debug(
@@ -1934,7 +1934,7 @@ def _try_nous(vision: bool = False) -> Tuple[Optional[OpenAI], Optional[str]]:
                 "Auxiliary Nous client unavailable: no usable inference JWT found "
                 "(run: hermes auth add nous)."
             )
-            _mark_provider_unhealthy("nous", ttl=60)
+            _mark_provider_unhealthy("nous", ttl=60, reason="no usable credentials")
             return None, None
         base_url = str((nous or {}).get("inference_base_url") or _nous_base_url()).rstrip("/")
     return (
@@ -2092,22 +2092,50 @@ def _read_main_base_url() -> str:
     return ""
 
 
+def _base_url_origin(base_url: str) -> Optional[Tuple[str, str, Optional[int]]]:
+    """Return ``(scheme, host, port)`` for same-origin comparison, or ``None``
+    when the host cannot be parsed.
+
+    The port is normalized to the scheme default (443 for https, 80 for http)
+    when absent so ``https://h`` and ``https://h:443`` compare equal.
+    """
+    raw = (base_url or "").strip()
+    if not raw:
+        return None
+    parsed = urlparse(raw if "://" in raw else f"//{raw}")
+    host = (parsed.hostname or "").lower().rstrip(".")
+    if not host:
+        return None
+    scheme = (parsed.scheme or "").lower()
+    try:
+        port = parsed.port
+    except ValueError:
+        port = None
+    if port is None:
+        port = {"https": 443, "http": 80}.get(scheme)
+    return (scheme, host, port)
+
+
 def _read_main_api_key_if_same_host(aux_base_url: str) -> str:
     """Return the main api_key only when *aux_base_url* points at the same
-    host as the main model's base_url.
+    origin (scheme + host + port) as the main model's base_url.
 
     The #9318 use case is an auxiliary task sharing the main model's
-    self-hosted gateway (same host, different model) with an empty per-task
-    api_key. Inheriting unconditionally would send the main credential to
-    ANY host a misconfigured aux base_url names — a cross-host credential
-    leak. A host mismatch keeps the previous fail-safe behavior
-    (``no-key-required`` → 401).
+    self-hosted gateway (same endpoint, different model) with an empty
+    per-task api_key. Inheriting unconditionally would send the main
+    credential to ANY endpoint a misconfigured aux base_url names — a
+    cross-host credential leak. A hostname-only check was still too loose:
+    ``https://gw:8443`` (the trusted TLS gateway) and ``http://gw:8080`` (a
+    plaintext service co-located on the same box) share a hostname but are
+    different origins, so the credential could be sent in the clear to the
+    wrong service. Comparing the full origin closes that gap; any mismatch
+    keeps the fail-safe behavior (``no-key-required`` → 401).
     """
-    aux_host = base_url_hostname(aux_base_url)
-    if not aux_host:
+    aux_origin = _base_url_origin(aux_base_url)
+    if aux_origin is None:
         return ""
-    main_host = base_url_hostname(_read_main_base_url())
-    if not main_host or aux_host != main_host:
+    main_origin = _base_url_origin(_read_main_base_url())
+    if main_origin is None or aux_origin != main_origin:
         return ""
     return _read_main_api_key()
 
@@ -2663,10 +2691,20 @@ def _normalize_chain_label(provider: str) -> str:
     return _AUX_UNHEALTHY_LABEL_ALIASES.get(p, p)
 
 
-def _mark_provider_unhealthy(provider: str, ttl: Optional[float] = None) -> None:
-    """Mark ``provider`` as recently-402'd, hidden from chain iteration
-    until the TTL expires. Called from the payment-fallback branches in
-    ``call_llm`` and ``acall_llm`` after a confirmed payment error.
+def _mark_provider_unhealthy(
+    provider: str,
+    ttl: Optional[float] = None,
+    reason: str = "payment / credit error",
+) -> None:
+    """Mark ``provider`` as unhealthy, hidden from chain iteration until the
+    TTL expires.
+
+    The skip behavior is identical regardless of cause, but the *reason* is
+    surfaced in the log so a missing-credential or rate-limit skip is not
+    reported as a "payment / credit error" (FABLE5 M6) — that mislabel sent
+    operators chasing billing problems when the real fix was `hermes auth`.
+    Payment-fallback callers keep the default; credential/rate-limit callers
+    pass a specific reason.
     """
     label = _normalize_chain_label(provider)
     if not label:
@@ -2674,10 +2712,11 @@ def _mark_provider_unhealthy(provider: str, ttl: Optional[float] = None) -> None
     expires_at = time.time() + (ttl if ttl is not None else _AUX_UNHEALTHY_TTL_SECONDS)
     _aux_unhealthy_until[label] = expires_at
     logger.warning(
-        "Auxiliary: marking %s unhealthy for %ds (payment / credit error). "
+        "Auxiliary: marking %s unhealthy for %ds (%s). "
         "Subsequent auxiliary calls will skip it until %s.",
         label,
         int(ttl if ttl is not None else _AUX_UNHEALTHY_TTL_SECONDS),
+        reason,
         time.strftime("%H:%M:%S", time.localtime(expires_at)),
     )
 
