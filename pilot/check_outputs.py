@@ -13,6 +13,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import json
 import re
 import sys
 from pathlib import Path
@@ -216,7 +217,27 @@ def _empty_required_sections(text: str, needles: list[str]) -> list[str]:
     return empties
 
 
-def check_intake(directory: Path) -> list[str]:
+def _load_anchors(path: Path | None, defaults: list[str]) -> tuple[list[str], str | None]:
+    """Load per-matter anchors from JSON, or fall back to synthetic defaults.
+
+    Expected JSON shape::
+        {"fact_anchors": ["..."], "bates_regex": "ACME-PROD-\\\\d+",
+         "require_synthetic_banner": false}
+    """
+    if path is None:
+        return list(defaults), None
+    data = json.loads(path.read_text(encoding="utf-8"))
+    anchors = list(data.get("fact_anchors") or defaults)
+    bates_re = data.get("bates_regex")
+    return anchors, bates_re
+
+
+def check_intake(
+    directory: Path,
+    anchors: list[str] | None = None,
+    *,
+    require_synthetic_banner: bool = True,
+) -> list[str]:
     issues: list[str] = []
     try:
         package = _find_package(directory, INTAKE_PACKAGE)
@@ -224,7 +245,7 @@ def check_intake(directory: Path) -> list[str]:
         return [str(exc)]
 
     text = package.read_text(encoding="utf-8", errors="replace")
-    if SYNTHETIC_LABEL not in text:
+    if require_synthetic_banner and SYNTHETIC_LABEL not in text:
         issues.append(f"{package}: missing synthetic label banner")
 
     headers = _headers(text)
@@ -239,7 +260,8 @@ def check_intake(directory: Path) -> list[str]:
             f"{package}: sections present but empty (need content): {', '.join(empty_sections)}"
         )
 
-    missing_facts = _missing_anchors(text, INTAKE_FACT_ANCHORS)
+    fact_anchors = anchors if anchors is not None else INTAKE_FACT_ANCHORS
+    missing_facts = _missing_anchors(text, fact_anchors)
     if missing_facts:
         issues.append(
             f"{package}: fixture anchors absent (possible hallucination): {', '.join(missing_facts)}"
@@ -261,7 +283,13 @@ def check_intake(directory: Path) -> list[str]:
     return issues
 
 
-def check_review(directory: Path) -> list[str]:
+def check_review(
+    directory: Path,
+    anchors: list[str] | None = None,
+    *,
+    bates_regex: str | None = None,
+    require_synthetic_banner: bool = True,
+) -> list[str]:
     issues: list[str] = []
     try:
         package = _find_package(directory, REVIEW_PACKAGE)
@@ -269,7 +297,7 @@ def check_review(directory: Path) -> list[str]:
         return [str(exc)]
 
     text = package.read_text(encoding="utf-8", errors="replace")
-    if SYNTHETIC_LABEL not in text:
+    if require_synthetic_banner and SYNTHETIC_LABEL not in text:
         issues.append(f"{package}: missing synthetic label banner")
 
     headers = _headers(text)
@@ -284,14 +312,18 @@ def check_review(directory: Path) -> list[str]:
             f"{package}: sections present but empty (need content): {', '.join(empty_sections)}"
         )
 
-    missing_facts = _missing_anchors(text, REVIEW_FACT_ANCHORS)
+    fact_anchors = anchors if anchors is not None else REVIEW_FACT_ANCHORS
+    missing_facts = _missing_anchors(text, fact_anchors)
     if missing_facts:
         issues.append(
             f"{package}: fixture anchors absent: {', '.join(missing_facts)}"
         )
 
-    if not re.search(r"TVRR-PROD-\d+", text, re.IGNORECASE):
-        issues.append(f"{package}: no Bates-style Doc ID (TVRR-PROD-*) citations")
+    pattern = bates_regex or r"TVRR-PROD-\d+"
+    if not re.search(pattern, text, re.IGNORECASE):
+        issues.append(
+            f"{package}: no Bates-style Doc ID citations matching /{pattern}/"
+        )
 
     if not _missing_gate_phrases(text, REVIEW_GATE_PHRASES, min_count=2):
         issues.append(f"{package}: insufficient attorney-review / preflight language")
@@ -312,6 +344,13 @@ def main() -> int:
         required=True,
         help="Directory containing intake_package.md or review_package.md",
     )
+    parser.add_argument(
+        "--anchors",
+        type=Path,
+        default=None,
+        help="Per-matter anchors JSON (fact_anchors, bates_regex, "
+             "require_synthetic_banner). Omit for synthetic TVRR defaults.",
+    )
     args = parser.parse_args()
     directory = args.dir if args.dir.is_absolute() else REPO_ROOT / args.dir
 
@@ -319,7 +358,27 @@ def main() -> int:
         print(f"FAIL: directory not found: {directory}")
         return 1
 
-    issues = check_intake(directory) if args.phase == "intake" else check_review(directory)
+    defaults = INTAKE_FACT_ANCHORS if args.phase == "intake" else REVIEW_FACT_ANCHORS
+    anchors_path = args.anchors
+    if anchors_path is not None and not anchors_path.is_absolute():
+        anchors_path = REPO_ROOT / anchors_path
+    fact_anchors, bates_re = _load_anchors(anchors_path, defaults)
+    require_banner = True
+    if anchors_path is not None:
+        cfg = json.loads(anchors_path.read_text(encoding="utf-8"))
+        require_banner = bool(cfg.get("require_synthetic_banner", False))
+
+    if args.phase == "intake":
+        issues = check_intake(
+            directory, fact_anchors, require_synthetic_banner=require_banner,
+        )
+    else:
+        issues = check_review(
+            directory,
+            fact_anchors,
+            bates_regex=bates_re,
+            require_synthetic_banner=require_banner,
+        )
     if issues:
         print(f"FAIL: {len(issues)} issue(s) for phase={args.phase}")
         for item in issues:

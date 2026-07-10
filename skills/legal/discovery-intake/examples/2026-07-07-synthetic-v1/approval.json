@@ -1,0 +1,32 @@
+{
+    "pilot_id":  "2026-07-07-synthetic-v1",
+    "reviewer":  "ahfullerjd",
+    "reviewed_at":  "2026-07-10T17:31:48Z",
+    "artifacts":  {
+                      "intake":  {
+                                     "path":  "pilot_outputs/intake/intake_package.md",
+                                     "approved":  true,
+                                     "sha256":  "06bb7b6f7a5ae79704f470f32afcff92869b491cdf56668358e776a74f953173",
+                                     "notes":  "Reviewed per FABLE5_ATTORNEY_REVIEW_REPORT.md"
+                                 },
+                      "review":  {
+                                     "path":  "pilot_outputs/review/review_package.md",
+                                     "approved":  true,
+                                     "sha256":  "0b92b010fbb9235cea2e13c3753f87e254ae35895222e1dce6c49343130bfc5e",
+                                     "notes":  "A1 edits + short-handed quotes standardized to verbatim incl. feels-like attribution wrappers, 2026-07-08; promote-contract gates PASS post-edit"
+                                 }
+                  },
+    "gates_checked":  [
+                          "SOL_issue_flag_not_deadline",
+                          "FELA_attorney_review_gate",
+                          "damages_expert_review_gate",
+                          "production_preflight_step_0",
+                          "no_prohibited_legal_conclusions",
+                          "fixture_grounded_facts",
+                          "validator_strict_pass",
+                          "check_outputs_pass",
+                          "casegraph_verify_cites_pass",
+                          "casegraph_verify_chronology_pass",
+                          "casegraph_check_isolation_pass"
+                      ]
+}

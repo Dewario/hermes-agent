@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [legal, discovery, review, fela, personal-injury, plaintiff, document-analysis]
     category: legal
-    related_skills: [legal-discovery-intake]
+    related_skills: [legal-discovery-intake, legal-casegraph, legal-matter-mail]
 ---
 
 # Legal Discovery Review Skill
@@ -224,6 +224,23 @@ Missing Time Periods:
   Status: [gap in production]
 ```
 
+**Correspondence gap scan (optional, additive — when `legal-matter-mail` is
+available):** the firm's own mailboxes are a custodian too. Run the **full**
+matter-mail pipeline and fold its "missing from case file" and coverage findings
+into this section, each item marked "requires attorney review". Do **not** run
+`gap` on an empty/stale store.
+
+```
+python skills/legal/matter-mail/scripts/matter_mail.py context <matter_dir>
+# ATTORNEY CONFIRMS window + participants in .matter_mail/scan_context.json
+python skills/legal/matter-mail/scripts/matter_mail.py plan    <matter_dir>
+# READ-ONLY fetch per plan (follow @odata.nextLink to exhaustion)
+python skills/legal/matter-mail/scripts/matter_mail.py ingest  <matter_dir> --source <export_dir>
+python skills/legal/matter-mail/scripts/matter_mail.py status  <matter_dir>   # must show non-zero matched
+python skills/legal/matter-mail/scripts/matter_mail.py gap     <matter_dir> --strict
+python skills/legal/matter-mail/scripts/matter_mail.py report  <matter_dir>
+```
+
 ### Step 7: Privilege / Confidentiality Screen
 
 For each document with confidentiality markings or privilege indications:
@@ -380,16 +397,19 @@ Before presenting to the attorney, confirm:
 - [ ] Chronology is complete (no date gaps without explicit notation)
 - [ ] All attorney-review-required items are flagged
 
-**Machine gates (mandatory when `legal-casegraph` is available):** run both on
-every output file; both must exit 0, and every WARN must be resolved
-(register the entity with `add-entity`, or investigate as possible
-contamination/hallucination) before attorney handoff:
+**Machine gates (mandatory for live matters — missing index = FAIL):** the matter
+MUST have a casegraph index before handoff. Run all three on every review output;
+all must exit 0, and every WARN must be resolved (register the entity with
+`add-entity`, or investigate as possible contamination/hallucination):
 
 ```
-python skills/legal/casegraph/scripts/casegraph.py verify-cites       <matter_dir> <output.md> --quotes
-python skills/legal/casegraph/scripts/casegraph.py verify-chronology  <matter_dir> <output.md>
-python skills/legal/casegraph/scripts/casegraph.py check-isolation    <matter_dir> <output.md> --fingerprints <store>
+python skills/legal/casegraph/scripts/casegraph.py verify-cites       <matter_dir> <output.md>
+python skills/legal/casegraph/scripts/casegraph.py verify-chronology  <matter_dir> <output.md> --strict
+python skills/legal/casegraph/scripts/casegraph.py check-isolation    <matter_dir> <output.md> --fingerprints <store> --strict
 ```
+
+`verify-cites` defaults to quote checks and fails closed on zero same-matter
+citations. If `.casegraph/` is missing: STOP — do not hand off.
 
 These gates supplement — never replace — the checklist above and attorney review.
 

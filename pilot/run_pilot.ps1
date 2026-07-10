@@ -128,6 +128,67 @@ function Invoke-AutoGates {
     Write-Ledger -Purpose "check_outputs-$GatePhase" -Command $chkCmd -ExitCode $chkExit
     if ($chkExit -ne 0) { $fail++ }
 
+    # Casegraph handoff gates (fail-closed). Synthetic pilot builds a throwaway
+    # matter index from discovery-review fixtures when CASEGRAPH_MATTER_DIR is
+    # unset; real matters must set CASEGRAPH_MATTER_DIR to the live matter path.
+    $cgMatter = $env:CASEGRAPH_MATTER_DIR
+    if (-not $cgMatter) {
+        $cgMatter = Join-Path $env:TEMP ("hermes-pilot-casegraph-" + $GatePhase)
+    }
+    $cgScript = "skills/legal/casegraph/scripts/casegraph.py"
+    $fpStore = Join-Path $cgMatter "fingerprints.json"
+    if (-not (Test-Path -LiteralPath (Join-Path $cgMatter ".casegraph"))) {
+        New-Item -ItemType Directory -Force -Path (Join-Path $cgMatter "production") | Out-Null
+        $fixDir = Join-Path $RepoRoot "skills\legal\discovery-review\fixtures"
+        if (Test-Path -LiteralPath $fixDir) {
+            Copy-Item -Path (Join-Path $fixDir "*") -Destination (Join-Path $cgMatter "production") -Force
+        }
+        $initCmd = "python $cgScript init `"$cgMatter`" --matter-id PILOT-SYN --bates-prefix TVRR-PROD --force"
+        Write-Host "`n== casegraph init (synthetic) ==" -ForegroundColor Cyan
+        Invoke-Expression $initCmd | Out-Host
+        Write-Ledger -Purpose "casegraph-init-$GatePhase" -Command $initCmd -ExitCode $LASTEXITCODE
+        $buildCmd = "python $cgScript build `"$cgMatter`""
+        Write-Host "`n== casegraph build ==" -ForegroundColor Cyan
+        Invoke-Expression $buildCmd | Out-Host
+        Write-Ledger -Purpose "casegraph-build-$GatePhase" -Command $buildCmd -ExitCode $LASTEXITCODE
+        $fpCmd = "python $cgScript export-fingerprint `"$cgMatter`" --store `"$fpStore`""
+        Invoke-Expression $fpCmd | Out-Host
+    }
+    if (Test-Path -LiteralPath $packagePath) {
+        $citeFlags = if ($GatePhase -eq 'review') { '' } else { '--allow-empty --no-quotes' }
+        $citeCmd = "python $cgScript verify-cites `"$cgMatter`" `"$packagePath`" $citeFlags"
+        Write-Host "`n== casegraph verify-cites ($GatePhase) ==" -ForegroundColor Cyan
+        Invoke-Expression $citeCmd | Out-Host
+        $citeExit = $LASTEXITCODE
+        Write-Ledger -Purpose "casegraph-verify-cites-$GatePhase" -Command $citeCmd -ExitCode $citeExit
+        if ($citeExit -ne 0) { $fail++ }
+
+        if ($GatePhase -eq 'review') {
+            # No --strict on chronology/isolation in the UNATTENDED pilot:
+            # date-WARNs and unregistered-name WARNs are the DESIGNED
+            # attorney-review list (casegraph SPEC), not auto-rejects — the
+            # throwaway pilot index has only header-harvested entities, so
+            # strict mode fails on template prose, not real contamination.
+            # FAIL classes (fabricated cites, foreign bates, fingerprint
+            # hits, vacuous PASSes) are unaffected and still fail the pilot.
+            # --strict belongs to real-matter final handoff after the
+            # attorney registers the matter's entities.
+            $chronoCmd = "python $cgScript verify-chronology `"$cgMatter`" `"$packagePath`""
+            Write-Host "`n== casegraph verify-chronology ==" -ForegroundColor Cyan
+            Invoke-Expression $chronoCmd | Out-Host
+            $chronoExit = $LASTEXITCODE
+            Write-Ledger -Purpose "casegraph-verify-chronology" -Command $chronoCmd -ExitCode $chronoExit
+            if ($chronoExit -ne 0) { $fail++ }
+        }
+
+        $isoCmd = "python $cgScript check-isolation `"$cgMatter`" `"$packagePath`" --fingerprints `"$fpStore`""
+        Write-Host "`n== casegraph check-isolation ($GatePhase) ==" -ForegroundColor Cyan
+        Invoke-Expression $isoCmd | Out-Host
+        $isoExit = $LASTEXITCODE
+        Write-Ledger -Purpose "casegraph-check-isolation-$GatePhase" -Command $isoCmd -ExitCode $isoExit
+        if ($isoExit -ne 0) { $fail++ }
+    }
+
     return [int]$fail
 }
 

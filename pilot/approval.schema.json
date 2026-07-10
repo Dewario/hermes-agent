@@ -23,19 +23,29 @@
       "properties": {
         "intake": {
           "type": "object",
-          "required": ["path", "approved"],
+          "required": ["path", "approved", "sha256"],
           "properties": {
             "path": { "type": "string" },
             "approved": { "type": "boolean" },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the approved intake_package.md at sign-off"
+            },
             "notes": { "type": "string" }
           }
         },
         "review": {
           "type": "object",
-          "required": ["path", "approved"],
+          "required": ["path", "approved", "sha256"],
           "properties": {
             "path": { "type": "string" },
             "approved": { "type": "boolean" },
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$",
+              "description": "SHA-256 of the approved review_package.md at sign-off"
+            },
             "notes": { "type": "string" }
           }
         }
@@ -53,10 +63,15 @@
           "no_prohibited_legal_conclusions",
           "fixture_grounded_facts",
           "validator_strict_pass",
-          "check_outputs_pass"
+          "check_outputs_pass",
+          "casegraph_verify_cites_pass",
+          "casegraph_verify_chronology_pass",
+          "casegraph_check_isolation_pass"
         ]
       },
-      "minItems": 1
+      "minItems": 11,
+      "uniqueItems": true,
+      "description": "All enum gates must be listed (full set required for promotion)"
     }
   },
   "additionalProperties": false

@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [legal, discovery, intake, fela, personal-injury, plaintiff]
     category: legal
-    related_skills: [legal-discovery-review]
+    related_skills: [legal-discovery-review, legal-casegraph, legal-matter-mail]
 ---
 
 # Legal Discovery Intake Skill
@@ -257,6 +257,9 @@ Items that are unknown or incomplete after initial intake:
 - Employment gaps (exact earnings, return-to-work status, RRB records)
 - Witness gaps (unidentified witnesses, contact information)
 - Document gaps (client doesn't have but employer likely possesses)
+- Correspondence gaps (client/firm emails not yet in the matter file — when
+  `legal-matter-mail` is available, run its context/gap pipeline over the window
+  from injury date to first contact and after; findings require attorney review)
 
 ### Step 11: Generate Client Interview Follow-Up Questions
 
@@ -322,16 +325,18 @@ Before presenting to the attorney:
 - [ ] FELA featherweight causation standard noted in liability section
 - [ ] RRTA tax treatment noted in wage-loss section
 
-**Isolation gate (mandatory when `legal-casegraph` is available and a matter
-index exists):** run on every output file before attorney handoff; must exit 0
-with all WARNs resolved. Intake outputs must reference only THIS matter's
-people, places, and identifiers:
+**Isolation gate (mandatory for live matters — missing index = FAIL):** before
+attorney handoff, the matter MUST have a casegraph index
+(`casegraph.py init` + `build`). Do not skip by omitting the skill. Run on every
+output file; must exit 0 with all WARNs resolved (use `--strict`). Intake
+outputs must reference only THIS matter's people, places, and identifiers:
 
 ```
-python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> <output.md> --fingerprints <store>
+python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> <output.md> --fingerprints <store> --strict
 ```
 
-This gate supplements — never replaces — the checklist above and attorney review.
+If `.casegraph/` is missing: STOP and initialize the matter index — do not hand
+off. This gate supplements — never replaces — the checklist above and attorney review.
 
 ## Pitfalls
 
