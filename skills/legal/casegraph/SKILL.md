@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [legal, discovery, index, verification, isolation, citations, fela, personal-injury]
     category: legal
-    related_skills: [legal-discovery-intake, legal-discovery-review]
+    related_skills: [legal-discovery-intake, legal-discovery-review, legal-matter-mail]
 ---
 
 # Legal Casegraph Skill
@@ -67,8 +67,9 @@ python skills/legal/casegraph/scripts/casegraph.py query C:\Matters\M1 --grep "c
 python skills/legal/casegraph/scripts/casegraph.py query C:\Matters\M1 --entity "R.K."
 
 # gates — run on every output before attorney handoff (exit 0 required)
-python skills/legal/casegraph/scripts/casegraph.py verify-cites    C:\Matters\M1 review_package.md --quotes
-python skills/legal/casegraph/scripts/casegraph.py check-isolation C:\Matters\M1 review_package.md --fingerprints %HERMES_HOME%\casegraph\fingerprints.json
+python skills/legal/casegraph/scripts/casegraph.py verify-cites       C:\Matters\M1 review_package.md
+python skills/legal/casegraph/scripts/casegraph.py verify-chronology  C:\Matters\M1 review_package.md --strict
+python skills/legal/casegraph/scripts/casegraph.py check-isolation    C:\Matters\M1 review_package.md --fingerprints %HERMES_HOME%\casegraph\fingerprints.json --strict
 
 # registry maintenance
 python skills/legal/casegraph/scripts/casegraph.py add-entity C:\Matters\M1 --name "Northgate Yard" --role location
@@ -80,8 +81,8 @@ python skills/legal/casegraph/scripts/casegraph.py export-fingerprint C:\Matters
 | Gate | FAIL (exit 1) | WARN (listed, exit 0 unless --strict) |
 |---|---|---|
 | `status` | index stale (files added/changed/removed) | — |
-| `verify-cites` | a cited bates number resolves to no indexed document; `--quotes`: a quoted string (≥20 chars) appears in no indexed document | — |
-| `verify-chronology` | a chronology entry's Source citation does not resolve | entry's date (any common rendering) not found in the cited document's text; cited document unreadable/unverifiable |
+| `verify-cites` | unresolved same-matter Bates; zero same-matter cites (unless `--allow-empty`); quote miss when quotes enabled (default on) | — |
+| `verify-chronology` | unresolved Source citation; dated row with no same-matter Source (unless `--allow-uncited`) | date absent from cited doc text; cited doc unreadable (`--strict` escalates) |
 | `check-isolation` | bates prefix not registered to this matter; identifier matching ANOTHER matter's fingerprint | capitalized name not in this matter's entity registry or the global legal allowlist |
 
 WARNs are an attorney-review list, not noise: a legitimate new name should be

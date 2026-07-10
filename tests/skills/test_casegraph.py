@@ -186,7 +186,7 @@ class TestBuildAndStatus:
         fingerprint store) — never into the production tree."""
         before = {p.as_posix() for p in (matter / "production").rglob("*")}
         out = _write(tmp_path / "o.md", "Cites TVRR-PROD-000001.")
-        cg.main(["verify-cites", str(matter), str(out)])
+        cg.main(["verify-cites", str(matter), str(out), "--no-quotes"])
         cg.main(["check-isolation", str(matter), str(out)])
         cg.main(["build", str(matter)])
         after = {p.as_posix() for p in (matter / "production").rglob("*")}
@@ -199,34 +199,48 @@ class TestVerifyCites:
     def test_pass_on_resolvable_citations(self, matter, tmp_path):
         out = _write(tmp_path / "o.md",
                      "Fact A (TVRR-PROD-000001). Fact B (TVRR-PROD-000003).")
-        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
+        assert cg.main(["verify-cites", str(matter), str(out), "--no-quotes"]) == 0
 
     def test_fail_on_fabricated_citation(self, matter, tmp_path, capsys):
         out = _write(tmp_path / "o.md", "Fact (TVRR-PROD-000099).")
-        assert cg.main(["verify-cites", str(matter), str(out)]) == 1
+        assert cg.main(["verify-cites", str(matter), str(out), "--no-quotes"]) == 1
         assert "TVRR-PROD-000099" in capsys.readouterr().out
 
     def test_range_interior_resolves(self, matter, tmp_path):
         # 000002 is interior to doc 1's range (000001-000002).
         out = _write(tmp_path / "o.md", "See TVRR-PROD-000002.")
-        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
+        assert cg.main(["verify-cites", str(matter), str(out), "--no-quotes"]) == 0
 
     def test_foreign_prefix_is_not_verify_cites_job(self, matter, tmp_path):
         # Foreign prefixes are the isolation gate's job; verify-cites must not
-        # double-report them (avoids two gates fighting over one finding).
+        # double-report them as unresolved. With fail-closed empty-cite policy,
+        # foreign-only text still needs --allow-empty to pass (zero same-matter
+        # cites), but must not emit an "unresolved citation: NORF-..." failure.
         out = _write(tmp_path / "o.md", "See NORF-PROD-000001.")
-        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
+        assert cg.main(["verify-cites", str(matter), str(out),
+                        "--allow-empty", "--no-quotes"]) == 0
+
+    def test_empty_citations_fail_closed(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "o.md", "Narrative facts with no Doc IDs.")
+        assert cg.main(["verify-cites", str(matter), str(out), "--no-quotes"]) == 1
+        assert "no same-matter Bates citations" in capsys.readouterr().out
 
     def test_quote_verification(self, matter, tmp_path, capsys):
         good = _write(tmp_path / "good.md",
                       'Report says "unsafe coupling procedure at Northgate Yard" '
                       "(TVRR-PROD-000001).")
-        assert cg.main(["verify-cites", str(matter), str(good), "--quotes"]) == 0
+        assert cg.main(["verify-cites", str(matter), str(good)]) == 0
         bad = _write(tmp_path / "bad.md",
                      'Report says "the brakeman ignored three separate radio warnings" '
                      "(TVRR-PROD-000001).")
-        assert cg.main(["verify-cites", str(matter), str(bad), "--quotes"]) == 1
+        assert cg.main(["verify-cites", str(matter), str(bad)]) == 1
         assert "quote not found" in capsys.readouterr().out
+
+    def test_curly_quote_verification(self, matter, tmp_path):
+        good = _write(tmp_path / "good.md",
+                      "Report says \u201cunsafe coupling procedure at Northgate Yard\u201d "
+                      "(TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter), str(good)]) == 0
 
     def test_missing_output_file_is_usage_error(self, matter):
         assert cg.main(["verify-cites", str(matter), str(matter / "nope.md")]) == 2
@@ -359,11 +373,129 @@ class TestVerifyChronology:
                      "Source: TVRR-PROD-000005\n")
         assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
 
-    def test_entry_without_citation_is_skipped(self, matter, tmp_path, capsys):
+    def test_entry_without_citation_fails_closed(self, matter, tmp_path, capsys):
         out = _write(tmp_path / "c.md",
                      "Date: 2024-11-13\nEvent: No source given.\n")
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 1
+        assert "no same-matter Bates Source" in capsys.readouterr().out
+        assert cg.main(["verify-chronology", str(matter), str(out),
+                        "--allow-uncited"]) == 0
+
+
+# ── receipt-run hardening (2026-07-08): prose false-positives, declared
+# ranges, table chronology, meta-quotes ──────────────────────────────────────
+
+class TestProseFalsePositives:
+    """The permissive bates regex must not fire on ordinary legal prose."""
+
+    def test_months_and_sections_are_not_foreign_bates(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "o.md",
+                     "In November 2024 and again February 2025, per Section 218 "
+                     "and Part 218, TVRR filed responses (TVRR-PROD-000001).")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 0
+        assert "foreign bates" not in capsys.readouterr().out
+
+    def test_issue_codes_are_not_foreign_bates(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "o.md",
+                     "Tagged DAM-001 and PROC-002; contradiction CONTRA-001 "
+                     "(TVRR-PROD-000001).")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 0
+        assert "foreign bates" not in capsys.readouterr().out
+
+    def test_real_foreign_bates_still_fails(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "o.md", "See NORF-PROD-000123 (TVRR-PROD-000001).")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 1
+        assert "NORF-PROD" in capsys.readouterr().out
+
+    def test_headings_and_table_rows_do_not_warn(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "o.md",
+                     "# Production Gap Analysis\n\n"
+                     "| Document Inventory | Attorney Review Flag |\n"
+                     "|---|---|\n"
+                     "| Payroll Records | Yes |\n\n"
+                     "Cited to TVRR-PROD-000001.\n")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 0
+        assert "WARN" not in capsys.readouterr().out
+
+    def test_name_in_field_value_still_warns(self, matter, tmp_path, capsys):
+        # Label is skipped, but a person NAME in the value must still WARN.
+        out = _write(tmp_path / "o.md",
+                     "Witness: Harold Quimby stated facts (TVRR-PROD-000001).")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 0
+        assert "Harold Quimby" in capsys.readouterr().out
+
+
+class TestDeclaredRanges:
+    """Citations inside cover-letter-declared ranges are grounded, not
+    fabricated; numbers outside every declared range still fail."""
+
+    @pytest.fixture()
+    def matter_with_cover(self, matter):
+        _write(matter / "production" / "cover_letter.md",
+               "**Document Type:** Production Cover Letter\n\n"
+               "Produced herewith: Personnel File TVRR-PROD-000200 through "
+               "TVRR-PROD-000210; Inspection Reports TVRR-PROD-000220 to 000230.\n")
+        assert cg.main(["build", str(matter)]) == 0
+        return matter
+
+    def test_declared_not_indexed_is_info_not_fail(self, matter_with_cover, tmp_path, capsys):
+        out = _write(tmp_path / "o.md",
+                     "Listed as produced at TVRR-PROD-000205 (TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter_with_cover), str(out),
+                        "--no-quotes"]) == 0
+        assert "declared-not-indexed" in capsys.readouterr().out
+
+    def test_outside_declared_ranges_still_fails(self, matter_with_cover, tmp_path):
+        out = _write(tmp_path / "o.md", "See TVRR-PROD-000299 (TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter_with_cover), str(out),
+                        "--no-quotes"]) == 1
+
+
+class TestChronologyTableLayout:
+    def test_table_rows_are_verified(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md",
+                     "| Date | Event | Source |\n|---|---|---|\n"
+                     "| 2024-11-13 | Report authored | TVRR-PROD-000001 |\n")
         assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
-        assert "0 dated+cited entries" in capsys.readouterr().out
+        assert "1 dated+cited entries" in capsys.readouterr().out
+
+    def test_table_row_wrong_date_warns(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md",
+                     "| 2019-01-01 | Impossible event | TVRR-PROD-000001 |\n")
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 0
+        assert "not found in any cited document" in capsys.readouterr().out
+
+
+class TestMetaQuotes:
+    def test_gate_language_quotes_are_not_checked(self, matter, tmp_path):
+        out = _write(tmp_path / "o.md",
+                     'Marked "evidence supports an inference of negligence here" '
+                     "and cited TVRR-PROD-000001.")
+        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
+
+    def test_adjacent_quotes_do_not_cross_pair(self, matter, tmp_path):
+        """A short quotation followed by a real one must not cross-pair the
+        first's closing mark with the second's opening mark and 'verify' the
+        prose between them (receipt-run finding)."""
+        out = _write(tmp_path / "o.md",
+                     'Says lighting "always dim." Unquoted filler prose here. '
+                     'Then quotes the "unsafe coupling procedure at Northgate Yard" '
+                     "(TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
+
+    def test_cross_paired_fabrication_still_caught(self, matter, tmp_path):
+        # The REAL quoted span (odd parity) that is absent must still fail.
+        out = _write(tmp_path / "o.md",
+                     'Says "dim." then "the brakeman ignored three radio warnings" '
+                     "(TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter), str(out)]) == 1
+
+    def test_ellipsis_trimmed_before_match(self, matter, tmp_path):
+        out = _write(tmp_path / "o.md",
+                     'Report noted an "unsafe coupling procedure at Northgate Yard…" '
+                     "(TVRR-PROD-000001).")
+        # Fixture contains the words without the trailing ellipsis.
+        assert cg.main(["verify-cites", str(matter), str(out)]) == 0
 
 
 # ── entities & query ────────────────────────────────────────────────────────

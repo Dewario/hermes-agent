@@ -34,8 +34,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
-SCHEMA_VERSION = 1
-TOOL_VERSION = "1.0.0"
+SCHEMA_VERSION = 2  # v2: documents.jsonl rows carry declared_ranges
+TOOL_VERSION = "1.1.0"
 INDEX_DIRNAME = ".casegraph"
 TEXT_CACHE_DIRNAME = "text"
 
@@ -45,10 +45,23 @@ _PDF_EXTS = {".pdf"}
 _DOCX_EXTS = {".docx"}
 _EML_EXTS = {".eml"}
 
-# Bates identifier: one-or-more uppercase alpha(numeric) prefix segments joined
-# by hyphens, then a 3-8 digit number. e.g. TVRR-PROD-000123, ACME000045.
+# Bates identifier parsing comes in two strictness levels:
+#
+# _BATES_TOKEN_RE (permissive) — filename/header parsing, where a space or
+# underscore may separate prefix and number ("TVRR-PROD 000123", scan_...).
 _BATES_TOKEN_RE = re.compile(
     r"\b([A-Z][A-Z0-9]{1,11}(?:-[A-Z][A-Z0-9]{1,11})*)[-_ ]?(\d{3,8})\b"
+)
+
+# _BATES_TEXT_RE (strict) — citation/isolation scanning of PROSE, where the
+# permissive form drowns in false positives: "November 2024" reads as
+# NOVEMBER-002024, "Section 218" as SECTION-000218, etc. Prose bates must be
+# hyphen/underscore-joined (no bare space) AND look like a real production
+# number: 5+ digits, or shorter with a leading zero (TVRR-PROD-000001 keeps
+# matching; issue codes like DAM-001 are excluded separately via allowlisted
+# prefixes, and 4-digit years never match).
+_BATES_TEXT_RE = re.compile(
+    r"\b([A-Z][A-Z0-9]{1,11}(?:-[A-Z][A-Z0-9]{1,11})*)[-_](0\d{2,7}|\d{5,8})\b"
 )
 
 # Structured header fields used by production documents / fixtures:
@@ -60,12 +73,34 @@ _HEADER_FIELD_RE = re.compile(
 # Candidate person/org names in outputs: 2-4 capitalized words in sequence
 # (allowing initials like "J.T." and connectors). High recall, moderate
 # precision — used only for WARN-level findings, never FAIL.
+# Connectors use [ \t]+ (NOT \s+): a candidate must never span a line break,
+# or heading + first-prose-word fuse into junk like
+# 'Bates Range Normalization\n\nBates' (receipt-run finding).
 _NAME_CANDIDATE_RE = re.compile(
-    r"\b([A-Z][a-zA-Z.]{1,20}(?:\s+(?:of|the|and|for|de|van|von)\s+|\s+)"
-    r"[A-Z][a-zA-Z.]{1,20}(?:\s+[A-Z][a-zA-Z.]{1,20}){0,2})\b"
+    r"\b([A-Z][a-zA-Z.]{1,20}(?:[ \t]+(?:of|the|and|for|de|van|von)[ \t]+|[ \t]+)"
+    r"[A-Z][a-zA-Z.]{1,20}(?:[ \t]+[A-Z][a-zA-Z.]{1,20}){0,2})\b"
 )
 
-_QUOTE_RE = re.compile(r'"([^"\n]{20,300})"')
+# Straight and curly double quotes (handoff quote checks must not miss
+# typographic quotes common in Word/PDF extractions).
+_QUOTE_SPLIT_RE = re.compile(r'["\u201c\u201d]')
+
+
+def _iter_quoted_spans(text: str):
+    """Yield the text inside double-quote pairs, line by line.
+
+    Parity-based pairing: splitting a line on quote characters puts quoted
+    content at ODD indices. A naive pair-regex with a minimum length skips a
+    short quotation and then cross-pairs its CLOSING mark with the next
+    quotation's OPENING mark, "verifying" the prose between two quotes
+    (receipt-run finding). Quotes never span lines.
+    """
+    for line in text.splitlines():
+        parts = _QUOTE_SPLIT_RE.split(line)
+        for i in range(1, len(parts), 2):
+            span = parts[i]
+            if 1 <= len(span) <= 300:
+                yield span
 
 
 # ── small utilities ─────────────────────────────────────────────────────────
@@ -276,6 +311,34 @@ def parse_bates_range(value: str) -> Optional[Tuple[str, int, int]]:
     return prefix, min(nums), max(nums)
 
 
+# Declared ranges in a production cover letter: "TVRR-PROD-000005 through
+# 000016", "TVRR-PROD-000061 to TVRR-PROD-000071", en/em-dash forms.
+_DECLARED_RANGE_RE = re.compile(
+    r"\b([A-Z][A-Z0-9]{1,11}(?:-[A-Z][A-Z0-9]{1,11})*)-(0\d{2,7}|\d{5,8})"
+    r"\s*(?:through|to|thru|[–—-])\s*"
+    r"(?:[A-Z][A-Z0-9-]{1,23}-)?(0\d{2,7}|\d{5,8})\b",
+    re.IGNORECASE,
+)
+
+
+def parse_declared_ranges(text: str) -> List[Tuple[str, int, int]]:
+    """Bates ranges DECLARED by a production cover letter / index.
+
+    A review package legitimately cites documents the cover letter says were
+    produced even when no file for them exists in the reviewed set (gap
+    analysis, inventory reconciliation). Those citations are grounded in the
+    cover letter — a produced, indexed document — and must be reported as
+    declared-but-not-indexed, not as fabrications. Numbers OUTSIDE every
+    declared range remain hard failures.
+    """
+    out: List[Tuple[str, int, int]] = []
+    for m in _DECLARED_RANGE_RE.finditer(text.upper()):
+        start, end = int(m.group(2)), int(m.group(3))
+        if end >= start:
+            out.append((m.group(1), start, end))
+    return out
+
+
 def bates_from_filename(name: str) -> Optional[Tuple[str, int]]:
     # Underscores are word characters, so "scan_TVRR-PROD-000010.pdf" would
     # otherwise never get a word boundary before TVRR and mis-parse as
@@ -343,6 +406,7 @@ def _scan_file(matter_dir: Path, path: Path, no_text_cache: bool) -> dict:
         "doc_type": None,
         "title": None,
         "dupes_of": None,
+        "declared_ranges": [],
     }
     text, status, pages = extract_text(path)
     row["text_extractable"] = status
@@ -359,6 +423,12 @@ def _scan_file(matter_dir: Path, path: Path, no_text_cache: bool) -> dict:
         ):
             if fields.get(src):
                 row[dst] = fields[src]
+        # Production cover letters / indexes DECLARE bates ranges for the
+        # whole production; record them so verify-cites can distinguish
+        # "declared but not produced as a file" from a fabricated citation.
+        _kind = f"{row.get('doc_type') or ''} {row.get('title') or ''} {path.name}".lower()
+        if "cover letter" in _kind or "production index" in _kind:
+            row["declared_ranges"] = [list(r) for r in parse_declared_ranges(text)]
         if not no_text_cache:
             cache = _index_dir(matter_dir) / TEXT_CACHE_DIRNAME
             cache.mkdir(parents=True, exist_ok=True)
@@ -400,6 +470,12 @@ def cmd_build(args) -> int:
     matter_dir = Path(args.matter_dir).resolve()
     manifest = load_manifest(matter_dir)
     old_rows = {r["relpath"]: r for r in load_documents(matter_dir)}
+    # Index built by an older tool schema: unchanged files would keep stale
+    # rows missing newer fields (e.g. declared_ranges), so force a full
+    # re-scan once and stamp the new schema.
+    if manifest.get("schema_version") != SCHEMA_VERSION:
+        old_rows = {}
+        manifest["schema_version"] = SCHEMA_VERSION
     new_rows: List[dict] = []
     n_new = n_changed = n_same = 0
 
@@ -593,24 +669,57 @@ def cmd_query(args) -> int:
 
 # ── verification gates ──────────────────────────────────────────────────────
 
+def _allowlist_path() -> Path:
+    return Path(__file__).resolve().parent.parent / "data" / "legal_allowlist.txt"
+
+
 def _load_allowlist() -> set:
     """Global legal allowlist (courts, statutes, common legal phrases) shipped
-    with the skill. Normalized entries."""
-    path = Path(__file__).resolve().parent.parent / "data" / "legal_allowlist.txt"
+    with the skill. Normalized entries. Missing file is a hard error for
+    isolation semantics — an empty allowlist silently WARNs on every legal
+    phrase and diverges from SPEC."""
+    path = _allowlist_path()
+    if not path.exists():
+        raise FileNotFoundError(
+            f"casegraph allowlist missing: {path} — restore "
+            f"skills/legal/casegraph/data/legal_allowlist.txt"
+        )
     entries: set = set()
-    if path.exists():
-        for line in path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if line and not line.startswith("#"):
-                entries.add(_normalize_identifier(line))
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            entries.add(_normalize_identifier(line))
+    if not entries:
+        raise ValueError(f"casegraph allowlist is empty: {path}")
     return entries
 
 
 def _extract_citations(text: str) -> List[Tuple[str, int]]:
+    """Bates citations in PROSE — uses the strict text-form regex.
+
+    The permissive filename form would turn 'November 2024' into
+    NOVEMBER-002024 and 'Section 218' into SECTION-000218 (receipt-run
+    finding); prose citations require the joined, production-number shape.
+    """
     out = []
-    for m in _BATES_TOKEN_RE.finditer(text.upper()):
+    for m in _BATES_TEXT_RE.finditer(text.upper()):
         out.append((m.group(1), int(m.group(2))))
     return out
+
+
+# Lines carrying these markers discuss documents that are EXPECTED TO BE
+# ABSENT (production-gap analysis). An unresolved citation there is the
+# point of the sentence, not a fabrication.
+_GAP_MARKER_RE = re.compile(
+    r"not (?:been )?produced|missing|gap|not searched|no documents produced|"
+    r"outstanding|withheld|expected but|claimed not to exist", re.IGNORECASE
+)
+
+# Quoted skill/gate meta-language is template text, not a document quotation.
+_META_QUOTE_RE = re.compile(
+    r"evidence (?:suggests|supports|contradicts)|requires attorney review|"
+    r"attorney review required", re.IGNORECASE
+)
 
 
 def cmd_verify_cites(args) -> int:
@@ -624,24 +733,66 @@ def cmd_verify_cites(args) -> int:
     text = _read_text_best_effort(output_path)
 
     registered = set(manifest.get("bates_prefixes", []))
+    declared: List[Tuple[str, int, int]] = [
+        (r[0], int(r[1]), int(r[2]))
+        for doc in rows for r in (doc.get("declared_ranges") or [])
+    ]
+
+    def _in_declared(prefix: str, number: int) -> bool:
+        return any(p == prefix and s <= number <= e for p, s, e in declared)
+
     failures: List[str] = []
+    gap_notes: List[str] = []
     checked = 0
     seen: set = set()
-    for prefix, number in _extract_citations(text):
-        if prefix not in registered:
-            continue  # foreign prefixes are the isolation gate's job
-        key = (prefix, number)
-        if key in seen:
-            continue
-        seen.add(key)
-        checked += 1
-        if _resolve_bates(rows, prefix, number) is None:
-            failures.append(f"unresolved citation: {prefix}-{number:06d} "
-                            f"(no indexed document covers this number)")
+    # Line-aware pass so gap-analysis context is visible per citation:
+    # a citation on a "not produced / missing / gap" line is EXPECTED to be
+    # unresolved — that's the finding being reported, not a fabrication.
+    for line in text.splitlines():
+        gap_context = bool(_GAP_MARKER_RE.search(line))
+        for prefix, number in _extract_citations(line):
+            if prefix not in registered:
+                continue  # foreign prefixes are the isolation gate's job
+            key = (prefix, number)
+            if key in seen:
+                continue
+            seen.add(key)
+            checked += 1
+            resolved = _resolve_bates(rows, prefix, number) is not None
+            if not resolved and _in_declared(prefix, number):
+                gap_notes.append(
+                    f"declared-not-indexed: {prefix}-{number:06d} is inside a "
+                    f"range the production cover letter declares, but no file "
+                    f"for it is indexed — grounded citation, document not in "
+                    f"reviewed set"
+                )
+            elif not resolved and gap_context:
+                gap_notes.append(
+                    f"gap-context citation (expected absent): {prefix}-{number:06d}"
+                )
+            elif not resolved:
+                failures.append(f"unresolved citation: {prefix}-{number:06d} "
+                                f"(no indexed document covers this number)")
+            elif resolved and gap_context:
+                gap_notes.append(
+                    f"NOTE: {prefix}-{number:06d} is listed as missing/not "
+                    f"produced but RESOLVES in the index — verify the gap claim"
+                )
+
+    # Fail-closed: a review/handoff package with zero same-matter citations is
+    # not a vacuous PASS. Opt out only with --allow-empty (intake drafts, etc.).
+    if checked == 0 and not getattr(args, "allow_empty", False):
+        failures.append(
+            "no same-matter Bates citations found in output "
+            "(vacuous verify-cites PASS refused; use --allow-empty only for "
+            "non-review drafts that intentionally cite nothing)"
+        )
 
     quote_misses: List[str] = []
     quotes_checked = 0
-    if args.quotes:
+    # --quotes is the handoff default; --no-quotes opts out for draft passes.
+    do_quotes = getattr(args, "quotes", True) and not getattr(args, "no_quotes", False)
+    if do_quotes:
         cache = _index_dir(matter_dir) / TEXT_CACHE_DIRNAME
         corpus: List[str] = []
         for r in rows:
@@ -649,9 +800,19 @@ def cmd_verify_cites(args) -> int:
             if fp.exists():
                 corpus.append(_normalize_identifier(fp.read_text(encoding="utf-8")))
         blob = "\n".join(corpus)
-        for q in _QUOTE_RE.findall(text):
+        for q in _iter_quoted_spans(text):
+            # Skill/gate meta-language in quotes ("evidence supports…",
+            # "requires attorney review") is template text, not a document
+            # quotation — do not demand it appear in the corpus.
+            if _META_QUOTE_RE.search(q):
+                continue
+            # Strip ellipses an author adds around an excerpt; the source
+            # document contains the words, not the dots.
+            q_cmp = q.strip().strip(".… ").strip()
+            if len(q_cmp) < 20:
+                continue
             quotes_checked += 1
-            if _normalize_identifier(q) not in blob:
+            if _normalize_identifier(q_cmp) not in blob:
                 quote_misses.append(q[:120])
 
     report = {
@@ -659,6 +820,7 @@ def cmd_verify_cites(args) -> int:
         "matter_id": manifest["matter_id"],
         "citations_checked": checked,
         "citation_failures": failures,
+        "gap_notes": gap_notes,
         "quotes_checked": quotes_checked,
         "quote_misses": quote_misses,
         "pass": not failures and not quote_misses,
@@ -670,12 +832,16 @@ def cmd_verify_cites(args) -> int:
               f"'{manifest['matter_id']}'.")
         for f_ in failures:
             print(f"  FAIL: {f_}")
-        if args.quotes:
+        for note in gap_notes:
+            print(f"  INFO: {note}")
+        if do_quotes:
             print(f"verify-cites: {quotes_checked} quotes (>=20 chars) checked.")
             for q in quote_misses:
                 print(f"  FAIL: quote not found in any indexed document: \"{q}...\"")
         if report["pass"]:
             print("PASS")
+        else:
+            print("FAIL")
     return 0 if report["pass"] else 1
 
 
@@ -820,27 +986,46 @@ def _candidate_names(text: str, subspans: bool = False) -> Iterable[str]:
     text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
     text = text.replace("**", " ")
     seen: set = set()
-    for m in _NAME_CANDIDATE_RE.finditer(text):
-        cand = m.group(1).strip()
-        # Skip sentence-initial artifacts: single common word pairs handled by
-        # allowlist; here skip candidates that are all-uppercase (headings).
-        if cand.isupper():
+    for line in text.splitlines():
+        stripped = line.lstrip()
+        # Structural markdown is template scaffolding, not prose that could
+        # smuggle another matter's names to a reader: headings and table rows
+        # produced 200+ Title-Case WARNs per package (receipt-run finding).
+        if stripped.startswith("#") or stripped.startswith("|"):
             continue
-        if cand not in seen:
-            seen.add(cand)
-            yield cand
-        if subspans:
-            words = cand.split()
-            for width in range(2, len(words)):
-                for i in range(len(words) - width + 1):
-                    sub = " ".join(words[i:i + width])
-                    if sub not in seen:
-                        seen.add(sub)
-                        yield sub
+        # Field-label lines ("Document Type: …", "- Attorney Review Flag: …"):
+        # scan only the value AFTER the label colon, so template field names
+        # don't WARN but a name in the value still does.
+        label = re.match(r"^\s*(?:[-*]\s*)?[A-Z][A-Za-z ./-]{0,40}:\s*(.*)$", line)
+        if label:
+            line = label.group(1)
+        for m in _NAME_CANDIDATE_RE.finditer(line):
+            cand = m.group(1).strip()
+            # Skip sentence-initial artifacts: single common word pairs handled
+            # by allowlist; here skip all-uppercase candidates (headings).
+            if cand.isupper():
+                continue
+            if cand not in seen:
+                seen.add(cand)
+                yield cand
+            if subspans:
+                words = cand.split()
+                for width in range(2, len(words)):
+                    for i in range(len(words) - width + 1):
+                        sub = " ".join(words[i:i + width])
+                        if sub not in seen:
+                            seen.add(sub)
+                            yield sub
 
 
 _CHRONO_DATE_RE = re.compile(r"^\s*(?:[-*]\s*)?(?:\*\*)?Date(?:\*\*)?:\s*(?:\*\*)?"
                              r"\[?(\d{4}-\d{2}-\d{2})\]?", re.MULTILINE)
+
+# Table-layout chronology rows: | 2024-11-12 | event… | TVRR-PROD-000001 |
+# Without this, a package whose chronology is a markdown table verifies ZERO
+# rows and PASSes vacuously (receipt-run finding).
+_CHRONO_TABLE_ROW_RE = re.compile(
+    r"^\s*\|\s*(?:\*\*)?(\d{4}-\d{2}-\d{2})(?:\*\*)?\s*\|(.+)$", re.MULTILINE)
 
 _MONTHS = ["January", "February", "March", "April", "May", "June", "July",
            "August", "September", "October", "November", "December"]
@@ -886,15 +1071,31 @@ def cmd_verify_chronology(args) -> int:
     warnings: List[str] = []
     entries = 0
 
-    # Pair each Date: line with bates citations up to the next Date: line.
+    # Collect dated entries from BOTH layouts:
+    #  - "Date: YYYY-MM-DD" blocks (segment runs to the next Date: line)
+    #  - markdown table rows "| YYYY-MM-DD | event | TVRR-PROD-000001 |"
+    # A table-layout chronology previously verified zero rows and PASSed
+    # vacuously.
     matches = list(_CHRONO_DATE_RE.finditer(text))
+    dated_segments: List[Tuple[str, str]] = []
     for i, m in enumerate(matches):
-        iso = m.group(1)
         seg_end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
-        segment = text[m.start():seg_end]
+        dated_segments.append((m.group(1), text[m.start():seg_end]))
+    table_rows = list(_CHRONO_TABLE_ROW_RE.finditer(text))
+    for m in table_rows:
+        dated_segments.append((m.group(1), m.group(0)))
+
+    for iso, segment in dated_segments:
         cites = [(p, n) for p, n in _extract_citations(segment) if p in registered]
         if not cites:
-            continue  # no same-matter citation in this entry; not chronology-verifiable
+            # Fail-closed: a dated chronology row without a same-matter Source
+            # citation is not "unverifiable" — it is incomplete for handoff.
+            if not getattr(args, "allow_uncited", False):
+                failures.append(
+                    f"{iso} entry: dated chronology row has no same-matter "
+                    f"Bates Source citation"
+                )
+            continue
         entries += 1
         entry_label = f"{iso} entry"
         date_verified = False
@@ -917,6 +1118,14 @@ def cmd_verify_chronology(args) -> int:
         ):
             warnings.append(f"{entry_label}: date {iso} not found in any cited "
                             f"document — verify the event date against sources")
+
+    # Vacuous chronology (dated rows present but none checked) is a FAIL unless
+    # the output has no dated rows at all.
+    if dated_segments and entries == 0 and not failures and not getattr(args, "allow_uncited", False):
+        failures.append(
+            "chronology has Date: rows but none were citation-verifiable "
+            "(vacuous verify-chronology PASS refused)"
+        )
 
     passed = not failures and (not args.strict or not warnings)
     report = {
@@ -1008,11 +1217,18 @@ def cmd_selftest(args) -> int:
         bad = Path(td) / "out_bad.md"
         bad.write_text("Fact cited to TVRR-PROD-000099 and NORF-PROD-000001.\n", encoding="utf-8")
         nv = argparse.Namespace(matter_dir=str(matter), output_file=str(good),
-                                quotes=False, json=True)
+                                quotes=True, no_quotes=False, allow_empty=False,
+                                json=True)
         with contextlib.redirect_stdout(buf):
             rc_good = cmd_verify_cites(nv)
             nv.output_file = str(bad)
             rc_bad = cmd_verify_cites(nv)
+            empty = Path(td) / "out_empty.md"
+            empty.write_text("Narrative with no Bates citations at all.\n", encoding="utf-8")
+            nv.output_file = str(empty)
+            rc_empty = cmd_verify_cites(nv)
+            nv.allow_empty = True
+            rc_empty_ok = cmd_verify_cites(nv)
             ni = argparse.Namespace(matter_dir=str(matter), output_file=str(bad),
                                     fingerprints=None, strict=False, json=True)
             rc_iso_bad = cmd_check_isolation(ni)
@@ -1020,8 +1236,11 @@ def cmd_selftest(args) -> int:
             rc_iso_good = cmd_check_isolation(ni)
         check("verify-cites pass", rc_good == 0)
         check("verify-cites fail on out-of-range", rc_bad == 1)
+        check("verify-cites fail on empty cites", rc_empty == 1)
+        check("verify-cites allow-empty", rc_empty_ok == 0)
         check("isolation fail on foreign prefix", rc_iso_bad == 1)
         check("isolation pass on clean output", rc_iso_good == 0)
+        check("allowlist present", _allowlist_path().exists() and bool(_load_allowlist()))
     print("selftest:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 
@@ -1062,7 +1281,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     p = sub.add_parser("verify-cites", help="citations in output must resolve (exit 1 on failure)")
     p.add_argument("matter_dir")
     p.add_argument("output_file")
-    p.add_argument("--quotes", action="store_true", help="also verify quoted strings appear in corpus")
+    p.add_argument("--quotes", action="store_true", default=True,
+                   help="verify quoted strings appear in corpus (default: on)")
+    p.add_argument("--no-quotes", action="store_true",
+                   help="skip quote verification (draft passes only)")
+    p.add_argument("--allow-empty", action="store_true",
+                   help="allow zero same-matter citations (default: fail closed)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_verify_cites)
 
@@ -1071,6 +1295,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("matter_dir")
     p.add_argument("output_file")
     p.add_argument("--strict", action="store_true", help="unresolved WARNs also fail")
+    p.add_argument("--allow-uncited", action="store_true",
+                   help="skip Date: rows that lack same-matter Bates Sources")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_verify_chronology)
 
