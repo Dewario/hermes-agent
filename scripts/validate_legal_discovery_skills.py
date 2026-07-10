@@ -827,12 +827,21 @@ def check_matter_scaffolds(scan_dir):
         r"(?i)case[_ ]?file",
     ]
 
+    curated = ("fixtures", "templates", "scripts", "references", "examples")
     for root, dirs, files in os.walk(scan_dir):
         root_path = Path(root)
         if root_path == scan_dir:
             continue
-        last_part = root_path.parts[-1] if len(root_path.parts) > len(scan_dir.parts) else ""
-        if last_part in ("fixtures", "templates", "scripts", "references", "examples"):
+        # Exempt the curated synthetic-content dirs AND their descendants:
+        # promoted goldens live at examples/<pilot_id>/ where pilot_id is
+        # date-formed by design (approval schema), so checking only the leaf
+        # name made every promotion fail the scaffold rule. Contents of
+        # curated dirs are still fully scanned by the per-file checks
+        # (privacy, synthetic labels, legal language); this rule targets
+        # matter-scaffold DIRECTORY NAMES outside the curated areas, and
+        # those still fail.
+        rel_parts = root_path.parts[len(scan_dir.parts):]
+        if any(p in curated for p in rel_parts):
             continue
 
         dirname = root_path.name
@@ -1122,6 +1131,21 @@ def run_self_test():
                      chr(10).join(["# Policy", "",
                                    "Never read .env files in this workflow.", ""]),
                      lambda f: len(check_env_references(f)) == 0))
+
+        # Tests 32-33: scaffold check exempts curated-dir DESCENDANTS
+        # (promoted goldens at examples/<date-formed pilot_id>/) but still
+        # flags date-formed dirs outside curated areas.
+        def _t32():
+            base = Path(tmpdir) / "scaf_ok"
+            (base / "examples" / "2026-07-07-synthetic-v1").mkdir(parents=True, exist_ok=True)
+            return len(check_matter_scaffolds(base)) == 0
+        t("promoted golden dir under examples/ is exempt", _t32)
+
+        def _t33():
+            base = Path(tmpdir) / "scaf_bad"
+            (base / "matters" / "2026-07-07-synthetic-v1").mkdir(parents=True, exist_ok=True)
+            return len(check_matter_scaffolds(base)) > 0
+        t("date-formed dir outside curated areas still flagged", _t33)
 
         print(f"\nSelf-test results: {passed}/{total} passed")
         if passed == total:
