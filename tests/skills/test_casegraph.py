@@ -266,6 +266,12 @@ class TestIsolation:
         assert cg.main(["check-isolation", str(matter), str(out)]) == 0
         assert "WARN" in capsys.readouterr().out
 
+    def test_all_caps_multiword_name_still_checked(self, matter, tmp_path, capsys):
+        # Multi-word ALL-CAPS must not be skipped as a heading (red-team P1-5).
+        out = _write(tmp_path / "o.md", "Spoke with HAROLD QUIMBY at the yard.")
+        assert cg.main(["check-isolation", str(matter), str(out)]) == 0
+        assert "HAROLD QUIMBY" in capsys.readouterr().out
+
     def test_strict_mode_fails_on_warns(self, matter, tmp_path):
         out = _write(tmp_path / "o.md", "Interviewed Harold Quimby yesterday.")
         assert cg.main(["check-isolation", str(matter), str(out), "--strict"]) == 1
@@ -381,6 +387,14 @@ class TestVerifyChronology:
         assert cg.main(["verify-chronology", str(matter), str(out),
                         "--allow-uncited"]) == 0
 
+    def test_chronology_heading_without_dates_fails(self, matter, tmp_path, capsys):
+        out = _write(tmp_path / "c.md",
+                     "## Chronology\n\nNo parseable dates here, just prose.\n")
+        assert cg.main(["verify-chronology", str(matter), str(out)]) == 1
+        assert "no parseable dated rows" in capsys.readouterr().out
+        assert cg.main(["verify-chronology", str(matter), str(out),
+                        "--allow-empty-chronology"]) == 0
+
 
 # ── receipt-run hardening (2026-07-08): prose false-positives, declared
 # ranges, table chronology, meta-quotes ──────────────────────────────────────
@@ -426,8 +440,10 @@ class TestProseFalsePositives:
 
 
 class TestDeclaredRanges:
-    """Citations inside cover-letter-declared ranges are grounded, not
-    fabricated; numbers outside every declared range still fail."""
+    """Cover-letter declared ranges are inventory signals, not cite grounding.
+    Default verify-cites FAILs declared-not-indexed; --allow-declared-gaps
+    opts into gap-analysis INFO treatment. Filename-only 'cover letter'
+    must not harvest ranges (laundering vector)."""
 
     @pytest.fixture()
     def matter_with_cover(self, matter):
@@ -438,17 +454,37 @@ class TestDeclaredRanges:
         assert cg.main(["build", str(matter)]) == 0
         return matter
 
-    def test_declared_not_indexed_is_info_not_fail(self, matter_with_cover, tmp_path, capsys):
+    def test_declared_not_indexed_fails_by_default(
+            self, matter_with_cover, tmp_path, capsys):
         out = _write(tmp_path / "o.md",
                      "Listed as produced at TVRR-PROD-000205 (TVRR-PROD-000001).")
         assert cg.main(["verify-cites", str(matter_with_cover), str(out),
-                        "--no-quotes"]) == 0
+                        "--no-quotes"]) == 1
+        assert "declared-not-indexed" in capsys.readouterr().out
+
+    def test_allow_declared_gaps_opts_into_info(
+            self, matter_with_cover, tmp_path, capsys):
+        out = _write(tmp_path / "o.md",
+                     "Listed as produced at TVRR-PROD-000205 (TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter_with_cover), str(out),
+                        "--no-quotes", "--allow-declared-gaps"]) == 0
         assert "declared-not-indexed" in capsys.readouterr().out
 
     def test_outside_declared_ranges_still_fails(self, matter_with_cover, tmp_path):
         out = _write(tmp_path / "o.md", "See TVRR-PROD-000299 (TVRR-PROD-000001).")
         assert cg.main(["verify-cites", str(matter_with_cover), str(out),
                         "--no-quotes"]) == 1
+
+    def test_filename_alone_does_not_declare_ranges(self, matter, tmp_path, capsys):
+        # Plant a file named cover_letter.md WITHOUT Document Type — must not
+        # harvest ranges or launder cites (red-team P1-6).
+        _write(matter / "production" / "cover_letter.md",
+               "Produced herewith: TVRR-PROD-000200 through TVRR-PROD-000210.\n")
+        assert cg.main(["build", str(matter)]) == 0
+        out = _write(tmp_path / "o.md",
+                     "See TVRR-PROD-000205 (TVRR-PROD-000001).")
+        assert cg.main(["verify-cites", str(matter), str(out), "--no-quotes"]) == 1
+        assert "declared-not-indexed" not in capsys.readouterr().out
 
 
 class TestChronologyTableLayout:

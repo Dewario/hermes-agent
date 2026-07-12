@@ -136,16 +136,21 @@ try {
     # entities so strict mode rejects template prose, not contamination. FAIL
     # classes (fabricated cites, foreign bates, fingerprint hits, vacuous
     # PASSes) still abort promotion.
+    #
+    # HONESTY (red-team P1-3): gate names '*_pass' mean no FAIL-class findings.
+    # They do NOT mean --strict WARN-clean. Attorney signature attests WARN review.
+    Write-Host "NOTE: chronology/isolation run WITHOUT --strict (FAIL-only)."
+    Write-Host "      Gate '*_pass' = no FAIL class; WARN-class findings are attorney-attested via approval.json."
     & python $cgScript verify-cites $cgMatter $reviewSrc | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph verify-cites (review)' }
     & python $cgScript verify-chronology $cgMatter $reviewSrc | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph verify-chronology' }
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph verify-chronology (FAIL-only; not --strict)' }
     & python $cgScript check-isolation $cgMatter $reviewSrc --fingerprints $fpStore | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph check-isolation (review)' }
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph check-isolation (FAIL-only; not --strict)' }
     & python $cgScript verify-cites $cgMatter $intakeSrc --allow-empty --no-quotes | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph verify-cites (intake)' }
     & python $cgScript check-isolation $cgMatter $intakeSrc --fingerprints $fpStore | Out-Null
-    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph check-isolation (intake)' }
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph check-isolation (intake; FAIL-only; not --strict)' }
 }
 finally {
     Pop-Location

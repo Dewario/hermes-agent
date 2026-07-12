@@ -71,7 +71,7 @@
       },
       "minItems": 11,
       "uniqueItems": true,
-      "description": "All enum gates must be listed (full set required for promotion)"
+      "description": "All enum gates must be listed (full set required for promotion). casegraph_*_pass means no FAIL-class findings on the promote harness; chronology/isolation promote runs are intentionally non-strict (WARN-class findings are attorney-attested by this signature, not machine-cleared)."
     }
   },
   "additionalProperties": false

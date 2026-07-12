@@ -324,12 +324,11 @@ _DECLARED_RANGE_RE = re.compile(
 def parse_declared_ranges(text: str) -> List[Tuple[str, int, int]]:
     """Bates ranges DECLARED by a production cover letter / index.
 
-    A review package legitimately cites documents the cover letter says were
-    produced even when no file for them exists in the reviewed set (gap
-    analysis, inventory reconciliation). Those citations are grounded in the
-    cover letter — a produced, indexed document — and must be reported as
-    declared-but-not-indexed, not as fabrications. Numbers OUTSIDE every
-    declared range remain hard failures.
+    Declared ranges support gap analysis (inventory vs files on disk). They do
+    NOT ground fact citations by default — citing a Bates that is only
+    declared, not indexed, is a FAIL unless ``--allow-declared-gaps`` is set
+    (intentional gap-analysis packages). Numbers OUTSIDE every declared range
+    remain hard failures either way.
     """
     out: List[Tuple[str, int, int]] = []
     for m in _DECLARED_RANGE_RE.finditer(text.upper()):
@@ -423,10 +422,10 @@ def _scan_file(matter_dir: Path, path: Path, no_text_cache: bool) -> dict:
         ):
             if fields.get(src):
                 row[dst] = fields[src]
-        # Production cover letters / indexes DECLARE bates ranges for the
-        # whole production; record them so verify-cites can distinguish
-        # "declared but not produced as a file" from a fabricated citation.
-        _kind = f"{row.get('doc_type') or ''} {row.get('title') or ''} {path.name}".lower()
+        # Only explicit Document Type headers may declare production ranges.
+        # Filename / title alone ("cover_letter.md") must NOT harvest ranges —
+        # that was a cite-laundering vector (red-team P1-6).
+        _kind = (row.get("doc_type") or "").strip().lower()
         if "cover letter" in _kind or "production index" in _kind:
             row["declared_ranges"] = [list(r) for r in parse_declared_ranges(text)]
         if not no_text_cache:
@@ -716,9 +715,11 @@ _GAP_MARKER_RE = re.compile(
 )
 
 # Quoted skill/gate meta-language is template text, not a document quotation.
+# Match at START only — appending "requires attorney review" to a fabricated
+# quote must not exempt it (red-team P1-5).
 _META_QUOTE_RE = re.compile(
-    r"evidence (?:suggests|supports|contradicts)|requires attorney review|"
-    r"attorney review required", re.IGNORECASE
+    r"^(?:evidence (?:suggests|supports|contradicts)|requires attorney review|"
+    r"attorney review required)\b", re.IGNORECASE
 )
 
 
@@ -759,13 +760,26 @@ def cmd_verify_cites(args) -> int:
             seen.add(key)
             checked += 1
             resolved = _resolve_bates(rows, prefix, number) is not None
+            allow_declared = getattr(args, "allow_declared_gaps", False)
             if not resolved and _in_declared(prefix, number):
-                gap_notes.append(
+                msg = (
                     f"declared-not-indexed: {prefix}-{number:06d} is inside a "
                     f"range the production cover letter declares, but no file "
-                    f"for it is indexed — grounded citation, document not in "
-                    f"reviewed set"
+                    f"for it is indexed"
                 )
+                if allow_declared:
+                    # Explicit gap-analysis opt-in: INFO, not a fabrication FAIL.
+                    gap_notes.append(
+                        f"{msg} — allowed via --allow-declared-gaps "
+                        f"(document not in reviewed set)"
+                    )
+                else:
+                    # Default fail-closed: cover-letter text must not launder
+                    # fact cites for documents that were never indexed.
+                    failures.append(
+                        f"{msg} (use --allow-declared-gaps only for intentional "
+                        f"gap-analysis packages)"
+                    )
             elif not resolved and gap_context:
                 gap_notes.append(
                     f"gap-context citation (expected absent): {prefix}-{number:06d}"
@@ -798,10 +812,14 @@ def cmd_verify_cites(args) -> int:
         # large matters never join the full corpus into a single blob.
         pending: Dict[str, str] = {}
         for q in _iter_quoted_spans(text):
-            if _META_QUOTE_RE.search(q):
-                continue
             q_cmp = q.strip().strip(".… ").strip()
-            if len(q_cmp) < 20:
+            # Short quotes still matter ("No handbrakes.") — floor is 12,
+            # not 20 (red-team P1-4).
+            if len(q_cmp) < 12:
+                continue
+            # Meta gate language only when it LEADS a short template phrase —
+            # appending "requires attorney review" must not exempt a fabrication.
+            if _META_QUOTE_RE.match(q_cmp) and len(q_cmp) < 60:
                 continue
             quotes_checked += 1
             pending[_normalize_identifier(q_cmp)] = q[:120]
@@ -837,7 +855,7 @@ def cmd_verify_cites(args) -> int:
         for note in gap_notes:
             print(f"  INFO: {note}")
         if do_quotes:
-            print(f"verify-cites: {quotes_checked} quotes (>=20 chars) checked.")
+            print(f"verify-cites: {quotes_checked} quotes (>=12 chars) checked.")
             for q in quote_misses:
                 print(f"  FAIL: quote not found in any indexed document: \"{q}...\"")
         if report["pass"]:
@@ -1003,9 +1021,9 @@ def _candidate_names(text: str, subspans: bool = False) -> Iterable[str]:
             line = label.group(1)
         for m in _NAME_CANDIDATE_RE.finditer(line):
             cand = m.group(1).strip()
-            # Skip sentence-initial artifacts: single common word pairs handled
-            # by allowlist; here skip all-uppercase candidates (headings).
-            if cand.isupper():
+            # Skip single-token ALL-CAPS (heading noise). Multi-word ALL-CAPS
+            # like "MARCUS ELLERY" must still be checked (red-team P1-5).
+            if cand.isupper() and len(cand.split()) < 2:
                 continue
             if cand not in seen:
                 seen.add(cand)
@@ -1121,12 +1139,28 @@ def cmd_verify_chronology(args) -> int:
             warnings.append(f"{entry_label}: date {iso} not found in any cited "
                             f"document — verify the event date against sources")
 
-    # Vacuous chronology (dated rows present but none checked) is a FAIL unless
-    # the output has no dated rows at all.
+    # Vacuous chronology: dated rows present but none checked → FAIL.
+    # Also FAIL when a Chronology heading exists but zero parseable dates
+    # (reformatting to dodge the parser must not greenwash — red-team P1-7).
+    has_chrono_heading = bool(
+        re.search(r"(?im)^#{1,3}\s+.*\bchronology\b", text)
+    )
     if dated_segments and entries == 0 and not failures and not getattr(args, "allow_uncited", False):
         failures.append(
             "chronology has Date: rows but none were citation-verifiable "
             "(vacuous verify-chronology PASS refused)"
+        )
+    elif (
+        has_chrono_heading
+        and not dated_segments
+        and entries == 0
+        and not failures
+        and not getattr(args, "allow_empty_chronology", False)
+    ):
+        failures.append(
+            "Chronology section present but no parseable dated rows "
+            "(vacuous verify-chronology PASS refused; use --allow-empty-chronology "
+            "only for drafts that intentionally omit dated entries)"
         )
 
     passed = not failures and (not args.strict or not warnings)
@@ -1220,7 +1254,7 @@ def cmd_selftest(args) -> int:
         bad.write_text("Fact cited to TVRR-PROD-000099 and NORF-PROD-000001.\n", encoding="utf-8")
         nv = argparse.Namespace(matter_dir=str(matter), output_file=str(good),
                                 quotes=True, no_quotes=False, allow_empty=False,
-                                json=True)
+                                allow_declared_gaps=False, json=True)
         with contextlib.redirect_stdout(buf):
             rc_good = cmd_verify_cites(nv)
             nv.output_file = str(bad)
@@ -1289,6 +1323,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                    help="skip quote verification (draft passes only)")
     p.add_argument("--allow-empty", action="store_true",
                    help="allow zero same-matter citations (default: fail closed)")
+    p.add_argument("--allow-declared-gaps", action="store_true",
+                   help="treat cover-letter-declared but unindexed Bates as INFO "
+                        "(default: FAIL — prevents cite laundering)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_verify_cites)
 
@@ -1299,6 +1336,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("--strict", action="store_true", help="unresolved WARNs also fail")
     p.add_argument("--allow-uncited", action="store_true",
                    help="skip Date: rows that lack same-matter Bates Sources")
+    p.add_argument("--allow-empty-chronology", action="store_true",
+                   help="allow Chronology heading with no parseable dated rows")
     p.add_argument("--json", action="store_true")
     p.set_defaults(fn=cmd_verify_chronology)
 

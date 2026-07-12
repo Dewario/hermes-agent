@@ -94,7 +94,7 @@ python $cg export-fingerprint $m --store $fp
 | Gate | FAIL (exit 1) | WARN (listed, exit 0 unless --strict) |
 |---|---|---|
 | `status` | index stale (files added/changed/removed) | — |
-| `verify-cites` | unresolved same-matter Bates; zero same-matter cites (unless `--allow-empty`); quote miss when quotes enabled (default on) | — |
+| `verify-cites` | unresolved same-matter Bates; declared-not-indexed Bates (unless `--allow-declared-gaps`); zero same-matter cites (unless `--allow-empty`); quote miss when quotes enabled (default on) | — |
 | `verify-chronology` | unresolved Source citation; dated row with no same-matter Source (unless `--allow-uncited`) | date absent from cited doc text; cited doc unreadable (`--strict` escalates) |
 | `check-isolation` | bates prefix not registered to this matter; identifier matching ANOTHER matter's fingerprint | capitalized name not in this matter's entity registry or the global legal allowlist |
 

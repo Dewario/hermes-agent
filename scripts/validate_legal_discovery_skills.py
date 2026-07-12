@@ -1174,7 +1174,11 @@ def collect_all_files(scan_dir, include_policy=True):
 
     if scan_dir.exists() and scan_dir.is_dir():
         for root, dirs, files in os.walk(scan_dir):
+            # Never scan bytecode caches (embed build paths that trip privacy).
+            dirs[:] = [d for d in dirs if d != "__pycache__" and not d.startswith(".")]
             for f in files:
+                if f.endswith((".pyc", ".pyo")):
+                    continue
                 all_files.append(Path(root) / f)
     elif scan_dir.is_file():
         all_files.append(scan_dir)
