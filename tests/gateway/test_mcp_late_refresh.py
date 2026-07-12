@@ -22,13 +22,17 @@ from gateway.config import GatewayConfig, Platform, PlatformConfig
 from gateway.run import GatewayRunner
 
 
-def _make_fake_agent(initial_tools, *, api_calls=0):
+def _make_fake_agent(initial_tools, *, api_calls=0, lifetime_api_calls=None):
     agent = types.SimpleNamespace()
     agent.tools = list(initial_tools)
     agent.valid_tool_names = {t["function"]["name"] for t in initial_tools}
     agent.enabled_toolsets = None
     agent.disabled_toolsets = None
     agent._api_call_count = api_calls
+    # Lifetime counter survives turn resets; defaults to api_calls for tests.
+    agent._lifetime_api_calls = (
+        api_calls if lifetime_api_calls is None else lifetime_api_calls
+    )
     agent._user_turn_count = 0
     return agent
 
@@ -174,3 +178,54 @@ def test_refresh_allowed_when_user_turn_started_but_no_api_yet(monkeypatch):
     _drain_refresh_threads()
 
     assert "mcp__first_turn__e" in agent.valid_tool_names
+
+
+def test_no_refresh_after_turn_reset_clears_api_call_count(monkeypatch):
+    """Turn reset zeros _api_call_count but lifetime must still block refresh."""
+    base = [_tool("read_file")]
+    full = base + [_tool("mcp__after_turn__f")]
+    agent = _make_fake_agent(base, api_calls=0, lifetime_api_calls=3)
+    runner = _make_runner()
+    session_key = "agent:telegram:dm:u7"
+    runner._agent_cache[session_key] = (agent, "sig")
+
+    _install(monkeypatch, in_flight=True, join_result=True, new_defs=full)
+    runner._schedule_mcp_late_refresh(session_key, agent)
+    _drain_refresh_threads()
+
+    assert len(agent.tools) == 1
+    assert "mcp__after_turn__f" not in agent.valid_tool_names
+
+
+def test_publish_guard_aborts_when_lifetime_increments_mid_refresh(monkeypatch):
+    """TOCTOU: API call starts during slow rebuild → publish must abort."""
+    base = [_tool("read_file")]
+    full = base + [_tool("mcp__race__g")]
+    agent = _make_fake_agent(base)
+    runner = _make_runner()
+    session_key = "agent:telegram:dm:u8"
+    runner._agent_cache[session_key] = (agent, "sig")
+
+    import hermes_cli.mcp_startup as startup
+    import tools.mcp_tool as mcp_mod
+
+    monkeypatch.setattr(startup, "mcp_discovery_in_flight", lambda: True)
+    monkeypatch.setattr(startup, "join_mcp_discovery", lambda timeout=None: True)
+
+    real_refresh = mcp_mod.refresh_agent_mcp_tools
+
+    def _refresh_with_race(agent_arg, **kwargs):
+        # Simulate first API call landing while defs are being computed.
+        agent_arg._lifetime_api_calls = 1
+        agent_arg._api_call_count = 1
+        return real_refresh(agent_arg, **kwargs)
+
+    monkeypatch.setattr(mcp_mod, "refresh_agent_mcp_tools", _refresh_with_race)
+    monkeypatch.setattr(model_tools, "get_tool_definitions", lambda **kw: list(full))
+
+    runner._schedule_mcp_late_refresh(session_key, agent)
+    _drain_refresh_threads()
+
+    # Publish guard should have aborted — tools unchanged.
+    assert len(agent.tools) == 1
+    assert "mcp__race__g" not in getattr(agent, "valid_tool_names", set())
