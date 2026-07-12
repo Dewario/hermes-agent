@@ -841,14 +841,24 @@ def test_gateway_watch_drain_requeues_async_without_looping():
         "pattern": "READY",
         "output": "READY",
     }
+    completion_evt = {
+        "type": "completion",
+        "session_id": "proc_1",
+        "command": "sleep 1",
+        "exit_code": 0,
+        "output": "done",
+    }
     q.put(async_evt)
     q.put(watch_evt)
+    q.put(completion_evt)
 
     watch_events = _drain_gateway_watch_events(q)
 
     assert watch_events == [watch_evt]
-    assert q.qsize() == 1
-    assert q.get_nowait() == async_evt
+    assert q.qsize() == 2
+    remaining = [q.get_nowait(), q.get_nowait()]
+    assert async_evt in remaining
+    assert completion_evt in remaining
 
 
 def test_gateway_builds_routable_source_from_enriched_event():

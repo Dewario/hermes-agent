@@ -80,14 +80,26 @@ def _safe_result_filename(tool_use_id: str) -> str:
 
 
 def generate_preview(content: str, max_chars: int = DEFAULT_PREVIEW_SIZE_CHARS) -> tuple[str, bool]:
-    """Truncate at last newline within max_chars. Returns (preview, has_more)."""
+    """Build a head+tail preview. Returns (preview, has_more).
+
+    Head-only truncation hid trailing ``exit_code`` / Traceback lines after
+    persistence (receipt-run finding). Mirror terminal_tool: ~40% head +
+    ~60% tail so failure markers at the end of large results survive.
+    """
     if len(content) <= max_chars:
         return content, False
-    truncated = content[:max_chars]
-    last_nl = truncated.rfind("\n")
-    if last_nl > max_chars // 2:
-        truncated = truncated[:last_nl + 1]
-    return truncated, True
+    head_budget = max(int(max_chars * 0.4), 1)
+    tail_budget = max(max_chars - head_budget, 1)
+    head = content[:head_budget]
+    last_nl = head.rfind("\n")
+    if last_nl > head_budget // 2:
+        head = head[: last_nl + 1]
+    tail = content[-tail_budget:]
+    first_nl = tail.find("\n")
+    if 0 <= first_nl < tail_budget // 2:
+        tail = tail[first_nl + 1 :]
+    marker = "\n...[middle omitted — full output on disk]...\n"
+    return head + marker + tail, True
 
 
 def _heredoc_marker(content: str) -> str:
@@ -133,7 +145,7 @@ def _build_persisted_message(
     msg += f"This tool result was too large ({original_size:,} characters, {size_str}).\n"
     msg += f"Full output saved to: {file_path}\n"
     msg += "Use the read_file tool with offset and limit to access specific sections of this output.\n\n"
-    msg += f"Preview (first {len(preview)} chars):\n"
+    msg += f"Preview (head+tail, {len(preview)} chars):\n"
     msg += preview
     if has_more:
         msg += "\n..."

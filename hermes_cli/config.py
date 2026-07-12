@@ -2605,6 +2605,10 @@ DEFAULT_CONFIG = {
     "approvals": {
         "mode": "smart",
         "timeout": 60,
+        # Gateway dangerous-command wait (seconds). Align with clarify AFK
+        # budget so long legal/batch reviews are not auto-denied at 5 min
+        # while the attorney is still reading the prompt.
+        "gateway_timeout": 1800,
         "cron_mode": "deny",
         # User-defined deny rules: fnmatch globs matched against terminal
         # commands. A match blocks the command unconditionally — BEFORE the
