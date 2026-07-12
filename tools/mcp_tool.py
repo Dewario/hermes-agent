@@ -3431,6 +3431,14 @@ def _run_on_mcp_loop(coro_or_factory, timeout: float = 30):
         raise RuntimeError("MCP event loop unavailable (failed to schedule)")
     start_time = time.monotonic()
     deadline = None if timeout is None else start_time + timeout
+    # Heartbeat so gateway inactivity (agent.gateway_timeout) does not kill
+    # the agent while a long MCP call is still in flight — same class as the
+    # approval / terminal / execute_code heartbeats.
+    try:
+        from tools.environments.base import touch_activity_if_due
+    except Exception:
+        touch_activity_if_due = None
+    _activity_state = {"last_touch": start_time, "start": start_time}
 
     while True:
         if is_interrupted():
@@ -3452,6 +3460,8 @@ def _run_on_mcp_loop(coro_or_factory, timeout: float = 30):
         try:
             return future.result(timeout=wait_timeout)
         except concurrent.futures.TimeoutError:
+            if touch_activity_if_due is not None:
+                touch_activity_if_due(_activity_state, "mcp tool call running")
             continue
 
 

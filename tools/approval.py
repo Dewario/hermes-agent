@@ -2215,11 +2215,11 @@ def _await_gateway_decision(session_key: str, notify_cb, approval_data: dict,
     # slices so we can fire activity heartbeats every ~10s to the agent's
     # inactivity tracker — otherwise the gateway watchdog kills the agent
     # while the user is still responding. Mirrors _wait_for_process() cadence.
-    timeout = _get_approval_config().get("gateway_timeout", 300)
+    timeout = _get_approval_config().get("gateway_timeout", 1800)
     try:
         timeout = int(timeout)
     except (ValueError, TypeError):
-        timeout = 300
+        timeout = 1800
 
     try:
         from tools.environments.base import touch_activity_if_due
