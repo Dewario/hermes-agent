@@ -284,6 +284,123 @@ async def test_inject_watch_notification_routes_from_session_store_origin(monkey
 
 
 @pytest.mark.asyncio
+async def test_agent_notify_failure_falls_back_to_user_send(monkeypatch, tmp_path):
+    """When agent inject fails, fall through to a user-visible send instead of dropping."""
+    import tools.process_registry as pr_module
+
+    sessions = [
+        SimpleNamespace(
+            output_buffer="done\n", exited=True, exit_code=0, command="sleep 1",
+        ),
+    ]
+    monkeypatch.setattr(pr_module, "process_registry", _FakeRegistry(sessions))
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "off")
+    adapter = runner.adapters[Platform.TELEGRAM]
+    adapter.handle_message = AsyncMock(side_effect=RuntimeError("inject failed"))
+
+    watcher = {
+        "session_id": "proc_fallback",
+        "check_interval": 0,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_id": "123",
+        "notify_on_complete": True,
+    }
+    await runner._run_process_watcher(watcher)
+
+    assert adapter.handle_message.await_count == 1
+    assert adapter.send.await_count == 1
+    sent = adapter.send.await_args.args[1]
+    assert "finished with exit code 0" in sent
+    assert "proc_fallback" in sent
+
+
+@pytest.mark.asyncio
+async def test_pruned_session_recovers_completion_from_queue(monkeypatch, tmp_path):
+    """session is None must not silently drop a still-queued completion event."""
+    import queue as queue_mod
+    import tools.process_registry as pr_module
+
+    class _RegistryWithQueue(_FakeRegistry):
+        def __init__(self, sessions, completion_evt):
+            super().__init__(sessions)
+            self.completion_queue = queue_mod.Queue()
+            self.completion_queue.put(completion_evt)
+
+    completion_evt = {
+        "type": "completion",
+        "session_id": "proc_pruned",
+        "command": "sleep 1",
+        "exit_code": 0,
+        "output": "SMOKE_OK\n",
+    }
+    monkeypatch.setattr(
+        pr_module,
+        "process_registry",
+        _RegistryWithQueue([None], completion_evt),
+    )
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "result")
+    adapter = runner.adapters[Platform.TELEGRAM]
+
+    watcher = {
+        "session_id": "proc_pruned",
+        "check_interval": 0,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_id": "123",
+        "notify_on_complete": True,
+    }
+    await runner._run_process_watcher(watcher)
+
+    assert adapter.handle_message.await_count == 1
+    synth = adapter.handle_message.await_args.args[0]
+    assert synth.internal is True
+    assert "proc_pruned" in synth.text
+    assert adapter.send.await_count == 0
+
+
+def test_drain_gateway_watch_events_requeues_completions():
+    """Post-turn watch drain must not silently discard process completions."""
+    import queue as queue_mod
+
+    from gateway.run import _drain_gateway_watch_events
+
+    q = queue_mod.Queue()
+    completion_evt = {
+        "type": "completion",
+        "session_id": "proc_1",
+        "command": "sleep 1",
+        "exit_code": 0,
+        "output": "done",
+    }
+    watch_evt = {
+        "type": "watch_match",
+        "session_id": "proc_1",
+        "command": "pytest",
+        "pattern": "READY",
+        "output": "READY",
+    }
+    q.put(completion_evt)
+    q.put(watch_evt)
+
+    watch_events = _drain_gateway_watch_events(q)
+
+    assert watch_events == [watch_evt]
+    assert q.qsize() == 1
+    assert q.get_nowait() == completion_evt
+
+
+@pytest.mark.asyncio
 async def test_agent_notification_carries_message_id_reply_anchor(monkeypatch, tmp_path):
     """notify_on_complete injection carries the triggering message_id so the
     synthetic event can be reply-anchored back into a Telegram DM topic.

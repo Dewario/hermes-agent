@@ -1429,24 +1429,24 @@ class ProcessRegistry:
             default_timeout = int(os.getenv("TERMINAL_TIMEOUT", "180"))
         except (ValueError, TypeError):
             default_timeout = 180
-        max_timeout = default_timeout
+        # Waiting on a background process is not a foreground terminal
+        # command — do NOT clamp to TERMINAL_TIMEOUT (that made
+        # process(wait, timeout=3600) silently stop at 180s).
         requested_timeout = timeout
         timeout_note = None
-
-        if requested_timeout and requested_timeout > max_timeout:
-            effective_timeout = max_timeout
-            timeout_note = (
-                f"Requested wait of {requested_timeout}s was clamped "
-                f"to configured limit of {max_timeout}s"
-            )
-        else:
-            effective_timeout = requested_timeout or max_timeout
+        effective_timeout = requested_timeout or default_timeout
 
         session = self.get(session_id)
         if session is None:
             return {"status": "not_found", "error": f"No process with ID {session_id}"}
 
         deadline = time.monotonic() + effective_timeout
+        try:
+            from tools.environments.base import touch_activity_if_due
+        except Exception:
+            touch_activity_if_due = None
+        _now = time.monotonic()
+        _activity_state = {"last_touch": _now, "start": _now}
 
         while time.monotonic() < deadline:
             session = self._refresh_detached_session(session)
@@ -1485,6 +1485,8 @@ class ProcessRegistry:
             if remaining <= 0:
                 break
             session._completion_event.wait(timeout=min(1.0, remaining))
+            if touch_activity_if_due is not None:
+                touch_activity_if_due(_activity_state, "process wait running")
 
         result = {
             "status": "timeout",

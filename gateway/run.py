@@ -2675,15 +2675,49 @@ def _format_gateway_process_notification(evt: dict) -> "str | None":
     return None
 
 
+def _take_queued_completion(completion_queue, session_id: str):
+    """Remove and return a ``completion`` event for ``session_id``, if any.
+
+    Other events are left on the queue (order preserved among leftovers).
+    Used by the process watcher to recover a completion after the session was
+    pruned from the registry, and to discard the queue copy after a successful
+    delivery so requeued completions do not accumulate.
+    """
+    if not session_id:
+        return None
+    kept: list = []
+    found = None
+    while not completion_queue.empty():
+        try:
+            evt = completion_queue.get_nowait()
+        except Exception:
+            break
+        if (
+            found is None
+            and evt.get("type", "completion") == "completion"
+            and evt.get("session_id") == session_id
+        ):
+            found = evt
+        else:
+            kept.append(evt)
+    for evt in kept:
+        completion_queue.put(evt)
+    return found
+
+
 def _drain_gateway_watch_events(completion_queue) -> "list[dict]":
     """Drain gateway-owned watch events without spinning on requeued events.
 
     Watch events are handled by the post-turn gateway drain. Process
     completions are owned by their per-process watcher task, and async
     delegation completions are owned by ``_async_delegation_watcher``.
-    Requeueing async events inside ``while not queue.empty()`` would make the
-    loop non-terminating, so detach the current batch first, then requeue any
-    events this drain does not own after the queue is empty.
+    Requeueing async/completion events inside ``while not queue.empty()``
+    would make the loop non-terminating, so detach the current batch first,
+    then requeue any events this drain does not own after the queue is empty.
+
+    Completions are requeued (not dropped): the watcher may still need the
+    queued event when the registry session was pruned before it observed exit.
+    Successful watcher delivery discards the matching queue entry.
     """
     watch_events: list[dict] = []
     requeue: list[dict] = []
@@ -2695,9 +2729,9 @@ def _drain_gateway_watch_events(completion_queue) -> "list[dict]":
         evt_type = evt.get("type", "completion")
         if evt_type in {"watch_match", "watch_disabled"}:
             watch_events.append(evt)
-        elif evt_type == "async_delegation":
+        elif evt_type in {"async_delegation", "completion"}:
             requeue.append(evt)
-        # else: process completion events are handled by the watcher task
+        # else: unknown event types are dropped
     for evt in requeue:
         completion_queue.put(evt)
     return watch_events
@@ -12423,8 +12457,8 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
             # Drain watch pattern notifications that arrived during the agent run.
             # Watch events and completions share the same queue; process
-            # completions are already handled by the per-process watcher task
-            # above, so we only inject watch-type events here.
+            # completions are owned by the per-process watcher task (and are
+            # requeued here so a pruned-session watcher can still recover them).
             #
             # Async-delegation completions ALSO ride this shared queue but are
             # owned by the dedicated _async_delegation_watcher (started at
@@ -16326,6 +16360,109 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
 
             session = process_registry.get(session_id)
             if session is None:
+                # Registry entry pruned before we observed exit. Recover from
+                # the completion_queue event when present; otherwise exit
+                # silently (no evidence the process finished while we watched).
+                _cq = getattr(process_registry, "completion_queue", None)
+                evt = _take_queued_completion(_cq, session_id) if _cq is not None else None
+                if evt is None:
+                    break
+                for _k in (
+                    "session_key", "platform", "chat_id", "thread_id",
+                    "user_id", "user_name", "message_id",
+                ):
+                    if not evt.get(_k) and watcher.get(_k):
+                        evt[_k] = watcher.get(_k)
+                from tools.process_registry import format_process_notification
+                tried_agent_notify = False
+                agent_injected = False
+                if agent_notify and not process_registry.is_completion_consumed(session_id):
+                    tried_agent_notify = True
+                    synth_text = format_process_notification(evt)
+                    if synth_text:
+                        source = self._build_process_event_source(evt)
+                        if not source:
+                            logger.warning(
+                                "Agent notify missing routing metadata for pruned "
+                                "process %s — falling back to user send",
+                                session_id,
+                            )
+                        else:
+                            adapter = None
+                            for p, a in self.adapters.items():
+                                if p == source.platform:
+                                    adapter = a
+                                    break
+                            if adapter and source.chat_id:
+                                try:
+                                    synth_event = MessageEvent(
+                                        text=synth_text,
+                                        message_type=MessageType.TEXT,
+                                        source=source,
+                                        internal=True,
+                                        message_id=str(evt.get("message_id") or "").strip() or None,
+                                    )
+                                    logger.info(
+                                        "Process %s finished (pruned) — injecting agent "
+                                        "notification for session %s chat=%s thread=%s",
+                                        session_id,
+                                        evt.get("session_key", session_key),
+                                        source.chat_id,
+                                        source.thread_id,
+                                    )
+                                    await adapter.handle_message(synth_event)
+                                    agent_injected = True
+                                except Exception as e:
+                                    logger.error(
+                                        "Agent notify injection error (pruned session): %s", e
+                                    )
+                            else:
+                                logger.warning(
+                                    "Agent notify missing adapter/chat for pruned "
+                                    "process %s — falling back to user send",
+                                    session_id,
+                                )
+                if agent_injected:
+                    break
+                should_notify = (
+                    tried_agent_notify
+                    or notify_mode in {"all", "result"}
+                    or (
+                        notify_mode == "error"
+                        and evt.get("exit_code") not in {0, None}
+                    )
+                )
+                if should_notify:
+                    new_output = evt.get("output") or ""
+                    if new_output:
+                        from agent.redact import redact_terminal_output
+                        new_output = redact_terminal_output(
+                            new_output, evt.get("command") or ""
+                        )
+                    message_text = (
+                        f"[Background process {session_id} finished with exit code "
+                        f"{evt.get('exit_code')}~ Here's the final output:\n{new_output}]"
+                    )
+                    _plat = evt.get("platform") or platform_name
+                    _chat = evt.get("chat_id") or chat_id
+                    _thread = evt.get("thread_id") or thread_id
+                    adapter = None
+                    for p, a in self.adapters.items():
+                        if p.value == _plat:
+                            adapter = a
+                            break
+                    if adapter and _chat:
+                        try:
+                            send_meta = {"thread_id": _thread} if _thread else None
+                            await adapter.send(
+                                _chat,
+                                message_text,
+                                metadata=_non_conversational_metadata(
+                                    send_meta, platform=_plat
+                                ),
+                            )
+                        except Exception as e:
+                            logger.error("Watcher delivery error (pruned session): %s", e)
                 break
 
             current_output_len = len(session.output_buffer)
@@ -16338,7 +16475,12 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # poll() is read-only and intentionally does NOT mark consumed
                 # (#10156) — a status check must not suppress this delivery turn.
                 from tools.process_registry import format_process_notification, process_registry as _pr_check
+                tried_agent_notify = False
+                agent_injected = False
                 if agent_notify and not _pr_check.is_completion_consumed(session_id):
+                    # Mark attempted agent delivery so text-only notify is the
+                    # fallback when injection fails (never silent-drop).
+                    tried_agent_notify = True
                     from agent.redact import redact_terminal_output
                     from tools.ansi_strip import strip_ansi
                     _command = getattr(session, "command", "") or ""
@@ -16388,9 +16530,11 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     break
 
                 # --- Normal text-only notification ---
-                # Decide whether to notify based on mode
+                # Also the fallback when agent_notify injection failed so the
+                # completion is never silently lost.
                 should_notify = (
-                    notify_mode in {"all", "result"}
+                    tried_agent_notify
+                    or notify_mode in {"all", "result"}
                     or (notify_mode == "error" and session.exit_code not in {0, None})
                 )
                 if should_notify:
@@ -16417,6 +16561,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                 message_text,
                                 metadata=_non_conversational_metadata(send_meta, platform=platform_name),
                             )
+                            _cq = getattr(process_registry, "completion_queue", None)
+                            if _cq is not None:
+                                _take_queued_completion(_cq, session_id)
                         except Exception as e:
                             logger.error("Watcher delivery error: %s", e)
                 break
@@ -17058,6 +17205,75 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 self._release_evicted_agent_soft(agent)
             except Exception:
                 pass
+
+    def _schedule_mcp_late_refresh(self, session_key: str, agent) -> None:
+        """Refresh a cached agent's tool snapshot when MCP discovery lands late.
+
+        Mirrors ``tui_gateway.server._schedule_mcp_late_refresh``. Gateway
+        discovery runs in a background thread (``start_background_mcp_discovery``);
+        agent build briefly joins it via ``wait_for_mcp_discovery`` (bounded by
+        ``mcp_discovery_timeout``, default 1.5s). A server slower than that
+        bound is absent from the first snapshot. This schedules an
+        off-critical-path waiter that rebuilds via ``refresh_agent_mcp_tools``
+        once discovery finishes.
+
+        Cache safety: rebuild only while ``_api_call_count == 0`` (no API call
+        yet → nothing cached to invalidate). Gateway builds the agent on the
+        first message and immediately starts the turn, so gating on
+        ``_user_turn_count`` (as the TUI does) would always no-op; the
+        prompt-cache boundary that matters here is the first ``tools=``
+        assembly. Once an API call has been made, leave the snapshot frozen —
+        late tools then land on the next turn via the between-turns refresh
+        in ``build_turn_context``, or via explicit ``/reload-mcp``.
+        """
+        try:
+            from hermes_cli.mcp_startup import (
+                join_mcp_discovery,
+                mcp_discovery_in_flight,
+            )
+        except Exception:
+            return
+        if not mcp_discovery_in_flight():
+            return
+
+        def _wait_then_refresh() -> None:
+            # Bounded but generous — a server still not connected after this is
+            # genuinely slow/dead; the user can /reload-mcp once it recovers.
+            if not join_mcp_discovery(timeout=30.0):
+                return
+            _cache_lock = getattr(self, "_agent_cache_lock", None)
+            _cache = getattr(self, "_agent_cache", None)
+            if _cache_lock is None or _cache is None:
+                return
+            with _cache_lock:
+                cached = _cache.get(session_key)
+                if not cached:
+                    return
+                cached_agent = cached[0] if isinstance(cached, tuple) else cached
+                # Session may have been replaced (/new, config sig change) while
+                # we waited.
+                if cached_agent is not agent:
+                    return
+                # Cache safety: never rebuild once this agent instance has made
+                # an API call — that would invalidate the cached prompt prefix.
+                if int(getattr(agent, "_api_call_count", 0) or 0) > 0:
+                    return
+                try:
+                    from tools.mcp_tool import refresh_agent_mcp_tools
+
+                    refresh_agent_mcp_tools(agent, quiet_mode=True)
+                except Exception as exc:
+                    logger.warning(
+                        "Late MCP refresh: tool snapshot rebuild failed for %s: %s",
+                        session_key,
+                        exc,
+                    )
+
+        threading.Thread(
+            target=_wait_then_refresh,
+            name=f"gateway-mcp-late-refresh-{str(session_key)[:24]}",
+            daemon=True,
+        ).start()
 
     @staticmethod
     def _init_cached_agent_for_turn(agent: Any, interrupt_depth: int) -> None:
@@ -19193,7 +19409,17 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         pass
 
             if agent is None:
-                # Config changed or first message — create fresh agent
+                # Config changed or first message — create fresh agent.
+                # Briefly wait for in-flight MCP discovery (bounded by
+                # mcp_discovery_timeout) so fast servers land in the snapshot;
+                # anything still pending is caught by _schedule_mcp_late_refresh
+                # before the first API call, or by the between-turns refresh.
+                try:
+                    from hermes_cli.mcp_startup import wait_for_mcp_discovery
+
+                    wait_for_mcp_discovery()
+                except Exception:
+                    pass
                 agent = AIAgent(
                     model=turn_route["model"],
                     **turn_route["runtime"],
@@ -19239,6 +19465,7 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         )
                         self._enforce_agent_cache_cap()
                 logger.debug("Created new agent for session %s (sig=%s)", session_key, _sig)
+                self._schedule_mcp_late_refresh(session_key, agent)
 
             # Per-message state — callbacks and reasoning config change every
             # turn and must not be baked into the cached agent constructor.
@@ -21677,16 +21904,19 @@ async def start_gateway(config: Optional[GatewayConfig] = None, replace: bool = 
 
     _ensure_windows_gateway_venv_imports()
 
-    # MCP tool discovery — run in an executor so the asyncio event loop
-    # stays responsive even when a configured MCP server is slow or
-    # unreachable.  discover_mcp_tools() uses a blocking 120s wait
-    # internally; calling it from the loop thread would freeze platform
-    # heartbeats (Discord shard, Telegram polling) until it returned.
-    # See #16856.
+    # MCP tool discovery — background daemon so a slow/dead server can't
+    # delay platform connect (Discord shard, Telegram polling). Agent build
+    # briefly joins via wait_for_mcp_discovery (mcp_discovery_timeout, default
+    # 1.5s); anything still pending is caught by _schedule_mcp_late_refresh
+    # before the first API call. See #16856 (don't block the event loop) and
+    # the TUI late-refresh path in tui_gateway/server.py.
     try:
-        from tools.mcp_tool import discover_mcp_tools
-        _loop = asyncio.get_running_loop()
-        await _loop.run_in_executor(None, discover_mcp_tools)
+        from hermes_cli.mcp_startup import start_background_mcp_discovery
+
+        start_background_mcp_discovery(
+            logger=logger,
+            thread_name="gateway-mcp-discovery",
+        )
     except Exception as e:
         logger.debug("MCP tool discovery failed: %s", e)
 
