@@ -321,6 +321,109 @@ async def test_agent_notify_failure_falls_back_to_user_send(monkeypatch, tmp_pat
 
 
 @pytest.mark.asyncio
+async def test_agent_notify_success_off_mode_skips_user_send(monkeypatch, tmp_path):
+    """notify_mode=off + exit 0 + successful inject must not user-spam."""
+    import tools.process_registry as pr_module
+
+    sessions = [
+        SimpleNamespace(
+            output_buffer="done\n", exited=True, exit_code=0, command="sleep 1",
+        ),
+    ]
+    monkeypatch.setattr(pr_module, "process_registry", _FakeRegistry(sessions))
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "off")
+    adapter = runner.adapters[Platform.TELEGRAM]
+
+    watcher = {
+        "session_id": "proc_off_ok",
+        "check_interval": 0,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_id": "123",
+        "notify_on_complete": True,
+    }
+    await runner._run_process_watcher(watcher)
+
+    assert adapter.handle_message.await_count == 1
+    assert adapter.send.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_agent_notify_success_error_mode_exit0_skips_user_send(monkeypatch, tmp_path):
+    """notify_mode=error + exit 0 + successful inject must not user-spam."""
+    import tools.process_registry as pr_module
+
+    sessions = [
+        SimpleNamespace(
+            output_buffer="done\n", exited=True, exit_code=0, command="sleep 1",
+        ),
+    ]
+    monkeypatch.setattr(pr_module, "process_registry", _FakeRegistry(sessions))
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "error")
+    adapter = runner.adapters[Platform.TELEGRAM]
+
+    watcher = {
+        "session_id": "proc_error_ok",
+        "check_interval": 0,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_id": "123",
+        "notify_on_complete": True,
+    }
+    await runner._run_process_watcher(watcher)
+
+    assert adapter.handle_message.await_count == 1
+    assert adapter.send.await_count == 0
+
+
+@pytest.mark.asyncio
+async def test_agent_notify_failure_error_mode_exit0_still_user_sends(monkeypatch, tmp_path):
+    """Inject failure must surface completion even under error mode + exit 0."""
+    import tools.process_registry as pr_module
+
+    sessions = [
+        SimpleNamespace(
+            output_buffer="done\n", exited=True, exit_code=0, command="sleep 1",
+        ),
+    ]
+    monkeypatch.setattr(pr_module, "process_registry", _FakeRegistry(sessions))
+
+    async def _instant_sleep(*_a, **_kw):
+        pass
+    monkeypatch.setattr(asyncio, "sleep", _instant_sleep)
+
+    runner = _build_runner(monkeypatch, tmp_path, "error")
+    adapter = runner.adapters[Platform.TELEGRAM]
+    adapter.handle_message = AsyncMock(side_effect=RuntimeError("inject failed"))
+
+    watcher = {
+        "session_id": "proc_error_fallback",
+        "check_interval": 0,
+        "session_key": "agent:main:telegram:dm:123",
+        "platform": "telegram",
+        "chat_id": "123",
+        "notify_on_complete": True,
+    }
+    await runner._run_process_watcher(watcher)
+
+    assert adapter.handle_message.await_count == 1
+    assert adapter.send.await_count == 1
+    sent = adapter.send.await_args.args[1]
+    assert "finished with exit code 0" in sent
+    assert "proc_error_fallback" in sent
+
+
+@pytest.mark.asyncio
 async def test_pruned_session_recovers_completion_from_queue(monkeypatch, tmp_path):
     """session is None must not silently drop a still-queued completion event."""
     import queue as queue_mod

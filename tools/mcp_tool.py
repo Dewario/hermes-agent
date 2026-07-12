@@ -4945,6 +4945,7 @@ def refresh_agent_mcp_tools(
     enabled_override=None,
     disabled_override=None,
     quiet_mode: bool = True,
+    publish_guard=None,
 ) -> set:
     """Re-derive an already-built agent's tool snapshot from the live registry.
 
@@ -4956,6 +4957,11 @@ def refresh_agent_mcp_tools(
     caller (the TUI ``reload.mcp`` RPC, the gateway reload, the late-binding
     refresh thread, and the per-turn between-turns refresh) so they can't drift
     apart again.
+
+    ``publish_guard`` is an optional zero-arg callable checked inside the
+    publish lock immediately before mutating ``agent.tools``.  Gateway late
+    refresh uses this to abort if any API call has already started on this
+    agent instance (prompt-cache safety / TOCTOU).
 
     The rebuild respects the agent's own ``enabled_toolsets`` /
     ``disabled_toolsets`` (the same filtering it was built with) and diffs by
@@ -5032,6 +5038,8 @@ def refresh_agent_mcp_tools(
     # with what was actually published, even under concurrent callers, and a
     # stale (older-generation) rebuild can't overwrite a newer published one.
     with _agent_tools_lock:
+        if publish_guard is not None and not publish_guard():
+            return set()
         # Defensive: the published generation should be an int, but tolerate an
         # agent that never set it (or set a non-int, e.g. a test mock) rather
         # than throwing TypeError on the comparison and silently failing the

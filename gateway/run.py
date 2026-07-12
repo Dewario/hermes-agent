@@ -15326,10 +15326,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     if not evt.get(_k) and watcher.get(_k):
                         evt[_k] = watcher.get(_k)
                 from tools.process_registry import format_process_notification
-                tried_agent_notify = False
+                agent_notify_failed = False
                 agent_injected = False
                 if agent_notify and not process_registry.is_completion_consumed(session_id):
-                    tried_agent_notify = True
                     synth_text = format_process_notification(evt)
                     if synth_text:
                         source = self._build_process_event_source(evt)
@@ -15374,10 +15373,14 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                                     "process %s — falling back to user send",
                                     session_id,
                                 )
+                    if not agent_injected:
+                        # Inject was attempted but did not land — completion must
+                        # still surface to the user even when notify_mode is off/error.
+                        agent_notify_failed = True
                 if agent_injected:
                     break
                 should_notify = (
-                    tried_agent_notify
+                    agent_notify_failed
                     or notify_mode in {"all", "result"}
                     or (
                         notify_mode == "error"
@@ -15427,10 +15430,9 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # poll() is read-only and intentionally does NOT mark consumed
                 # (#10156) — a status check must not suppress this delivery turn.
                 from tools.process_registry import format_process_notification, process_registry as _pr_check
-                tried_agent_notify = False
+                agent_notify_failed = False
                 agent_injected = False
                 if agent_notify and not _pr_check.is_completion_consumed(session_id):
-                    tried_agent_notify = True
                     from tools.ansi_strip import strip_ansi
                     _raw = strip_ansi(session.output_buffer) if session.output_buffer else ""
                     # Truncate at line boundaries so notifications never start
@@ -15512,12 +15514,16 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                         if _cq is not None:
                             _take_queued_completion(_cq, session_id)
                         break
+                    # Inject was attempted but did not land — completion must
+                    # still surface to the user even when notify_mode is off/error.
+                    agent_notify_failed = True
 
                 # --- Normal text-only notification ---
                 # Also the fallback when agent_notify injection failed so the
-                # completion is never silently lost.
+                # completion is never silently lost. Only treat inject as a
+                # notify trigger when it actually failed — not merely attempted.
                 should_notify = (
-                    tried_agent_notify
+                    agent_notify_failed
                     or notify_mode in {"all", "result"}
                     or (notify_mode == "error" and session.exit_code not in {0, None})
                 )
@@ -16182,14 +16188,14 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         off-critical-path waiter that rebuilds via ``refresh_agent_mcp_tools``
         once discovery finishes.
 
-        Cache safety: rebuild only while ``_api_call_count == 0`` (no API call
-        yet → nothing cached to invalidate). Gateway builds the agent on the
-        first message and immediately starts the turn, so gating on
-        ``_user_turn_count`` (as the TUI does) would always no-op; the
-        prompt-cache boundary that matters here is the first ``tools=``
-        assembly. Once an API call has been made, leave the snapshot frozen —
-        late tools then land on the next turn via the between-turns refresh
-        in ``build_turn_context``, or via explicit ``/reload-mcp``.
+        Cache safety: rebuild only while this agent instance has never made an
+        API call (``_lifetime_api_calls == 0``). Gateway turn resets zero
+        ``_api_call_count`` each turn, so gating on that alone would let a
+        late-refresh thread mutate ``tools=`` mid-conversation and break
+        prompt caching. Lifetime counter is set in the conversation loop and
+        never cleared by ``_init_cached_agent_for_turn``. Publish is further
+        guarded inside ``refresh_agent_mcp_tools`` to close the TOCTOU window
+        between the check and the slow rebuild.
         """
         try:
             from hermes_cli.mcp_startup import (
@@ -16201,10 +16207,18 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
         if not mcp_discovery_in_flight():
             return
 
+        def _lifetime_api_calls() -> int:
+            return int(getattr(agent, "_lifetime_api_calls", 0) or 0)
+
+        if _lifetime_api_calls() > 0:
+            return
+
         def _wait_then_refresh() -> None:
             # Bounded but generous — a server still not connected after this is
             # genuinely slow/dead; the user can /reload-mcp once it recovers.
             if not join_mcp_discovery(timeout=30.0):
+                return
+            if _lifetime_api_calls() > 0:
                 return
             _cache_lock = getattr(self, "_agent_cache_lock", None)
             _cache = getattr(self, "_agent_cache", None)
@@ -16219,14 +16233,20 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                 # we waited.
                 if cached_agent is not agent:
                     return
-                # Cache safety: never rebuild once this agent instance has made
-                # an API call — that would invalidate the cached prompt prefix.
-                if int(getattr(agent, "_api_call_count", 0) or 0) > 0:
+                if _lifetime_api_calls() > 0:
                     return
                 try:
                     from tools.mcp_tool import refresh_agent_mcp_tools
 
-                    refresh_agent_mcp_tools(agent, quiet_mode=True)
+                    def _publish_guard() -> bool:
+                        # Re-check under the tools publish lock (TOCTOU).
+                        return _lifetime_api_calls() == 0
+
+                    refresh_agent_mcp_tools(
+                        agent,
+                        quiet_mode=True,
+                        publish_guard=_publish_guard,
+                    )
                 except Exception as exc:
                     logger.warning(
                         "Late MCP refresh: tool snapshot rebuild failed for %s: %s",

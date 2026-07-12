@@ -644,6 +644,12 @@ def run_conversation(
         
         api_call_count += 1
         agent._api_call_count = api_call_count
+        # Lifetime counter — never cleared by gateway turn resets. Late MCP
+        # refresh gates on this so a mid-conversation discovery thread cannot
+        # mutate tools= after any API call on this agent instance.
+        if api_call_count > 0:
+            prev = int(getattr(agent, "_lifetime_api_calls", 0) or 0)
+            agent._lifetime_api_calls = max(prev, api_call_count)
         agent._touch_activity(f"starting API call #{api_call_count}")
 
         # Grace call: the budget is exhausted but we gave the model one
