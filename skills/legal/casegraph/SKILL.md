@@ -53,27 +53,40 @@ remain drafts requiring attorney review.
 
 ## How to Run
 
-```
-# one-time per matter
-python skills/legal/casegraph/scripts/casegraph.py init  C:\Matters\M1 --matter-id M1 --bates-prefix TVRR-PROD
+Set `$cg` to the absolute script path (gateway `terminal.cwd` is often the matter
+dir, so relative `skills/legal/...` fails). On PowerShell use `$env:HERMES_HOME`
+(not `%HERMES_HOME%`). Example matter: `C:\Matters\Rickman`.
 
-# every session / after new productions
-python skills/legal/casegraph/scripts/casegraph.py build  C:\Matters\M1
-python skills/legal/casegraph/scripts/casegraph.py status C:\Matters\M1   # exit 1 = stale
+**Long builds:** first `build` over a live production can take minutes–hours.
+Use `terminal(background=true, notify_on_complete=true)` — foreground defaults
+time out at 180s (hard cap 600s). Short `status` / `query` / gates may stay
+foreground.
+
+```
+$cg = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\casegraph\scripts\casegraph.py"
+$m  = "C:\Matters\Rickman"
+$fp = Join-Path $env:HERMES_HOME "casegraph\fingerprints.json"
+
+# one-time per matter
+python $cg init  $m --matter-id Rickman --bates-prefix <PREFIX>
+
+# every session / after new productions (background if large)
+python $cg build  $m
+python $cg status $m   # exit 1 = stale
 
 # queries (token-efficient corpus access)
-python skills/legal/casegraph/scripts/casegraph.py query C:\Matters\M1 --bates TVRR-PROD-000123
-python skills/legal/casegraph/scripts/casegraph.py query C:\Matters\M1 --grep "coupling"
-python skills/legal/casegraph/scripts/casegraph.py query C:\Matters\M1 --entity "R.K."
+python $cg query $m --bates <BATES>
+python $cg query $m --grep "search term"
+python $cg query $m --entity "Name"
 
 # gates — run on every output before attorney handoff (exit 0 required)
-python skills/legal/casegraph/scripts/casegraph.py verify-cites       C:\Matters\M1 review_package.md
-python skills/legal/casegraph/scripts/casegraph.py verify-chronology  C:\Matters\M1 review_package.md --strict
-python skills/legal/casegraph/scripts/casegraph.py check-isolation    C:\Matters\M1 review_package.md --fingerprints %HERMES_HOME%\casegraph\fingerprints.json --strict
+python $cg verify-cites       $m review_package.md
+python $cg verify-chronology  $m review_package.md --strict
+python $cg check-isolation    $m review_package.md --fingerprints $fp --strict
 
 # registry maintenance
-python skills/legal/casegraph/scripts/casegraph.py add-entity C:\Matters\M1 --name "Northgate Yard" --role location
-python skills/legal/casegraph/scripts/casegraph.py export-fingerprint C:\Matters\M1 --store %HERMES_HOME%\casegraph\fingerprints.json
+python $cg add-entity $m --name "Entity Name" --role location
+python $cg export-fingerprint $m --store $fp
 ```
 
 ## Gate Semantics

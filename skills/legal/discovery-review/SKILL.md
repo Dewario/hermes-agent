@@ -27,6 +27,15 @@ attorney authorization. This skill uses synthetic facts for development and test
 **ATTORNEY REVIEW REQUIRED:** All outputs are drafts for attorney review. No output is a legal
 conclusion. Language: "evidence supports / suggests / contradicts / requires attorney review."
 
+**PROVIDER_AUTH (live matters):** Before any remote model sees client/matter text, verify
+`<matter>\03_attorney\PROVIDER_AUTH.md` exists, is initialed, and lists the providers in use.
+If missing or incomplete: **STOP** and ask the attorney to complete
+`skills/legal/templates/PROVIDER_AUTH.template.md`. Synthetic pilot fixtures are exempt.
+
+**Long-running work:** OCR, first `casegraph build`, and large gate runs must use
+`terminal(background=true, notify_on_complete=true)`. Inventory via casegraph — do not
+`read_file` an entire production into context.
+
 ## When to Use
 
 Load this skill when an attorney or legal professional needs to:

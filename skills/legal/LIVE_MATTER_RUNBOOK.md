@@ -21,11 +21,12 @@ C:\Matters\<MATTER-ID>\
 └── .matter_mail\              # matter-mail state (tool-managed)
 ```
 
-Never place real client files under `hermes-agent/`.
+Never place real client files under `hermes-agent/`. Example live matter: `C:\Matters\Rickman\`.
 
 ## 2. Provider authorization checklist (owner)
 
-Before the first Hermes session on a real matter, write `03_attorney/PROVIDER_AUTH.md`:
+Before the first Hermes session on a real matter, write `03_attorney/PROVIDER_AUTH.md`
+(copy from `skills/legal/templates/PROVIDER_AUTH.template.md`):
 
 - [ ] Provider name (e.g. Anthropic / DeepSeek / Zhipu / local)
 - [ ] Retention / training opt-out confirmed acceptable for work product
@@ -33,27 +34,42 @@ Before the first Hermes session on a real matter, write `03_attorney/PROVIDER_AU
 - [ ] Session budget (max tool turns) recorded
 - [ ] Authorization date + attorney initials
 
-Without this file: **do not** send matter text to any remote model API.
+Without this file: **STOP — do not** send matter text to any remote model API.
+Skills must verify this file exists and is initialed before the first client-text turn.
 
-## 3. OCR / text extraction path
+## 3. Long-running tools (timeouts / batch)
+
+Hermes foreground `terminal` defaults to **180s** and hard-caps at **600s**.
+Live OCR, `casegraph build`, and matter-mail fetches often exceed that.
+
+| Job class | Required pattern |
+|---|---|
+| Short query / status / one cite gate | Foreground `terminal` OK |
+| OCR, first `casegraph build`, multi-hour mail ingest, large scripts | `terminal(background=true, notify_on_complete=true)` — do **not** block the chat loop |
+| Must survive gateway restart | Prefer owner-run offline or `cron` — not `delegate_task(background=true)` |
+
+Write progress artifacts under the matter dir (e.g. `.casegraph/`, `.matter_mail/`) so a killed session can resume. Prefer absolute script paths under the hermes-agent checkout; on PowerShell use `$env:HERMES_HOME` (not `%HERMES_HOME%`).
+
+## 4. OCR / text extraction path
 
 | Production type | Path |
 |---|---|
 | Text-layer PDF | `read_file` on the PDF; copy extract to `01_production/text/` |
-| Scanned PDF / TIFF | Local OCR via `terminal` (`ocrmypdf` / Tesseract) **or** page-wise `vision_analyze`; flag low-confidence pages in Step 0 |
+| Scanned PDF / TIFF | Local OCR via `terminal(background=true, notify_on_complete=true)` (`ocrmypdf` / Tesseract) **or** page-wise `vision_analyze`; flag low-confidence pages in Step 0. Prefer owner-run offline OCR into `01_production/text/` before the session when the set is large. |
 | Load file (DAT/OPT/LFP) | Normalize to Bates manifest with a small Python script via `terminal`; do not invent Bates |
 | Native email (.eml) | Prefer matter-mail ingest; casegraph indexes staged copies |
 
 Casegraph marks docs without text as `text_extractable: none|partial` — citations to those pages require manual attorney check.
 
-## 4. Session order
+## 5. Session order
 
-1. `casegraph init` + `build` + `status`
-2. Intake **or** review (never both in one session)
-3. Machine gates: validator (file-scoped) → `check_outputs --anchors` → casegraph verify-cites / chronology / isolation `--strict`
-4. Owner cite-check ≥10 claims; record in `03_attorney/cite_check_log.md`
+1. Confirm `03_attorney/PROVIDER_AUTH.md` is complete
+2. `casegraph init` + `build` (background if large) + `status`
+3. Intake **or** review (never both in one session)
+4. Machine gates: validator (file-scoped) → `check_outputs --anchors` → casegraph verify-cites / chronology / isolation `--strict`
+5. Owner cite-check ≥10 claims; record in `03_attorney/cite_check_log.md`
 
-## 5. Per-matter `check_outputs` anchors
+## 6. Per-matter `check_outputs` anchors
 
 ```json
 {
@@ -64,10 +80,10 @@ Casegraph marks docs without text as `text_extractable: none|partial` — citati
 ```
 
 ```
-python pilot/check_outputs.py --phase review --dir C:\Matters\M1\02_outputs --anchors C:\Matters\M1\03_attorney\anchors.json
+python pilot/check_outputs.py --phase review --dir C:\Matters\Rickman\02_outputs --anchors C:\Matters\Rickman\03_attorney\anchors.json
 ```
 
-## 6. Matter-mail (optional)
+## 7. Matter-mail (optional)
 
 Requires `$HERMES_HOME/matter_mail_firm.json` with `mail_accounts[].address` set.
 Full pipeline only — see discovery-review Step 6. Never run against a personal mailbox until MM-H1/H2/H3 fixes are in the tree you are running.

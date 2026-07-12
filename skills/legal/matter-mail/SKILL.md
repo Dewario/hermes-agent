@@ -35,6 +35,13 @@ stages copies and reports gaps; it never files documents, never renders legal
 conclusions, and never decides privilege. Language: "evidence supports / suggests /
 requires attorney review."
 
+**PROVIDER_AUTH (live matters):** Before any remote model sees mailbox/matter text, verify
+`<matter>\03_attorney\PROVIDER_AUTH.md` is complete. If missing: **STOP**. Synthetic
+fixtures are exempt.
+
+**Long-running fetches:** Graph/Gmail exhaust-to-nextLink and large `gap` runs must use
+`terminal(background=true, notify_on_complete=true)` — foreground defaults time out at 180s.
+
 **READ-ONLY MAIL ACCESS:** Only `gmail search` / `gmail get` (readonly scope) and
 Microsoft Graph GET requests are permitted. Never send, reply, forward, modify,
 label, or delete mailbox content from this skill.

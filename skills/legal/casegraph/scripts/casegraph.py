@@ -794,26 +794,28 @@ def cmd_verify_cites(args) -> int:
     do_quotes = getattr(args, "quotes", True) and not getattr(args, "no_quotes", False)
     if do_quotes:
         cache = _index_dir(matter_dir) / TEXT_CACHE_DIRNAME
-        corpus: List[str] = []
-        for r in rows:
-            fp = cache / f"{r['sha256']}.txt"
-            if fp.exists():
-                corpus.append(_normalize_identifier(fp.read_text(encoding="utf-8")))
-        blob = "\n".join(corpus)
+        # Collect pending quotes first, then scan one document at a time so
+        # large matters never join the full corpus into a single blob.
+        pending: Dict[str, str] = {}
         for q in _iter_quoted_spans(text):
-            # Skill/gate meta-language in quotes ("evidence supports…",
-            # "requires attorney review") is template text, not a document
-            # quotation — do not demand it appear in the corpus.
             if _META_QUOTE_RE.search(q):
                 continue
-            # Strip ellipses an author adds around an excerpt; the source
-            # document contains the words, not the dots.
             q_cmp = q.strip().strip(".… ").strip()
             if len(q_cmp) < 20:
                 continue
             quotes_checked += 1
-            if _normalize_identifier(q_cmp) not in blob:
-                quote_misses.append(q[:120])
+            pending[_normalize_identifier(q_cmp)] = q[:120]
+        for r in rows:
+            if not pending:
+                break
+            fp = cache / f"{r['sha256']}.txt"
+            if not fp.exists():
+                continue
+            doc = _normalize_identifier(fp.read_text(encoding="utf-8"))
+            for qn in list(pending):
+                if qn in doc:
+                    del pending[qn]
+        quote_misses = list(pending.values())
 
     report = {
         "output_file": str(output_path),

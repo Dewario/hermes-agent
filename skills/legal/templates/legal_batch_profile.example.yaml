@@ -1,0 +1,27 @@
+# Merge into ~/.hermes/config.yaml for live legal/batch use (Matter Rickman).
+# Secrets stay in .env — this file is behavior only. Review before applying.
+
+terminal:
+  timeout: 300
+  cwd: "C:\\Matters\\Rickman"
+
+agent:
+  gateway_timeout: 3600
+  gateway_timeout_warning: 1800
+  gateway_notify_interval: 180
+
+approvals:
+  timeout: 600
+  gateway_timeout: 1800
+  # Prefer seeding command_allowlist for trusted local scripts instead of /yolo:
+  # casegraph.py, matter_mail.py, ocrmypdf, check_outputs.py
+
+display:
+  tool_progress_command: true
+  platforms:
+    telegram:
+      tool_progress: new
+      cleanup_progress: true
+
+tool_output:
+  max_bytes: 100000
