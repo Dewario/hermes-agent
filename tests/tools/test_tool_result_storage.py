@@ -33,25 +33,22 @@ class TestGeneratePreview:
         assert preview == text
         assert has_more is False
 
-    def test_long_content_truncated(self):
-        text = "x" * 5000
+    def test_long_content_uses_head_and_tail(self):
+        text = "HEADUNIQUE" + ("x" * 5000) + "TAILUNIQUE"
         preview, has_more = generate_preview(text, max_chars=2000)
-        assert len(preview) <= 2000
         assert has_more is True
+        assert "HEADUNIQUE" in preview
+        assert "TAILUNIQUE" in preview
+        assert "middle omitted" in preview
 
-    def test_truncates_at_newline_boundary(self):
-        # 1500 chars + newline + 600 chars  (past halfway)
-        text = "a" * 1500 + "\n" + "b" * 600
-        preview, has_more = generate_preview(text, max_chars=2000)
-        assert preview == "a" * 1500 + "\n"
+    def test_tail_preserves_exit_code_json(self):
+        # Persisted terminal JSON often ends with exit_code — head-only
+        # previews used to hide it from the model.
+        body = ("line\n" * 800) + '{"exit_code": 1, "error": "boom"}'
+        preview, has_more = generate_preview(body, max_chars=1500)
         assert has_more is True
-
-    def test_ignores_early_newline(self):
-        # Newline at position 100, well before halfway of 2000
-        text = "a" * 100 + "\n" + "b" * 3000
-        preview, has_more = generate_preview(text, max_chars=2000)
-        assert len(preview) == 2000
-        assert has_more is True
+        assert '"exit_code": 1' in preview
+        assert "boom" in preview
 
     def test_empty_content(self):
         preview, has_more = generate_preview("")
