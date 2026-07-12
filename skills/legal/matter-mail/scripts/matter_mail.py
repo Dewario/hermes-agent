@@ -223,13 +223,14 @@ _INJECTION_HINT_RE = re.compile(
 
 
 def _md_field(value, limit: int = 200) -> str:
-    """Neutralize an attacker-influenceable mail field for markdown output.
+    """Neutralize an attacker-influenceable mail field for report output.
 
-    Email subject/from/filename come from the wire and land in gap_report.md,
-    which downstream agents read. Strip markdown-structural characters so a
-    crafted subject cannot break list/table structure or smuggle links, fold
-    newlines, cap length, and visibly tag instruction-injection phrasing so a
-    reader (human or agent) treats it as data, not directives.
+    Email subject/from/filename come from the wire and land in gap_report.json,
+    gap --json stdout, and gap_report.md, which downstream agents read. Strip
+    markdown-structural characters so a crafted subject cannot break
+    list/table structure or smuggle links, fold newlines, cap length, and
+    visibly tag instruction-injection phrasing so a reader (human or agent)
+    treats it as data, not directives.
     """
     s = str(value or "")
     s = re.sub(r"[\r\n\t]+", " ", s)
@@ -365,7 +366,17 @@ def load_firm_config(explicit: Optional[str]) -> Tuple[dict, str]:
     hermes_home = os.environ.get("HERMES_HOME")
     if hermes_home:
         candidates.append((Path(hermes_home) / "matter_mail_firm.json", "$HERMES_HOME"))
-    candidates.append((Path.home() / ".hermes" / "matter_mail_firm.json", "~/.hermes"))
+    else:
+        # Profile-safe: only the active HERMES_HOME. Never fall back to
+        # Path.home()/".hermes" — that crosses profile boundaries when a
+        # profile is missing its firm config (red-team finding B2).
+        try:
+            from hermes_constants import get_hermes_home
+            candidates.append(
+                (get_hermes_home() / "matter_mail_firm.json", "get_hermes_home()")
+            )
+        except Exception:
+            pass
 
     for path, label in candidates:
         if path.exists():
@@ -1249,6 +1260,33 @@ def cmd_ingest(args) -> int:
             staged = _stage_bytes(corr / f"{stem}.json", payload)
         row["staged_relpath"] = staged.relative_to(matter_dir).as_posix()
 
+    def _unstage_prior(prior_row: dict) -> None:
+        """Delete any staged correspondence copy for a prior row."""
+        rel = prior_row.get("staged_relpath")
+        if not rel:
+            return
+        try:
+            (matter_dir / rel).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _drop_prior(prior_row: dict, msgid_hash: str) -> None:
+        """Remove a previously-active message from the store + disk."""
+        _unstage_prior(prior_row)
+        existing.pop(msgid_hash, None)
+
+    def _redact_unmatched_triage(target: dict) -> None:
+        """Header-only triage row: no body/attachments, privacy-redacted."""
+        target["attachment_count"] = len(target.get("attachments", []))
+        target["attachments"] = []
+        target["body_sha256"] = None
+        target["subject"] = "[redacted-unmatched]"
+        target["subject_norm"] = ""
+        target["from"] = "[redacted-unmatched]"
+        target["staged_relpath"] = None
+        target["participants_matched"] = []
+        target.pop("body_text", None)
+
     for path in _iter_source_files(source):
         # (row, raw_bytes, original_json_obj) triples
         rows: List[Tuple[dict, Optional[bytes], Optional[dict]]] = []
@@ -1319,21 +1357,43 @@ def cmd_ingest(args) -> int:
             prior = existing.get(row["msgid_hash"])
             if prior is not None:
                 n_dup += 1
-                # Fidelity upgrade: re-match against current context (window /
-                # participants may have tightened since the body-less row).
+                # P0-2: always re-qualify against CURRENT context/config.
+                # A tightened window, removed participant, or withdrawn
+                # --allow-firm-internal must unstage prior active rows.
+                d = _parse_date_any(row.get("date_iso") or prior.get("date_iso"))
+                if (d is not None and win_start and win_end
+                        and not (win_start - tol <= d <= win_end + tol)
+                        and not args.allow_out_of_window):
+                    _drop_prior(prior, row["msgid_hash"])
+                    n_out_of_window += 1
+                    continue
+
+                matched = matcher.match(_header_pairs_for(row))
+                if not matched:
+                    if not args.allow_unmatched:
+                        _drop_prior(prior, row["msgid_hash"])
+                        n_excluded += 1
+                        continue
+                    # Demote to header-only triage; drop any staged body copy.
+                    _unstage_prior(prior)
+                    triage = dict(prior)
+                    triage.update({
+                        "msgid_hash": row["msgid_hash"],
+                        "date_iso": row.get("date_iso") or prior.get("date_iso"),
+                    })
+                    _redact_unmatched_triage(triage)
+                    existing[row["msgid_hash"]] = triage
+                    n_unmatched_kept += 1
+                    continue
+
+                if not _qualifies(matched):
+                    _drop_prior(prior, row["msgid_hash"])
+                    n_firm_only += 1
+                    continue
+
+                # Still qualifies — preserve fidelity upgrade / restage paths.
                 if (row.get("body_sha256") and not prior.get("body_sha256")
                         and row["msgid_hash"] == prior["msgid_hash"]):
-                    matched = matcher.match(_header_pairs_for(row))
-                    if not _qualifies(matched):
-                        # No longer qualifies — drop any prior staged path.
-                        if prior.get("staged_relpath"):
-                            try:
-                                (matter_dir / prior["staged_relpath"]).unlink(missing_ok=True)
-                            except OSError:
-                                pass
-                        n_excluded += 1
-                        existing.pop(row["msgid_hash"], None)
-                        continue
                     row["participants_matched"] = matched
                     row["privilege_flags"] = _privilege_flags(
                         row, firm_emails, keywords)
@@ -1341,15 +1401,23 @@ def cmd_ingest(args) -> int:
                     row.pop("body_text", None)
                     existing[row["msgid_hash"]] = row
                     n_upgraded += 1
-                # Heal a dangling staged copy only when content hash still matches.
                 elif (prior.get("staged_relpath")
                       and not (matter_dir / prior["staged_relpath"]).exists()):
                     if (row.get("body_sha256") and prior.get("body_sha256")
                             and row["body_sha256"] != prior["body_sha256"]):
+                        _drop_prior(prior, row["msgid_hash"])
                         n_excluded += 1  # refuse restage of divergent bytes
-                    elif _qualifies(prior.get("participants_matched") or []):
+                    else:
+                        prior["participants_matched"] = matched
                         stage(prior, raw, source_obj)
+                        existing[row["msgid_hash"]] = prior
                         n_restaged += 1
+                else:
+                    # Idempotent keep; refresh match list if context grew/shrunk
+                    # but still qualifies.
+                    if prior.get("participants_matched") != matched:
+                        prior["participants_matched"] = matched
+                        existing[row["msgid_hash"]] = prior
                 continue
 
             # Window enforcement: an over-broad export must not leak other
@@ -1370,13 +1438,7 @@ def cmd_ingest(args) -> int:
                     n_excluded += 1
                     continue
                 # Header-only triage: redact subject/from (privacy); keep date + hash.
-                row["attachment_count"] = len(row.get("attachments", []))
-                row["attachments"] = []
-                row["body_sha256"] = None
-                row["subject"] = "[redacted-unmatched]"
-                row["subject_norm"] = ""
-                row["from"] = "[redacted-unmatched]"
-                row.pop("body_text", None)
+                _redact_unmatched_triage(row)
                 existing[row["msgid_hash"]] = row
                 n_unmatched_kept += 1
                 continue
@@ -1510,7 +1572,7 @@ def cmd_gap(args) -> int:
     for m in matched:
         label = {
             "msgid_hash": m["msgid_hash"], "date": m.get("date_iso"),
-            "from": m.get("from"), "subject": m.get("subject"),
+            "from": _md_field(m.get("from")), "subject": _md_field(m.get("subject")),
             "provenance": m.get("provenance"),
             "staged_relpath": m.get("staged_relpath"),
             "privilege_flags": m.get("privilege_flags", []),
@@ -1524,7 +1586,7 @@ def cmd_gap(args) -> int:
                 continue
             name_hit = (att.get("filename", "").casefold() in indexed_basenames)
             attachment_gaps.append({
-                "message": label, "filename": att.get("filename"),
+                "message": label, "filename": _md_field(att.get("filename")),
                 "size": att.get("size"),
                 "status": "probable_name_match" if name_hit else "missing",
             })
@@ -1590,7 +1652,7 @@ def cmd_gap(args) -> int:
                 thread_gaps.append({
                     "missing_msgid": ref,
                     "cited_by": {"date": m.get("date_iso"),
-                                 "subject": m.get("subject"),
+                                 "subject": _md_field(m.get("subject")),
                                  "msgid_hash": m["msgid_hash"]},
                 })
 
@@ -1643,8 +1705,8 @@ def cmd_gap(args) -> int:
         "thread_gaps": thread_gaps,
         "coverage_gaps": coverage_gaps,
         "triage_unmatched": [
-            {"date": m.get("date_iso"), "from": m.get("from"),
-             "subject": m.get("subject"), "provider": m.get("provider")}
+            {"date": m.get("date_iso"), "from": _md_field(m.get("from")),
+             "subject": _md_field(m.get("subject")), "provider": m.get("provider")}
             for m in triage
         ],
     }

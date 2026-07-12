@@ -27,7 +27,13 @@ param(
 
     [int] $TimeoutMinutes = 90,
 
-    [switch] $DryRun
+    [switch] $DryRun,
+
+    # Live matter root (sets CASEGRAPH_MATTER_DIR + PROVIDER_AUTH gate).
+    [string] $MatterDir = '',
+
+    # Synthetic / owner override for PROVIDER_AUTH.md.
+    [switch] $AllowUnsignedProviderAuth
 )
 
 Set-StrictMode -Version Latest
@@ -220,6 +226,14 @@ function Invoke-HermesPhase {
         '--max-turns', "$Turns",
         '--output-dir', $OutputDir
     )
+    if ($MatterDir) {
+        $invokeCmd += @('--matter-dir', $MatterDir)
+    } elseif ($env:CASEGRAPH_MATTER_DIR) {
+        $invokeCmd += @('--matter-dir', $env:CASEGRAPH_MATTER_DIR)
+    }
+    if ($AllowUnsignedProviderAuth) {
+        $invokeCmd += '--allow-unsigned-provider-auth'
+    }
 
     $proc = Start-Process -FilePath 'python' `
         -ArgumentList $invokeCmd `
@@ -271,6 +285,25 @@ function Invoke-HermesPhase {
 
 New-Item -ItemType Directory -Force -Path (Join-Path $RepoRoot 'pilot_outputs') | Out-Null
 Write-Ledger -Purpose 'pilot-start' -Command "run_pilot.ps1 -Phase $Phase" -ExitCode 0 -Notes $(if ($DryRun) { 'dry-run' } else { 'live' })
+
+# P0-1: mechanical PROVIDER_AUTH gate for live matters (synthetic fixtures exempt).
+if ($MatterDir) {
+    $env:CASEGRAPH_MATTER_DIR = $MatterDir
+}
+$authMatter = $env:CASEGRAPH_MATTER_DIR
+if ($authMatter -and -not $DryRun) {
+    $authScript = Join-Path $RepoRoot 'skills\legal\scripts\check_provider_auth.py'
+    $authArgs = @($authScript, $authMatter)
+    if ($AllowUnsignedProviderAuth) { $authArgs += '--allow-unsigned-provider-auth' }
+    Write-Host "`n== PROVIDER_AUTH gate ==" -ForegroundColor Cyan
+    & python @authArgs
+    $authExit = $LASTEXITCODE
+    Write-Ledger -Purpose 'provider-auth' -Command ("python " + ($authArgs -join ' ')) -ExitCode $authExit
+    if ($authExit -ne 0) {
+        Write-Host "PROVIDER_AUTH gate failed (exit $authExit) — STOP" -ForegroundColor Red
+        exit $authExit
+    }
+}
 
 $overallFail = 0
 
