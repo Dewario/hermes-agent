@@ -174,7 +174,15 @@ class TestBuildAndStatus:
         assert row["text_extractable"] in ("none", "unsupported")
         # Bates still recovered from the filename.
         assert row["bates_prefix"] == "TVRR-PROD" and row["bates_start"] == 10
-        assert "UNREADABLE" in capsys.readouterr().out
+        out = capsys.readouterr().out
+        assert "UNREADABLE" in out or "OCR QUEUE" in out
+        queue = matter / ".casegraph" / "needs_ocr.json"
+        assert queue.exists()
+        payload = json.loads(queue.read_text(encoding="utf-8"))
+        assert payload["count"] >= 1
+        assert any("scan_TVRR-PROD-000010.pdf" in d["relpath"]
+                   for d in payload["documents"])
+        assert cg.main(["export-ocr-queue", str(matter)]) == 1
 
     def test_incremental_build_skips_unchanged(self, matter, capsys):
         assert cg.main(["build", str(matter), "--json"]) == 0

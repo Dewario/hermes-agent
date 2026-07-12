@@ -104,6 +104,7 @@ Shared (optional, still local-only): `%HERMES_HOME%/casegraph/fingerprints.json`
 | `check-isolation <matter_dir> <output.md> [--fingerprints FILE] [--strict]` | contamination gate; exit 1 on FAIL (or on WARN with --strict) |
 | `add-entity <matter_dir> --name N [--alias A ...] [--role R]` | registry management |
 | `export-fingerprint <matter_dir> --store FILE` | publish salted hashes for cross-matter detection |
+| `export-ocr-queue <matter_dir>` | list docs needing OCR/text; write `.casegraph/needs_ocr.json`; exit 1 if any |
 | `selftest` | offline self-test on bundled synthetic fixtures |
 
 All commands: deterministic, stdlib-first (pypdf/docx optional, degrade gracefully),

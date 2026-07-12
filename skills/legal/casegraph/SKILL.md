@@ -87,6 +87,10 @@ python $cg check-isolation    $m review_package.md --fingerprints $fp --strict
 # registry maintenance
 python $cg add-entity $m --name "Entity Name" --role location
 python $cg export-fingerprint $m --store $fp
+
+# OCR queue — build continues; agent OCRs listed files then rebuilds
+python $cg export-ocr-queue $m   # exit 1 if any docs need text/OCR
+# After OCR into 01_production/text/ (or searchable PDF): python $cg build $m
 ```
 
 ## Gate Semantics
@@ -94,6 +98,7 @@ python $cg export-fingerprint $m --store $fp
 | Gate | FAIL (exit 1) | WARN (listed, exit 0 unless --strict) |
 |---|---|---|
 | `status` | index stale (files added/changed/removed) | — |
+| `export-ocr-queue` | one or more docs with `none`/`partial`/`unsupported` text (writes `.casegraph/needs_ocr.json`) | — |
 | `verify-cites` | unresolved same-matter Bates; declared-not-indexed Bates (unless `--allow-declared-gaps`); zero same-matter cites (unless `--allow-empty`); quote miss when quotes enabled (default on) | — |
 | `verify-chronology` | unresolved Source citation; dated row with no same-matter Source (unless `--allow-uncited`) | date absent from cited doc text; cited doc unreadable (`--strict` escalates) |
 | `check-isolation` | bates prefix not registered to this matter; identifier matching ANOTHER matter's fingerprint | capitalized name not in this matter's entity registry or the global legal allowlist |

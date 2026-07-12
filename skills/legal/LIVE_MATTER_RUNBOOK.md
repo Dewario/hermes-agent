@@ -59,12 +59,20 @@ Write progress artifacts under the matter dir (e.g. `.casegraph/`, `.matter_mail
 | Load file (DAT/OPT/LFP) | Normalize to Bates manifest with a small Python script via `terminal`; do not invent Bates |
 | Native email (.eml) | Prefer matter-mail ingest; casegraph indexes staged copies |
 
-Casegraph marks docs without text as `text_extractable: none|partial` — citations to those pages require manual attorney check.
+Casegraph marks docs without text as `text_extractable: none|partial|unsupported`,
+continues indexing, and writes `.casegraph/needs_ocr.json` on every `build`.
+Agents should: (1) `export-ocr-queue` or
+`python skills/legal/scripts/ocr_from_queue.py <matter>` (plan; add `--run` if
+`ocrmypdf` is installed), (2) OCR via OCRmyPDF/Tesseract into `01_production/text/`
+(or searchable PDF) in background, (3) `casegraph build` again so previously
+skipped text becomes cite-verifiable. Citations to unreadables still require
+attorney check until the queue is empty.
 
 ## 5. Session order
 
 1. Confirm `03_attorney/PROVIDER_AUTH.md` is complete
-2. `casegraph init` + `build` (background if large) + `status`
+2. `casegraph init` + `build` (background if large) + `status` + `export-ocr-queue`
+   — if queue non-empty, OCR then rebuild before review cites
 3. Intake **or** review (never both in one session)
 4. Machine gates: validator (file-scoped) → `check_outputs --anchors` → casegraph verify-cites / chronology / isolation `--strict`
 5. Owner cite-check ≥10 claims; record in `03_attorney/cite_check_log.md`

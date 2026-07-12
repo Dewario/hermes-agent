@@ -35,9 +35,12 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
 SCHEMA_VERSION = 2  # v2: documents.jsonl rows carry declared_ranges
-TOOL_VERSION = "1.1.0"
+TOOL_VERSION = "1.2.0"
 INDEX_DIRNAME = ".casegraph"
 TEXT_CACHE_DIRNAME = "text"
+OCR_QUEUE_FILENAME = "needs_ocr.json"
+# text_extractable values that mean "no reliable text for cite/quote gates"
+_OCR_NEEDED_STATUSES = frozenset({"none", "partial", "unsupported"})
 
 # File types the indexer attempts text extraction for.
 _TEXT_EXTS = {".txt", ".md", ".csv", ".log", ".json", ".yaml", ".yml", ".html", ".htm"}
@@ -149,6 +152,79 @@ def _read_text_best_effort(path: Path) -> str:
 
 def _index_dir(matter_dir: Path) -> Path:
     return matter_dir / INDEX_DIRNAME
+
+
+def _ocr_needed_rows(rows: List[dict]) -> List[dict]:
+    """Documents that need OCR / better text before content citation is safe."""
+    out = []
+    for r in rows:
+        status = r.get("text_extractable") or "unsupported"
+        if status not in _OCR_NEEDED_STATUSES:
+            continue
+        out.append({
+            "relpath": r["relpath"],
+            "sha256": r.get("sha256"),
+            "ext": r.get("ext"),
+            "text_extractable": status,
+            "bates_prefix": r.get("bates_prefix"),
+            "bates_start": r.get("bates_start"),
+            "bates_end": r.get("bates_end"),
+            "size": r.get("size"),
+        })
+    out.sort(key=lambda x: x["relpath"])
+    return out
+
+
+def write_ocr_queue(matter_dir: Path, rows: List[dict], matter_id: str) -> Path:
+    """Persist OCR queue for agents: build continues, queue drives offline OCR."""
+    needed = _ocr_needed_rows(rows)
+    payload = {
+        "schema_version": 1,
+        "tool_version": TOOL_VERSION,
+        "matter_id": matter_id,
+        "generated_at": _utcnow(),
+        "count": len(needed),
+        "documents": needed,
+        "guidance": (
+            "OCR these into 01_production/text/ (or add a searchable text layer "
+            "to the PDF via ocrmypdf), then re-run: casegraph build. Prefer "
+            "background terminal for large sets. Do not send scans to a remote "
+            "vision API without PROVIDER_AUTH."
+        ),
+    }
+    path = _index_dir(matter_dir) / OCR_QUEUE_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    os.replace(tmp, path)
+    return path
+
+
+def cmd_export_ocr_queue(args) -> int:
+    """Emit the OCR queue (from last build artifact, or recompute from index)."""
+    matter_dir = Path(args.matter_dir).resolve()
+    manifest = load_manifest(matter_dir)
+    rows = load_documents(matter_dir)
+    queue_path = write_ocr_queue(matter_dir, rows, manifest["matter_id"])
+    needed = _ocr_needed_rows(rows)
+    if args.json:
+        print(json.dumps({
+            "matter_id": manifest["matter_id"],
+            "path": str(queue_path),
+            "count": len(needed),
+            "documents": needed,
+        }, indent=2))
+    else:
+        print(f"OCR queue: {len(needed)} document(s) need text/OCR "
+              f"(written to {queue_path})")
+        for d in needed[:50]:
+            print(f"  - [{d['text_extractable']}] {d['relpath']}")
+        if len(needed) > 50:
+            print(f"  … and {len(needed) - 50} more")
+        if needed:
+            print("After OCR into 01_production/text/ (or searchable PDF), re-run: "
+                  "casegraph build")
+    return 0 if not needed else 1
 
 
 def _manifest_path(matter_dir: Path) -> Path:
@@ -533,10 +609,13 @@ def cmd_build(args) -> int:
             prev_end = max(prev_end or 0, end)
 
     unreadable = [r["relpath"] for r in new_rows if r["text_extractable"] in ("none",)]
+    ocr_queue_path = write_ocr_queue(matter_dir, new_rows, manifest["matter_id"])
+    ocr_needed = _ocr_needed_rows(new_rows)
     manifest["counts"] = {
         "documents": len(new_rows),
         "duplicates": n_dupes,
         "unreadable": len(unreadable),
+        "ocr_needed": len(ocr_needed),
         "entities": len(load_entities(matter_dir)),
     }
     save_manifest(matter_dir, manifest)
@@ -548,6 +627,8 @@ def cmd_build(args) -> int:
         "removed": removed,
         "duplicates": n_dupes,
         "unreadable": unreadable,
+        "ocr_needed": len(ocr_needed),
+        "ocr_queue": str(ocr_queue_path),
         "bates_coverage_notes": coverage_notes,
         "entity_mentions_registered": n_entities,
     }
@@ -563,6 +644,11 @@ def cmd_build(args) -> int:
             print(f"UNREADABLE (no text layer — manual/OCR review needed): {len(unreadable)}")
             for u in unreadable[:20]:
                 print(f"  - {u}")
+        if ocr_needed:
+            print(f"OCR QUEUE: {len(ocr_needed)} doc(s) → {ocr_queue_path}")
+            print("  Export anytime: casegraph export-ocr-queue <matter_dir>")
+            print("  After OCR into 01_production/text/ (or searchable PDF), re-run: "
+                  "casegraph build")
         for note in coverage_notes:
             print(f"BATES: {note}")
     return 0
@@ -1360,6 +1446,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     p.add_argument("matter_dir")
     p.add_argument("--store", required=True)
     p.set_defaults(fn=cmd_export_fingerprint)
+
+    p = sub.add_parser(
+        "export-ocr-queue",
+        help="list docs needing OCR/text; write .casegraph/needs_ocr.json (exit 1 if any)",
+    )
+    p.add_argument("matter_dir")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(fn=cmd_export_ocr_queue)
 
     p = sub.add_parser("selftest", help="offline self-test")
     p.set_defaults(fn=cmd_selftest)
