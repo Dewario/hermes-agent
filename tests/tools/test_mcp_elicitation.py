@@ -171,9 +171,21 @@ class TestElicitationHandlerWiring:
         kwargs = handler.session_kwargs()
         assert kwargs == {"elicitation_callback": handler}
 
-    def test_default_timeout_is_300_seconds(self):
-        handler = ElicitationHandler("pay", {})
-        assert handler.timeout == 300
+    def test_default_timeout_honors_gateway_approval_timeout(self):
+        with patch(
+            "tools.approval.get_gateway_approval_timeout",
+            return_value=1800,
+        ):
+            handler = ElicitationHandler("pay", {})
+        assert handler.timeout == 1800
+
+    def test_explicit_elicitation_timeout_overrides_gateway_default(self):
+        with patch(
+            "tools.approval.get_gateway_approval_timeout",
+            return_value=1800,
+        ):
+            handler = ElicitationHandler("pay", {"timeout": 90})
+        assert handler.timeout == 90
 
     def test_disabled_config_does_not_construct_handler(self):
         """The server task initializer checks ``elicitation.enabled`` --

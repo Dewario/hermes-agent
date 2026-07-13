@@ -15172,10 +15172,6 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
     # /approve & /deny — explicit dangerous-command approval
     # ------------------------------------------------------------------
 
-    _APPROVAL_TIMEOUT_SECONDS = 300  # 5 minutes
-
-
-
     # Built-in messaging platforms where the ``/update`` command is allowed.
     # ACP, API server, and webhooks are programmatic interfaces that should
     # not trigger system updates.  Plugin-migrated platforms (discord,
