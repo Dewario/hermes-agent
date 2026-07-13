@@ -46,6 +46,7 @@ def test_plan_from_queue(matter_with_scan, capsys):
     out = capsys.readouterr().out
     assert "OCR queue:" in out
     assert "ocrmypdf" in out or "Manual" in out
+    assert "Docling" in out
     assert (matter_with_scan / ".casegraph" / "needs_ocr.json").exists()
 
 

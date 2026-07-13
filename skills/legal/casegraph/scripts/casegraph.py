@@ -161,11 +161,18 @@ def _ocr_needed_rows(rows: List[dict]) -> List[dict]:
         status = r.get("text_extractable") or "unsupported"
         if status not in _OCR_NEEDED_STATUSES:
             continue
+        ext = (r.get("ext") or Path(r["relpath"]).suffix).lower()
+        recommended_action = (
+            "ocrmypdf"
+            if ext == ".pdf" and status in {"none", "partial"}
+            else "manual_or_vision"
+        )
         out.append({
             "relpath": r["relpath"],
             "sha256": r.get("sha256"),
             "ext": r.get("ext"),
             "text_extractable": status,
+            "recommended_action": recommended_action,
             "bates_prefix": r.get("bates_prefix"),
             "bates_start": r.get("bates_start"),
             "bates_end": r.get("bates_end"),
@@ -179,7 +186,7 @@ def write_ocr_queue(matter_dir: Path, rows: List[dict], matter_id: str) -> Path:
     """Persist OCR queue for agents: build continues, queue drives offline OCR."""
     needed = _ocr_needed_rows(rows)
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "tool_version": TOOL_VERSION,
         "matter_id": matter_id,
         "generated_at": _utcnow(),
@@ -189,7 +196,8 @@ def write_ocr_queue(matter_dir: Path, rows: List[dict], matter_id: str) -> Path:
             "OCR these into 01_production/text/ (or add a searchable text layer "
             "to the PDF via ocrmypdf), then re-run: casegraph build. Prefer "
             "background terminal for large sets. Do not send scans to a remote "
-            "vision API without PROVIDER_AUTH."
+            "vision API without PROVIDER_AUTH. Docling is an optional, separately "
+            "installed local alternative for complex layouts."
         ),
     }
     path = _index_dir(matter_dir) / OCR_QUEUE_FILENAME

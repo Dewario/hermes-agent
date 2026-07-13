@@ -179,9 +179,14 @@ class TestBuildAndStatus:
         queue = matter / ".casegraph" / "needs_ocr.json"
         assert queue.exists()
         payload = json.loads(queue.read_text(encoding="utf-8"))
+        assert payload["schema_version"] == 2
         assert payload["count"] >= 1
-        assert any("scan_TVRR-PROD-000010.pdf" in d["relpath"]
-                   for d in payload["documents"])
+        queued = next(
+            d for d in payload["documents"]
+            if "scan_TVRR-PROD-000010.pdf" in d["relpath"]
+        )
+        assert queued["recommended_action"] == "ocrmypdf"
+        assert "Docling is an optional" in payload["guidance"]
         assert cg.main(["export-ocr-queue", str(matter)]) == 1
 
     def test_incremental_build_skips_unchanged(self, matter, capsys):

@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [legal, discovery, index, verification, isolation, citations, fela, personal-injury]
     category: legal
-    related_skills: [legal-discovery-intake, legal-discovery-review, legal-matter-mail]
+    related_skills: [legal-discovery-intake, legal-discovery-review, legal-matter-mail, legal-medical-chronology, legal-deposition-outline]
 ---
 
 # Legal Casegraph Skill
@@ -61,6 +61,13 @@ dir, so relative `skills/legal/...` fails). On PowerShell use `$env:HERMES_HOME`
 Use `terminal(background=true, notify_on_complete=true)` — foreground defaults
 time out at 180s (hard cap 600s). Short `status` / `query` / gates may stay
 foreground.
+
+## Load files
+
+Before `casegraph init`, normalize a DAT/OPT/LFP production with
+`python skills/legal/scripts/loadfile_to_manifest.py --matter-dir <matter> --production-dir <folder> --print-casegraph-init`.
+It writes the explicit source Bates values to `01_production/BATES_MANIFEST.md`;
+review the printed prefix flags before initializing casegraph.
 
 ```
 $cg = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\casegraph\scripts\casegraph.py"

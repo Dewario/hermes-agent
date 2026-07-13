@@ -3,6 +3,8 @@
 
 terminal:
   timeout: 300
+  # For large OCR / first indexing passes, increase this (for example, 900).
+  # Prefer background+notify for jobs that could exceed the selected timeout.
   cwd: "C:\\Matters\\Rickman"
 
 agent:
@@ -14,7 +16,13 @@ approvals:
   timeout: 600
   gateway_timeout: 1800
   # Prefer seeding command_allowlist for trusted local scripts instead of /yolo:
-  # casegraph.py, matter_mail.py, ocrmypdf, check_outputs.py
+  # ocrmypdf, casegraph.py, loadfile_to_manifest.py, ocr_from_queue.py,
+  # matter_mail.py, check_outputs.py
+
+# Optional local extract engine: install Docling separately when complex layouts
+# (tables, multi-column pages, forms) need it. Do not add Docling to Hermes'
+# pyproject or send matter files to a remote extraction service without
+# PROVIDER_AUTH. OCRmyPDF/Tesseract remains the default local OCR path.
 
 display:
   tool_progress_command: true

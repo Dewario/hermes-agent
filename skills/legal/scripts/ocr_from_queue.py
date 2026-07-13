@@ -7,6 +7,9 @@ Does NOT invent text. Reads ``<matter>/.casegraph/needs_ocr.json`` (from
 * prints a PowerShell/bash plan (default), or
 * runs ``ocrmypdf`` when ``--run`` and ``ocrmypdf`` are available.
 
+For complex layouts, a separately installed local Docling may be used as an
+optional alternative; plan output records that option but never invokes it.
+
 After OCR, re-run ``casegraph build`` so text becomes cite-verifiable.
 
 Synthetic-safe: operates only under the given matter directory.
@@ -34,6 +37,11 @@ def load_queue(matter_dir: Path) -> dict:
 def plan_commands(matter_dir: Path, docs: list, text_dir: Path) -> list[str]:
     cmds = []
     text_dir.mkdir(parents=True, exist_ok=True)
+    if docs:
+        cmds.append(
+            "# Optional for complex layouts: use a separately installed local "
+            "Docling extractor; it is not bundled or invoked by this helper."
+        )
     for d in docs:
         rel = d["relpath"]
         src = matter_dir / rel

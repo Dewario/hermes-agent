@@ -56,7 +56,7 @@ Write progress artifacts under the matter dir (e.g. `.casegraph/`, `.matter_mail
 |---|---|
 | Text-layer PDF | `read_file` on the PDF; copy extract to `01_production/text/` |
 | Scanned PDF / TIFF | Local OCR via `terminal(background=true, notify_on_complete=true)` (`ocrmypdf` / Tesseract) **or** page-wise `vision_analyze`; flag low-confidence pages in Step 0. Prefer owner-run offline OCR into `01_production/text/` before the session when the set is large. |
-| Load file (DAT/OPT/LFP) | Normalize to Bates manifest with a small Python script via `terminal`; do not invent Bates |
+| Load file (DAT/OPT/LFP) | Normalize explicit Bates values with `python skills/legal/scripts/loadfile_to_manifest.py --matter-dir <matter> --production-dir <folder> --json`; it writes `01_production/BATES_MANIFEST.md` (and optional JSON), never invents Bates, and can print suggested `casegraph init --bates-prefix` flags |
 | Native email (.eml) | Prefer matter-mail ingest; casegraph indexes staged copies |
 
 Casegraph marks docs without text as `text_extractable: none|partial|unsupported`,
@@ -77,6 +77,8 @@ attorney check until the queue is empty.
 4. Machine gates: validator (file-scoped) → `check_outputs --anchors` → casegraph verify-cites / chronology / isolation `--strict`
 5. Owner cite-check ≥10 claims; record in `03_attorney/cite_check_log.md`
 
+For a deposition outline, confirm the witness is registered with `casegraph add-entity`, then run `verify-cites` and `check-isolation --strict` on the completed outline before attorney handoff.
+
 ## 6. Per-matter `check_outputs` anchors
 
 ```json
@@ -95,3 +97,5 @@ python pilot/check_outputs.py --phase review --dir C:\Matters\Rickman\02_outputs
 
 Requires `$HERMES_HOME/matter_mail_firm.json` with `mail_accounts[].address` set.
 Full pipeline only — see discovery-review Step 6. Never run against a personal mailbox until MM-H1/H2/H3 fixes are in the tree you are running.
+
+For medical-record timelines after review, use `skills/legal/medical-chronology/SKILL.md`.
