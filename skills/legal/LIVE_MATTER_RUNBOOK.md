@@ -22,6 +22,14 @@ C:\Matters\<MATTER-ID>\
 ```
 
 Never place real client files under `hermes-agent/`. Example live matter: `C:\Matters\Rickman\`.
+Create the layout with:
+
+```
+python skills/legal/scripts/scaffold_matter.py --matter-dir C:\Matters\Rickman --matter-id Rickman --bates-prefix RICKMAN-PROD
+```
+
+The scaffold refuses a matter path inside this repository and preserves any
+existing attorney authorization or anchors files.
 
 ## 2. Provider authorization checklist (owner)
 
@@ -68,14 +76,31 @@ Agents should: (1) `export-ocr-queue` or
 skipped text becomes cite-verifiable. Citations to unreadables still require
 attorney check until the queue is empty.
 
+For large farms, use `ocr_from_queue.py <matter> --run --limit 5`. It records
+each completed PDF SHA-256 in `.casegraph/ocr_farm_state.json`, so restarts
+skip completed work. Use durable cron or Windows Task Scheduler rather than
+gateway messaging when the job must survive a gateway restart; see
+[`references/OCR_FARM_CRON.md`](references/OCR_FARM_CRON.md). Re-run chunks
+until `casegraph export-ocr-queue <matter>` exits 0, then run `casegraph build`.
+
 ## 5. Session order
 
-1. Confirm `03_attorney/PROVIDER_AUTH.md` is complete
+1. Create the layout with `scaffold_matter.py`, then sign `03_attorney/PROVIDER_AUTH.md`
 2. `casegraph init` + `build` (background if large) + `status` + `export-ocr-queue`
    — if queue non-empty, OCR then rebuild before review cites
 3. Intake **or** review (never both in one session)
 4. Machine gates: validator (file-scoped) → `check_outputs --anchors` → casegraph verify-cites / chronology / isolation `--strict`
 5. Owner cite-check ≥10 claims; record in `03_attorney/cite_check_log.md`
+
+Before sending a completed package to attorney handoff, run:
+
+```
+python skills/legal/scripts/live_preflight.py --matter-dir C:\Matters\Rickman --output C:\Matters\Rickman\02_outputs\review_package.md
+```
+
+This stops on unsigned provider authorization, stale casegraph indexes, or
+failed output gates. A non-empty OCR queue is a warning with exit code 1;
+use `--skip-ocr-queue` only when the attorney has accepted the remaining OCR work.
 
 For a deposition outline, confirm the witness is registered with `casegraph add-entity`, then run `verify-cites` and `check-isolation --strict` on the completed outline before attorney handoff.
 
