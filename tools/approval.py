@@ -2498,6 +2498,19 @@ def _get_approval_timeout() -> int:
         return 60
 
 
+def get_gateway_approval_timeout() -> int:
+    """Seconds to wait for gateway approval / MCP elicitation responses.
+
+    Mirrors ``approvals.gateway_timeout`` (default 1800). Used by async messaging
+    surfaces (Telegram, QQBot, Slack, …) and MCP elicitation outer timeouts so
+    UI labels and asyncio guards stay aligned with ``_await_gateway_decision``.
+    """
+    try:
+        return int(_get_approval_config().get("gateway_timeout", 1800))
+    except (ValueError, TypeError):
+        return 1800
+
+
 def _get_cron_approval_mode() -> str:
     """Read the cron approval mode from config. Returns 'deny' or 'approve'."""
     try:
@@ -3114,11 +3127,7 @@ def _await_gateway_decision(session_key: str, notify_cb, approval_data: dict,
     # ~10s to the agent's inactivity tracker — otherwise the gateway watchdog
     # kills the agent while the user is still responding. Mirrors
     # _wait_for_process() cadence.
-    timeout = _get_approval_config().get("gateway_timeout", 1800)
-    try:
-        timeout = int(timeout)
-    except (ValueError, TypeError):
-        timeout = 1800
+    timeout = get_gateway_approval_timeout()
 
     try:
         from tools.environments.base import touch_activity_if_due

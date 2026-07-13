@@ -1582,10 +1582,19 @@ class ElicitationHandler:
 
     def __init__(self, server_name: str, config: dict, owner: Optional["MCPServerTask"] = None):
         self.server_name = server_name
-        # Per-elicitation timeout. Default 5 min mirrors the gateway approval
-        # default so users on async surfaces (Telegram, Slack) have time to
-        # respond before the server gives up.
-        self.timeout = _safe_numeric(config.get("timeout", 300), 300, float)
+        # Per-elicitation timeout. When unset in MCP server config, inherit
+        # approvals.gateway_timeout so the asyncio guard does not cancel a
+        # gateway elicitation at 300s while _await_gateway_decision waits up
+        # to 1800s. Explicit mcp_servers.*.elicitation.timeout overrides.
+        if "timeout" in config:
+            default_timeout = 300.0
+        else:
+            try:
+                from tools.approval import get_gateway_approval_timeout
+                default_timeout = float(get_gateway_approval_timeout())
+            except Exception:
+                default_timeout = 1800.0
+        self.timeout = _safe_numeric(config.get("timeout", default_timeout), default_timeout, float)
         # Back-reference to the MCPServerTask so we can read the agent's
         # captured contextvars snapshot at elicitation time. Optional so
         # the handler stays unit-testable in isolation.
