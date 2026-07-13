@@ -9,7 +9,7 @@ metadata:
   hermes:
     tags: [legal, discovery, intake, fela, personal-injury, plaintiff]
     category: legal
-    related_skills: [legal-discovery-review, legal-casegraph, legal-matter-mail]
+    related_skills: [legal-discovery-review, legal-casegraph, legal-matter-mail, legal-medical-chronology, legal-deposition-outline]
 ---
 
 # Legal Discovery Intake Skill
