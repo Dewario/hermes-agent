@@ -23,3 +23,5 @@ scratch exports in the matter directory, never this repository.
 
 `mailsuite` (https://github.com/seanthegeek/mailsuite) is a future backend
 spike only. Do not integrate it into Hermes or use it for current live runs.
+Interface notes: [MAILSUITE_SPIKE.md](MAILSUITE_SPIKE.md) (`MailboxConnection`
+shape, firm-only policy, no live integration yet).

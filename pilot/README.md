@@ -60,11 +60,13 @@ After Hermes finishes and auto gates pass:
    (package file only — excludes Hermes transcript logs)
 2. `check_outputs.py --phase intake|review`
 3. `pytest tests/pilot/` (structural tests for check_outputs)
-4. `python pilot/eval_faithfulness.py --package <review_package.md> --corpus skills/legal/discovery-review/fixtures --json` (optional claim-grounding gate)
+4. `python pilot/eval_faithfulness.py --package <review_package.md> --corpus skills/legal/discovery-review/fixtures --json` (optional during pilot runs; **required** on `promote_goldens.ps1`)
 
 **Faithfulness harness (`eval_faithfulness.py`):** SYNTHETIC / CI only. Point it at
 `skills/legal/*/fixtures` and committed `examples/` goldens — never at live matter
-directories or attorney production sets in CI.
+directories or attorney production sets in CI. `promote_goldens.ps1` runs it after
+casegraph gates on `pilot_outputs/review/review_package.md` and aborts promotion on
+non-zero exit.
 
 ## Attorney gate (human)
 

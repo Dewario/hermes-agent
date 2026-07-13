@@ -151,6 +151,13 @@ try {
     if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph verify-cites (intake)' }
     & python $cgScript check-isolation $cgMatter $intakeSrc --fingerprints $fpStore | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: casegraph check-isolation (intake; FAIL-only; not --strict)' }
+
+    # Synthetic-only faithfulness gate: Bates-cited claims vs review fixtures.
+    Write-Host 'Running faithfulness eval (synthetic review package vs fixture corpus)...'
+    & python pilot/eval_faithfulness.py `
+        --package pilot_outputs/review/review_package.md `
+        --corpus skills/legal/discovery-review/fixtures | Out-Null
+    if ($LASTEXITCODE -ne 0) { Write-Error 'Gate failed: eval_faithfulness (review package vs fixtures)' }
 }
 finally {
     Pop-Location
