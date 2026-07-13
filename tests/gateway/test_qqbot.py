@@ -1804,6 +1804,30 @@ class TestSendExecApproval:
         assert calls[0]["reply_to"] == "inbound-42"
 
     @pytest.mark.asyncio
+    async def test_timeout_label_honors_gateway_approval_timeout(self, monkeypatch):
+        adapter = self._make_adapter()
+        monkeypatch.setattr(
+            "tools.approval.get_gateway_approval_timeout",
+            lambda: 2400,
+        )
+
+        calls = []
+
+        async def fake_send_approval(chat_id, req, reply_to=None):
+            from gateway.platforms.base import SendResult
+            calls.append(req)
+            return SendResult(success=True)
+
+        adapter.send_approval_request = fake_send_approval  # type: ignore[assignment]
+
+        await adapter.send_exec_approval(
+            chat_id="user-1",
+            command="rm -rf /tmp/demo",
+            session_key="sess:abc",
+        )
+        assert calls[0].timeout_sec == 2400
+
+    @pytest.mark.asyncio
     async def test_accepts_metadata_arg(self):
         """Gateway always passes metadata=…; the adapter must accept + ignore it."""
         adapter = self._make_adapter()
