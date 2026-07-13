@@ -55,3 +55,39 @@ def test_json_plan(matter_with_scan, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["count"] >= 1
     assert payload["plan"]
+
+
+def test_run_skips_completed_sha_and_honors_pdf_limit(tmp_path, monkeypatch):
+    matter = tmp_path / "matter"
+    raw = matter / "01_production" / "raw"
+    raw.mkdir(parents=True)
+    first = raw / "first.pdf"
+    second = raw / "second.pdf"
+    first.write_bytes(b"first PDF")
+    second.write_bytes(b"second PDF")
+    queue_dir = matter / ".casegraph"
+    queue_dir.mkdir()
+    (queue_dir / "needs_ocr.json").write_text(json.dumps({
+        "matter_id": "OCR-LIMIT",
+        "documents": [
+            {"relpath": "01_production/raw/first.pdf"},
+            {"relpath": "01_production/raw/second.pdf"},
+        ],
+    }), encoding="utf-8")
+    state = queue_dir / "ocr_farm_state.json"
+    first_sha = ocr.sha256_file(first)
+    state.write_text(json.dumps({"completed_sha256": [first_sha]}), encoding="utf-8")
+    calls = []
+    monkeypatch.setattr(ocr.shutil, "which", lambda _: "ocrmypdf")
+    monkeypatch.setattr(
+        ocr.subprocess, "call",
+        lambda command: calls.append(command) or 0,
+    )
+
+    assert ocr.main([str(matter), "--run", "--limit", "1"]) == 0
+    assert calls == [[
+        "ocrmypdf", "--skip-text", str(second),
+        str(matter / "01_production" / "text" / "second.searchable.pdf"),
+    ]]
+    saved = json.loads(state.read_text(encoding="utf-8"))
+    assert set(saved["completed_sha256"]) == {first_sha, ocr.sha256_file(second)}

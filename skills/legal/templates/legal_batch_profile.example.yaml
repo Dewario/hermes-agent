@@ -23,6 +23,8 @@ approvals:
 # (tables, multi-column pages, forms) need it. Do not add Docling to Hermes'
 # pyproject or send matter files to a remote extraction service without
 # PROVIDER_AUTH. OCRmyPDF/Tesseract remains the default local OCR path.
+# For resumable OCR farms, schedule ocr_from_queue.py --run --limit 5 with
+# Hermes cron or Windows Task Scheduler; state remains in .casegraph/.
 
 display:
   tool_progress_command: true
