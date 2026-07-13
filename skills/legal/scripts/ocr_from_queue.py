@@ -20,6 +20,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -121,11 +122,44 @@ def plan_commands(matter_dir: Path, docs: list, text_dir: Path) -> list[str]:
     return cmds
 
 
+def ensure_windows_ocr_path() -> None:
+    """Prepend common Windows install dirs so ocrmypdf finds Tesseract/Ghostscript."""
+    if sys.platform != "win32":
+        return
+    candidates = [
+        Path(r"C:\Program Files\Tesseract-OCR"),
+        Path(r"C:\Program Files (x86)\Tesseract-OCR"),
+        Path.home() / r"AppData\Local\Programs\Tesseract-OCR",
+        Path(r"C:\Program Files\gs\gs10.06.0\bin"),
+        Path(r"C:\Program Files\gs\gs10.05.0\bin"),
+        Path(r"C:\Program Files\gs\gs10.04.0\bin"),
+    ]
+    # Also pick newest Ghostscript bin if version folder differs.
+    gs_root = Path(r"C:\Program Files\gs")
+    if gs_root.is_dir():
+        for child in sorted(gs_root.glob("gs*/bin"), reverse=True):
+            candidates.append(child)
+    path_parts = os.environ.get("PATH", "").split(os.pathsep)
+    prepend: list[str] = []
+    for folder in candidates:
+        if folder.is_dir() and str(folder) not in path_parts and str(folder) not in prepend:
+            prepend.append(str(folder))
+    if prepend:
+        os.environ["PATH"] = os.pathsep.join(prepend + path_parts)
+
+
 def run_ocrmypdf(
     matter_dir: Path, docs: list, text_dir: Path, state_file: Path, completed: set[str],
 ) -> int:
+    ensure_windows_ocr_path()
     if not shutil.which("ocrmypdf"):
         print("ERROR: ocrmypdf not on PATH — install OCRmyPDF + Tesseract, or use --plan")
+        return 2
+    if not shutil.which("tesseract"):
+        print(
+            "ERROR: tesseract not on PATH — install UB-Mannheim Tesseract-OCR "
+            "(winget: UB-Mannheim.TesseractOCR) or add it to PATH"
+        )
         return 2
     text_dir.mkdir(parents=True, exist_ok=True)
     failed = 0
