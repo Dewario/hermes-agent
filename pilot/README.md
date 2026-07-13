@@ -22,6 +22,7 @@ Attorney-supervised synthetic pilot for `legal-discovery-intake` and
 | `run_pilot.ps1` | Wall-clock guard, ledger, Hermes invoke, auto gates |
 | `invoke_hermes.py` | Reliable multiline prompt delivery to `hermes chat -q` |
 | `check_outputs.py` | Structural + fixture-grounded checks |
+| `eval_faithfulness.py` | Bates-cited claim grounding vs fixture corpus (synthetic/CI only) |
 | `approval.schema.json` | JSON Schema for attorney sign-off |
 | `approval.template.json` | Copy to `pilot_outputs/approval.json` after review |
 | `promote_goldens.ps1` | Copy approved outputs → `examples/` (LGD2-008) |
@@ -59,6 +60,11 @@ After Hermes finishes and auto gates pass:
    (package file only — excludes Hermes transcript logs)
 2. `check_outputs.py --phase intake|review`
 3. `pytest tests/pilot/` (structural tests for check_outputs)
+4. `python pilot/eval_faithfulness.py --package <review_package.md> --corpus skills/legal/discovery-review/fixtures --json` (optional claim-grounding gate)
+
+**Faithfulness harness (`eval_faithfulness.py`):** SYNTHETIC / CI only. Point it at
+`skills/legal/*/fixtures` and committed `examples/` goldens — never at live matter
+directories or attorney production sets in CI.
 
 ## Attorney gate (human)
 

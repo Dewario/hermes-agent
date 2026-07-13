@@ -67,6 +67,8 @@ label, or delete mailbox content from this skill.
   the M365 mailbox; the Outlook client itself for accounts Graph cannot query
   (export path); optionally the google-workspace skill (Gmail readonly scope) for
   the gmail-api transport.
+- Before a live run, follow `references/LIVE_MAIL_HARDENING.md` for the firm-only,
+  PROVIDER_AUTH, and background+notify readiness checks.
 
 ## How to Run
 

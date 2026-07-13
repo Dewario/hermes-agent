@@ -1858,6 +1858,19 @@ def _get_approval_timeout() -> int:
         return 60
 
 
+def get_gateway_approval_timeout() -> int:
+    """Seconds to wait for gateway approval / MCP elicitation responses.
+
+    Mirrors ``approvals.gateway_timeout`` (default 1800). Used by async messaging
+    surfaces (Telegram, QQBot, Slack, …) and MCP elicitation outer timeouts so
+    UI labels and asyncio guards stay aligned with ``_await_gateway_decision``.
+    """
+    try:
+        return int(_get_approval_config().get("gateway_timeout", 1800))
+    except (ValueError, TypeError):
+        return 1800
+
+
 def _get_cron_approval_mode() -> str:
     """Read the cron approval mode from config. Returns 'deny' or 'approve'."""
     try:

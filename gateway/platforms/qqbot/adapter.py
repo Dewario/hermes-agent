@@ -2675,18 +2675,22 @@ class QQAdapter(BasePlatformAdapter):
         # seen; the last inbound msg_id is the natural choice.
         msg_id = self._last_msg_id.get(chat_id)
 
+        try:
+            from tools.approval import get_gateway_approval_timeout
+            timeout_sec = get_gateway_approval_timeout()
+        except Exception:
+            timeout_sec = 1800
+
         req = ApprovalRequest(
             session_key=session_key,
             title="Execute this command?",
             description=description,
             command_preview=command,
-            timeout_sec=self._APPROVAL_TIMEOUT_SECONDS,
+            timeout_sec=timeout_sec,
         )
         return await self.send_approval_request(
             chat_id, req, reply_to=msg_id,
         )
-
-    _APPROVAL_TIMEOUT_SECONDS = 300  # matches gateway's default gateway_timeout
 
     async def send_update_prompt(
             self,
