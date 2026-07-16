@@ -60,9 +60,14 @@ git tag -a backup/pre-merge-feature-20260716 -m "Full custom tip before main cut
 git branch backup/branch-pre-merge-feature-20260716 HEAD   # distinct from tag name (avoids ambiguous ref)
 git branch backup/stale-main-830165473 main
 ```
-**Batch A status (2026-07-16):** complete @ `77f48ce98` — WIP + plans committed; tag
+**Batch A status (2026-07-16):** complete @ `c036d7b5f` — WIP + plans committed; tag
 `backup/pre-merge-feature-20260716` and branch `backup/branch-pre-merge-feature-20260716`
 point at that tip; stale main saved; debris deleted from disk.
+
+**Red-team (pre-B):** GO-WITH-FIXES — do **not** blind-checkout `.gitignore` in Batch B
+(merge legal/pilot ignore lines onto `origin/main` base). Fix incremental Bates
+header-vs-filename widen in `cmd_build` before trusting live matter indexes (can
+land as Batch B+ hotfix or before Batch C). See panel notes in chat 2026-07-16.
 
 ### Done when
 
