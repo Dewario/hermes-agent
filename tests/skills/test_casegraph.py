@@ -108,8 +108,14 @@ class TestParsing:
         assert cg.parse_bates_range(value) == expected
 
     def test_bates_from_filename(self):
-        assert cg.bates_from_filename("TVRR-PROD-000123.pdf") == ("TVRR-PROD", 123)
+        assert cg.bates_from_filename("TVRR-PROD-000123.pdf") == ("TVRR-PROD", 123, 123)
         assert cg.bates_from_filename("notes.txt") is None
+        assert cg.bates_from_filename("Plaintiff 000001-12.pdf") == ("PLAINTIFF", 1, 12)
+        assert cg.bates_from_filename("Plaintiff 000013 - 17.pdf") == ("PLAINTIFF", 13, 17)
+        assert cg.bates_from_filename("Plaintiff 000101 - 110.pdf") == ("PLAINTIFF", 101, 110)
+        assert cg.bates_from_filename("Plaintiff 000187.pdf") == ("PLAINTIFF", 187, 187)
+        # Short end token with borrow from start padding
+        assert cg.bates_from_filename("ACME-000100-05.pdf") == ("ACME", 100, 105)
 
     def test_normalize_homoglyph_and_punct(self):
         # Fullwidth (NFKC), case, punctuation all normalize away.

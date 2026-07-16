@@ -422,13 +422,38 @@ def parse_declared_ranges(text: str) -> List[Tuple[str, int, int]]:
     return out
 
 
-def bates_from_filename(name: str) -> Optional[Tuple[str, int]]:
-    # Underscores are word characters, so "scan_TVRR-PROD-000010.pdf" would
-    # otherwise never get a word boundary before TVRR and mis-parse as
-    # prefix "PROD". Treat underscores as separators for filename parsing.
-    m = _BATES_TOKEN_RE.search(name.upper().replace("_", " "))
+# Batch production filenames often use a short end token:
+#   "Plaintiff 000001-12.pdf", "Plaintiff 000013 - 17.pdf"
+# End may be 1–8 digits (not always zero-padded to start width).
+_FILENAME_BATES_RANGE_RE = re.compile(
+    r"\b([A-Z][A-Z0-9]{1,11}(?:-[A-Z][A-Z0-9]{1,11})*)[-_ ]?"
+    r"(\d{3,8})\s*[-–—]\s*(\d{1,8})\b"
+)
+
+
+def bates_from_filename(name: str) -> Optional[Tuple[str, int, int]]:
+    """Parse Bates start/end from a production filename.
+
+    Returns ``(prefix, start, end)`` or None. Single-page files yield
+    ``start == end``. Underscores are treated as separators so
+    ``scan_TVRR-PROD-000010.pdf`` still resolves.
+    """
+    cleaned = name.upper().replace("_", " ")
+    m = _FILENAME_BATES_RANGE_RE.search(cleaned)
     if m:
-        return m.group(1), int(m.group(2))
+        prefix = m.group(1)
+        start_s, end_s = m.group(2), m.group(3)
+        start, end = int(start_s), int(end_s)
+        if end < start and len(end_s) < len(start_s):
+            # Relativity-style short end: 000100-05 → 000105
+            end = int(start_s[: -len(end_s)] + end_s)
+        if end < start:
+            return None
+        return prefix, start, end
+    m = _BATES_TOKEN_RE.search(cleaned)
+    if m:
+        n = int(m.group(2))
+        return m.group(1), n, n
     return None
 
 
@@ -519,8 +544,7 @@ def _scan_file(matter_dir: Path, path: Path, no_text_cache: bool) -> dict:
     if row["bates_start"] is None:
         fb = bates_from_filename(path.name)
         if fb:
-            row["bates_prefix"], row["bates_start"] = fb
-            row["bates_end"] = fb[1]
+            row["bates_prefix"], row["bates_start"], row["bates_end"] = fb
     return row
 
 
@@ -572,6 +596,24 @@ def cmd_build(args) -> int:
             and old["mtime_iso"] == datetime.fromtimestamp(
                 st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         ):
+            # Filename Bates parsing can improve without the file bytes changing
+            # (e.g. batch names like "Plaintiff 000001-12.pdf"). Refresh from
+            # the current parser when the row looks like a single-page filename
+            # stamp or has no Bates yet; do not override a wider header range.
+            fb = bates_from_filename(path.name)
+            if fb is not None:
+                prefix, start, end = fb
+                cur_start = old.get("bates_start")
+                cur_end = old.get("bates_end")
+                if cur_start is None or (
+                    cur_start == start
+                    and (cur_end is None or cur_end == cur_start)
+                    and end > start
+                ):
+                    old = dict(old)
+                    old["bates_prefix"], old["bates_start"], old["bates_end"] = (
+                        prefix, start, end
+                    )
             new_rows.append(old)
             n_same += 1
             continue
@@ -706,14 +748,37 @@ def cmd_status(args) -> int:
 # ── query ────────────────────────────────────────────────────────────────────
 
 def _resolve_bates(rows: List[dict], prefix: str, number: int) -> Optional[dict]:
-    for r in rows:
+    """Resolve a Bates number to the best matching indexed document.
+
+    Prefer text-bearing, non-duplicate rows (e.g. OCR batch outputs) over
+    image-only raw PDFs that share the same Bates range — otherwise
+    verify-chronology / quote checks fail against unreadable first hits.
+    """
+    hits = [
+        r for r in rows
         if (
             r.get("bates_prefix") == prefix
             and r.get("bates_start") is not None
             and r["bates_start"] <= number <= (r.get("bates_end") or r["bates_start"])
-        ):
-            return r
-    return None
+        )
+    ]
+    if not hits:
+        return None
+
+    def _score(r: dict) -> tuple:
+        rp = (r.get("relpath") or "").replace("\\", "/").lower()
+        extractable = r.get("text_extractable") or ""
+        return (
+            0 if r.get("dupes_of") else 1,
+            2 if extractable == "full" else (1 if extractable == "partial" else 0),
+            1 if "ocr_bates_batches" in rp or "/text/" in rp else 0,
+            0 if rp.endswith(".log") else 1,
+            # Stable tie-break: shorter path / earlier name
+            -len(rp),
+        )
+
+    hits.sort(key=_score, reverse=True)
+    return hits[0]
 
 
 def cmd_query(args) -> int:
@@ -1318,7 +1383,12 @@ def cmd_selftest(args) -> int:
           parse_bates_range("TVRR-PROD-000001 - TVRR-PROD-000004") == ("TVRR-PROD", 1, 4))
     check("bates 'through' parse",
           parse_bates_range("ACME-000010 through ACME-000012") == ("ACME", 10, 12))
-    check("bates from filename", bates_from_filename("TVRR-PROD-000123.pdf") == ("TVRR-PROD", 123))
+    check("bates from filename",
+          bates_from_filename("TVRR-PROD-000123.pdf") == ("TVRR-PROD", 123, 123))
+    check("bates from batch filename",
+          bates_from_filename("Plaintiff 000001-12.pdf") == ("PLAINTIFF", 1, 12))
+    check("bates from spaced batch filename",
+          bates_from_filename("Plaintiff 000013 - 17.pdf") == ("PLAINTIFF", 13, 17))
     check("normalize homoglyph/case",
           _normalize_identifier("Ｊ.Ｔ.") == _normalize_identifier("j t"))
 

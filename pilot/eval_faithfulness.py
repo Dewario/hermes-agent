@@ -183,8 +183,9 @@ def index_corpus(corpus_dir: Path, cg) -> dict[tuple[str, int], str]:
             _register_range(raw, text, fields["document id"], cg.parse_bates_range)
         fb = cg.bates_from_filename(path.name)
         if fb is not None:
-            prefix, number = fb
-            raw.setdefault((prefix, number), (text, 1))
+            prefix, start, end = fb
+            for number in range(start, end + 1):
+                raw.setdefault((prefix, number), (text, max(1, end - start + 1)))
     return {key: text for key, (text, _span) in raw.items()}
 
 
