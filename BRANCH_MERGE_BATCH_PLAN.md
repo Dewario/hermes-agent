@@ -57,9 +57,12 @@ Each batch has: **inputs → steps → done when → rollback**. Do not start th
 cd C:\Users\Prime\AppData\Local\hermes\hermes-agent
 git fetch origin main
 git tag -a backup/pre-merge-feature-20260716 -m "Full custom tip before main cutover" HEAD
-git branch backup/pre-merge-feature-20260716 HEAD
+git branch backup/branch-pre-merge-feature-20260716 HEAD   # distinct from tag name (avoids ambiguous ref)
 git branch backup/stale-main-830165473 main
 ```
+**Batch A status (2026-07-16):** complete @ `77f48ce98` — WIP + plans committed; tag
+`backup/pre-merge-feature-20260716` and branch `backup/branch-pre-merge-feature-20260716`
+point at that tip; stale main saved; debris deleted from disk.
 
 ### Done when
 
@@ -98,6 +101,7 @@ git checkout backup/pre-merge-feature-20260716 -- `
   .gitignore
 
 # Park process docs (consistency: not root clutter)
+# (tag name is fine here — prefer refs/tags/... if a branch ever shares the name)
 git checkout backup/pre-merge-feature-20260716 -- `
   LEGAL_DISCOVERY_FINALIZATION_REPORT.md `
   LEGAL_DISCOVERY_IMPLEMENTATION_PLAN.md `
