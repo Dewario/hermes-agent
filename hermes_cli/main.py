@@ -12953,6 +12953,18 @@ def main():
     if _try_termux_fast_cli_launch():
         return
 
+    # ── Adoption offer (hop 2) ──────────────────────────────────────
+    # Detects legacy git-checkout installs and offers to switch to managed
+    # release bundles. Crash-proof: any error logs and continues. Runs
+    # before heavy imports so a stale venv doesn't prevent the offer.
+    try:
+        from hermes_constants import get_hermes_home
+        from hermes_cli.adoption_offer import offer_adoption
+        home = get_hermes_home()
+        offer_adoption(home, PROJECT_ROOT, adopt_mode="prompt", is_interactive=bool(sys.stdin.isatty()))
+    except Exception:
+        pass
+
     from hermes_cli._parser import build_top_level_parser
 
     parser, subparsers, chat_parser = build_top_level_parser()

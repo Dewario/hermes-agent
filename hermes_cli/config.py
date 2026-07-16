@@ -3145,6 +3145,11 @@ DEFAULT_CONFIG = {
         # upstream installer is not appropriate for the machine, for example
         # on non-admin accounts where `/Applications` is not writable.
         "refresh_cua_driver": True,
+        # Adoption offer: whether to prompt legacy git-checkout installs to
+        # switch to managed release bundles. "prompt" (default) shows the
+        # offer once per 7 days; "auto" auto-adopts pristine non-interactive
+        # installs; "never" silences the offer entirely.
+        "adopt": "prompt",
     },
 
     # Language Server Protocol — semantic diagnostics from real
