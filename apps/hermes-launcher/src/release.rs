@@ -37,10 +37,31 @@ struct GithubAsset {
     name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 struct GithubRelease {
     tag_name: String,
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    body: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+    #[serde(default)]
+    target_commitish: Option<String>,
+    #[serde(default)]
+    draft: bool,
+    #[serde(default)]
+    prerelease: bool,
+    #[serde(default)]
     assets: Vec<GithubAsset>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReleaseInfo {
+    pub version: String,
+    pub summary: String,
+    pub published_at: Option<String>,
+    pub target_sha: Option<String>,
 }
 
 /// A release source — where bundles come from.
@@ -130,6 +151,14 @@ impl ReleaseSource {
         }
     }
 
+    /// Release history, newest first, for status --check.
+    pub fn history(&self, channel: &str) -> Result<Vec<ReleaseInfo>> {
+        match self {
+            ReleaseSource::File { base_path } => file_history(base_path, channel),
+            ReleaseSource::Https { base_url } => http_history(base_url, channel),
+        }
+    }
+
     /// Download a file from the source to a local path.
     /// For file:// sources, this is a local copy. For https://, an HTTP GET.
     pub async fn download(&self, url: &str, dest: &Path) -> Result<()> {
@@ -196,6 +225,99 @@ fn latest_http(base_url: &str, channel: &str) -> Result<String> {
             .context("failed to decode release response")
     })?;
     release_version(&release, channel)
+}
+
+fn github_repo(base_url: &str) -> Result<&str> {
+    base_url
+        .strip_prefix("https://github.com/")
+        .and_then(|path| path.strip_suffix("/releases/download"))
+        .ok_or_else(|| anyhow::anyhow!("unsupported GitHub release URL: {}", base_url))
+}
+
+fn http_history(base_url: &str, channel: &str) -> Result<Vec<ReleaseInfo>> {
+    let endpoint = format!(
+        "https://api.github.com/repos/{}/releases?per_page=100",
+        github_repo(base_url)?
+    );
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .context("cannot create release history runtime")?;
+    let releases: Vec<GithubRelease> = runtime.block_on(async {
+        reqwest::Client::new()
+            .get(&endpoint)
+            .header(reqwest::header::USER_AGENT, "hermes-updater")
+            .send()
+            .await
+            .with_context(|| format!("release history lookup failed: {}", endpoint))?
+            .error_for_status()
+            .with_context(|| format!("release history lookup failed: {}", endpoint))?
+            .json()
+            .await
+            .context("failed to decode release history")
+    })?;
+    Ok(release_history(&releases, channel))
+}
+
+fn file_history(base_path: &Path, channel: &str) -> Result<Vec<ReleaseInfo>> {
+    let mut history = Vec::new();
+    for entry in std::fs::read_dir(base_path)
+        .with_context(|| format!("cannot read release directory: {}", base_path.display()))?
+    {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let manifest_path = entry.path().join("manifest.json");
+        if !manifest_path.is_file() {
+            continue;
+        }
+        let manifest: Manifest = serde_json::from_slice(&std::fs::read(&manifest_path)?)?;
+        if manifest.channel == channel {
+            history.push(ReleaseInfo {
+                version: manifest.version,
+                summary: String::new(),
+                published_at: None,
+                target_sha: Some(manifest.git_sha),
+            });
+        }
+    }
+    history.sort_by(|a, b| b.version.cmp(&a.version));
+    Ok(history)
+}
+
+fn release_history(releases: &[GithubRelease], channel: &str) -> Vec<ReleaseInfo> {
+    releases
+        .iter()
+        .filter(|release| {
+            !release.draft
+                && if channel == "nightly" {
+                    release.tag_name == "hermes-nightly"
+                } else {
+                    !release.prerelease && release.tag_name.starts_with('v')
+                }
+        })
+        .map(|release| ReleaseInfo {
+            version: if channel == "nightly" {
+                release_version(release, channel).unwrap_or_else(|_| release.tag_name.clone())
+            } else {
+                release.tag_name.trim_start_matches('v').to_owned()
+            },
+            summary: release
+                .body
+                .as_deref()
+                .filter(|body| !body.trim().is_empty())
+                .or(release.name.as_deref())
+                .unwrap_or(&release.tag_name)
+                .to_owned(),
+            published_at: release.published_at.clone(),
+            target_sha: release
+                .target_commitish
+                .as_ref()
+                .filter(|sha| sha.len() == 40 && sha.chars().all(|c| c.is_ascii_hexdigit()))
+                .cloned(),
+        })
+        .collect()
 }
 
 fn release_version(release: &GithubRelease, channel: &str) -> Result<String> {
@@ -503,6 +625,7 @@ mod tests {
                     name: "hermes-2026.07.16-win-x64.zip".to_owned(),
                 },
             ],
+            ..Default::default()
         };
         assert_eq!(release_version(&release, "nightly").unwrap(), "2026.07.16");
     }
@@ -519,6 +642,7 @@ mod tests {
                     name: "hermes-2026.07.16-win-x64.zip".to_owned(),
                 },
             ],
+            ..Default::default()
         };
         assert!(release_version(&release, "nightly").is_err());
     }
@@ -532,6 +656,32 @@ mod tests {
         };
         let version = src.latest("stable").unwrap();
         assert_eq!(version, "2026.07.15");
+    }
+
+    #[test]
+    fn release_history_filters_non_stable_releases() {
+        let releases = vec![
+            GithubRelease {
+                tag_name: "v2.0.0".into(),
+                body: Some("second release".into()),
+                ..Default::default()
+            },
+            GithubRelease {
+                tag_name: "v1.9.0-rc".into(),
+                prerelease: true,
+                ..Default::default()
+            },
+            GithubRelease {
+                tag_name: "v1.0.0".into(),
+                name: Some("One".into()),
+                ..Default::default()
+            },
+        ];
+        let history = release_history(&releases, "stable");
+        assert_eq!(history.len(), 2);
+        assert_eq!(history[0].version, "2.0.0");
+        assert_eq!(history[0].summary, "second release");
+        assert_eq!(history[1].summary, "One");
     }
 
     #[test]

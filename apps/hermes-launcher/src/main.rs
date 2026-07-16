@@ -131,27 +131,143 @@ fn rollback() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn status(check: bool, json: bool) -> anyhow::Result<()> {
-    let hermes_home = hermes_home()?;
-    let current = slots::resolve_current(&hermes_home).unwrap_or(None);
-    let previous = slots::resolve_previous(&hermes_home).unwrap_or(None);
+#[derive(serde::Serialize)]
+struct StatusChangelog {
+    version: String,
+    summary: String,
+    author: String,
+    at: i64,
+    sha: String,
+}
 
-    if json {
-        let status = serde_json::json!({
-            "current": current,
-            "previous": previous,
-            "check": check,
-        });
-        println!("{}", serde_json::to_string_pretty(&status).unwrap());
-    } else {
-        println!("hermes-updater 0.1.0");
-        match current {
-            Some(v) => println!("  current:  {}", v),
-            None => println!("  current:  (none)"),
+#[derive(serde::Serialize)]
+struct StatusReport {
+    current_version: Option<String>,
+    previous_version: Option<String>,
+    channel: String,
+    staged_leftovers: Vec<String>,
+    latest_version: Option<String>,
+    update_available: bool,
+    behind: usize,
+    changelog: Vec<StatusChangelog>,
+    current_sha: Option<String>,
+    target_sha: Option<String>,
+    error: Option<String>,
+}
+
+fn status_report(hermes_home: &std::path::Path, check: bool) -> StatusReport {
+    let current = slots::resolve_current(hermes_home).unwrap_or(None);
+    let previous = slots::resolve_previous(hermes_home).unwrap_or(None);
+    let versions = hermes_home.join("versions");
+    let mut staged_leftovers: Vec<String> = std::fs::read_dir(&versions)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter_map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            name.strip_suffix(".staging").map(str::to_owned)
+        })
+        .collect();
+    staged_leftovers.sort();
+    let current_manifest = current
+        .as_deref()
+        .map(|version| versions.join(version).join("manifest.json"))
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<release::Manifest>(&bytes).ok());
+    let channel = current_manifest
+        .as_ref()
+        .map(|manifest| manifest.channel.clone())
+        .unwrap_or_else(|| "stable".to_owned());
+    let mut report = StatusReport {
+        current_version: current.clone(),
+        previous_version: previous,
+        channel: channel.clone(),
+        staged_leftovers,
+        latest_version: None,
+        update_available: false,
+        behind: 0,
+        changelog: Vec::new(),
+        current_sha: current_manifest.map(|manifest| manifest.git_sha),
+        target_sha: None,
+        error: None,
+    };
+    if check {
+        match release_source(None).and_then(|source| source.history(&channel)) {
+            Ok(history) => {
+                report.latest_version = history.first().map(|item| item.version.clone());
+                report.target_sha = history.first().and_then(|item| item.target_sha.clone());
+                let newer: Vec<_> = history
+                    .iter()
+                    .take_while(|item| Some(&item.version) != current.as_ref())
+                    .collect();
+                report.update_available =
+                    !newer.is_empty() && report.latest_version.as_ref() != current.as_ref();
+                report.behind = if report.update_available {
+                    newer.len()
+                } else {
+                    0
+                };
+                report.changelog = newer
+                    .into_iter()
+                    .map(|item| StatusChangelog {
+                        version: item.version.clone(),
+                        summary: item.summary.clone(),
+                        author: String::new(),
+                        at: item
+                            .published_at
+                            .as_deref()
+                            .and_then(|value| {
+                                time::OffsetDateTime::parse(
+                                    value,
+                                    &time::format_description::well_known::Rfc3339,
+                                )
+                                .ok()
+                            })
+                            .map(|value| value.unix_timestamp())
+                            .unwrap_or(0),
+                        sha: item.target_sha.clone().unwrap_or_default(),
+                    })
+                    .collect();
+            }
+            Err(error) => report.error = Some(error.to_string()),
         }
-        match previous {
-            Some(v) => println!("  previous: {}", v),
-            None => println!("  previous: (none)"),
+    }
+    report
+}
+
+fn status(check: bool, json: bool) -> anyhow::Result<()> {
+    let report = status_report(&hermes_home()?, check);
+    if json {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        return Ok(());
+    }
+    println!("hermes-updater 0.1.0");
+    println!(
+        "  current:  {}",
+        report.current_version.as_deref().unwrap_or("(none)")
+    );
+    println!(
+        "  previous: {}",
+        report.previous_version.as_deref().unwrap_or("(none)")
+    );
+    println!("  channel:  {}", report.channel);
+    println!(
+        "  staged:   {}",
+        if report.staged_leftovers.is_empty() {
+            "(none)".to_owned()
+        } else {
+            report.staged_leftovers.join(", ")
+        }
+    );
+    if check {
+        if let Some(error) = report.error {
+            println!("  check:    failed: {}", error);
+        } else {
+            println!(
+                "  latest:   {} ({} release(s) behind)",
+                report.latest_version.as_deref().unwrap_or("(none)"),
+                report.behind
+            );
         }
     }
     Ok(())
@@ -214,6 +330,37 @@ mod tests {
         std::env::set_var("HERMES_HOME", temp.path());
 
         assert_eq!(hermes_home().unwrap(), temp.path());
+    }
+
+    #[test]
+    fn status_report_includes_slot_metadata_and_staging() {
+        let temp = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(temp.path().join("versions/1.0.0")).unwrap();
+        std::fs::create_dir_all(temp.path().join("versions/2.0.0.staging")).unwrap();
+        std::fs::write(temp.path().join("current.txt"), "1.0.0\n").unwrap();
+        std::fs::write(temp.path().join("previous.txt"), "0.9.0\n").unwrap();
+        std::fs::write(
+            temp.path().join("versions/1.0.0/manifest.json"),
+            serde_json::json!({
+                "schema": 1,
+                "version": "1.0.0",
+                "channel": "nightly",
+                "git_sha": "abc",
+                "platform": "linux-x64",
+                "min_updater_version": "0.1.0",
+                "desktop": false,
+                "files": {}
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let report = status_report(temp.path(), false);
+        assert_eq!(report.current_version.as_deref(), Some("1.0.0"));
+        assert_eq!(report.previous_version.as_deref(), Some("0.9.0"));
+        assert_eq!(report.channel, "nightly");
+        assert_eq!(report.current_sha.as_deref(), Some("abc"));
+        assert_eq!(report.staged_leftovers, ["2.0.0"]);
     }
 
     #[test]

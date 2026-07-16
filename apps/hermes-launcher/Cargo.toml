@@ -31,6 +31,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 tar = "0.4"
 zstd = "0.13"
 zip = { version = ">=2.4,<3", default-features = false, features = ["deflate"] }
+time = { version = ">=0.3.36,<0.4", features = ["parsing"] }
 
 # Async runtime
 tokio = { version = "1", features = ["full"] }
