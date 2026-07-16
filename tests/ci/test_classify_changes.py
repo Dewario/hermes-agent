@@ -23,6 +23,7 @@ classify = _mod.classify
 DEFAULT = {
     "python": True,
     "frontend": True,
+    "rust": True,
     "docker_meta": True,
     "site": True,
     "scan": True,
@@ -32,10 +33,11 @@ DEFAULT = {
 }
 
 
-def _lanes(python=False, frontend=False, site=False, scan=False, deps=False, mcp_catalog=False, docker_meta=False, ci_review=False) -> dict[str, bool]:
+def _lanes(python=False, frontend=False, rust=False, site=False, scan=False, deps=False, mcp_catalog=False, docker_meta=False, ci_review=False) -> dict[str, bool]:
     return {
         "python": python,
         "frontend": frontend,
+        "rust": rust,
         "docker_meta": docker_meta,
         "site": site,
         "scan": scan,
@@ -52,6 +54,7 @@ CASES = {
     "uv.lock → python": (["uv.lock"], _lanes(python=True)),
     "ts package → frontend": (["apps/desktop/src/app.tsx"], _lanes(frontend=True)),
     "ui-tui → frontend": (["ui-tui/src/entry.ts"], _lanes(frontend=True)),
+    "launcher crate → rust": (["apps/hermes-launcher/src/main.rs"], _lanes(rust=True)),
     # Lockfile bump shifts every TS package's tree, but not the Python suite.
     "root lockfile → frontend, not python": (["package-lock.json"], _lanes(frontend=True)),
     "website → site": (["website/docs/intro.md"], _lanes(site=True)),
@@ -62,7 +65,7 @@ CASES = {
     # Unknown top-level file keeps Python on rather than risk a silent skip.
     "unknown toplevel → python": (["Makefile"], _lanes(python=True)),
     "mixed docs+python → python": (["README.md", "agent/x.py"], _lanes(python=True, scan=True)),
-    "mixed docs+frontend → frontend": (["README.md", "apps/x.tsx"], _lanes(frontend=True)),
+    "mixed docs+unknown app → python": (["README.md", "apps/x.tsx"], _lanes(python=True)),
     # Supply-chain lanes
     ".pth file → scan": (["evil.pth"], _lanes(python=True, scan=True)),
     "setup.py → scan": (["setup.py"], _lanes(python=True, scan=True)),
@@ -97,7 +100,7 @@ CASES = {
     ),
     "bootstrap-installer eslint config → ci_review": (
         ["apps/bootstrap-installer/eslint.config.mjs"],
-        _lanes(frontend=True, ci_review=True),
+        _lanes(python=True, ci_review=True),
     ),
     "prettier config → ci_review": (
         [".prettierrc"],

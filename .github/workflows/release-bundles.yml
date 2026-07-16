@@ -151,7 +151,7 @@ jobs:
           fi
 
       - name: Upload artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: hermes-${{ steps.version.outputs.version }}-${{ matrix.platform }}
           path: dist/hermes-${{ steps.version.outputs.version }}-${{ matrix.platform }}.*
