@@ -4333,6 +4333,14 @@ def cmd_hooks(args):
 
 def cmd_doctor(args):
     """Check configuration and dependencies."""
+    # --preflight: run pre-activation checks for the updater's slot gate.
+    # This is invoked by the Rust updater against a STAGED slot before the
+    # atomic flip. Prints JSON report, exits 0/1.
+    if getattr(args, "preflight", False):
+        from hermes_cli.subcommands.doctor_preflight import run_preflight_cli
+
+        sys.exit(run_preflight_cli())
+
     from hermes_cli.doctor import run_doctor
 
     run_doctor(args)
