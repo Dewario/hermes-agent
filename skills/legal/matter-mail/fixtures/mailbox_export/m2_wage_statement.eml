@@ -1,0 +1,28 @@
+Message-ID: <missing-002@mail.synthetic>
+From: J.T. Conductor <jtconductor@personal.synthetic>
+To: Pat Paralegal <pparalegal@firm.synthetic>
+Cc: Alex Counsel <acounsel@firm.synthetic>
+Date: Fri, 20 Mar 2026 09:00:00 -0500
+Subject: Wage statement attached
+X-Synthetic: SYNTHETIC / NON-CLIENT / TEST ONLY
+Content-Type: multipart/mixed; boundary="XBOUND"
+
+--XBOUND
+Content-Type: text/plain; charset=utf-8
+
+SYNTHETIC / NON-CLIENT / TEST ONLY
+
+Pat,
+
+Attaching the wage statement you asked for covering the weeks before the
+incident. Let me know if the format works.
+
+J.T.
+
+--XBOUND
+Content-Type: application/pdf; name="tvrr_wage_statement_q1.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="tvrr_wage_statement_q1.pdf"
+
+JVBERi0xLjQgc3ludGhldGljIHdhZ2UgZGF0YSBmb3IgdGVzdGluZyBvbmx5
+--XBOUND--
