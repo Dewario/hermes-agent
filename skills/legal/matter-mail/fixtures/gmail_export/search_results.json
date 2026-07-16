@@ -1,0 +1,23 @@
+[
+  {
+    "_comment": "SYNTHETIC / NON-CLIENT / TEST ONLY — shape matches skills/productivity/google-workspace google_api.py gmail search output (reduced fidelity)",
+    "id": "18f0a1b2c3d4e5f6",
+    "threadId": "18f0a1b2c3d4e5f6",
+    "from": "J.T. Conductor <jtconductor@personal.synthetic>",
+    "to": "Alex Counsel <acounsel@firm.synthetic>",
+    "subject": "Incident report follow-up",
+    "date": "Tue, 17 Mar 2026 14:05:00 -0500",
+    "snippet": "Following up on the incident report questions from our call...",
+    "labels": ["INBOX"]
+  },
+  {
+    "id": "28f0a1b2c3d4e5f7",
+    "threadId": "28f0a1b2c3d4e5f7",
+    "from": "Adjuster Example <adjuster@insurer.synthetic>",
+    "to": "jtconductor@personal.synthetic",
+    "subject": "Recorded statement request",
+    "date": "Wed, 18 Mar 2026 08:30:00 -0500",
+    "snippet": "We would like to schedule a recorded statement regarding your claim...",
+    "labels": ["INBOX"]
+  }
+]

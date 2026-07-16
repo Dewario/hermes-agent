@@ -158,3 +158,15 @@ apps/desktop/demo/
 # PR body is the archive. See the hermes-agent-dev skill's
 # pr-infographic-workflow reference (storage rule + lapse #8 / #COMMIT-1).
 infographic/
+
+# Legal discovery pilot ephemeral outputs
+pilot_outputs/
+pilot/COMMAND_LEDGER.jsonl
+.pytest_tmp/
+# Local codegraph / Shadow index cache (not source)
+.codegraph/
+# LGD2-008 goldens under legal discovery skills (exception to examples/ ignore)
+!skills/legal/discovery-intake/examples/
+!skills/legal/discovery-intake/examples/**
+!skills/legal/discovery-review/examples/
+!skills/legal/discovery-review/examples/**

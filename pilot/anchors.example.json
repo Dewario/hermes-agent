@@ -1,0 +1,10 @@
+{
+  "_comment": "SYNTHETIC example — copy outside the repo and replace anchors for a real matter. require_synthetic_banner must be false for live packages.",
+  "fact_anchors": [
+    "REPLACE-CLIENT-OR-EMPLOYER",
+    "REPLACE-INCIDENT-LOCATION",
+    "REPLACE-KEY-DATE"
+  ],
+  "bates_regex": "REPLACE-PREFIX-\\d+",
+  "require_synthetic_banner": false
+}

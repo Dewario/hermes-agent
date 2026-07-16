@@ -1,0 +1,41 @@
+{
+  "_comment": "SYNTHETIC / NON-CLIENT / TEST ONLY — shape matches a Microsoft Graph GET /me/messages collection response ($select with internetMessageId). Primary transport in the Outlook-first topology.",
+  "value": [
+    {
+      "id": "AAMkAGSyntheticFiled001",
+      "conversationId": "AAQkAGSyntheticConv001",
+      "internetMessageId": "<filed-001@mail.synthetic>",
+      "receivedDateTime": "2026-03-12T15:00:00Z",
+      "subject": "Claim status",
+      "hasAttachments": false,
+      "from": {"emailAddress": {"name": "J.T. Conductor", "address": "jtconductor@personal.synthetic"}},
+      "toRecipients": [
+        {"emailAddress": {"name": "Alex Counsel", "address": "acounsel@firm.synthetic"}}
+      ],
+      "ccRecipients": [],
+      "body": {
+        "contentType": "text",
+        "content": "SYNTHETIC / NON-CLIENT / TEST ONLY\n\nAlex,\n\nChecking in on the status of my claim after the Northgate Yard incident.\nAnything you need from me this week?\n\nJ.T."
+      }
+    },
+    {
+      "id": "AAMkAGSyntheticMiss006",
+      "conversationId": "AAQkAGSyntheticConv006",
+      "internetMessageId": "<graph-miss-006@mail.synthetic>",
+      "receivedDateTime": "2026-04-02T13:30:00Z",
+      "subject": "Referral paperwork scanned copies",
+      "hasAttachments": true,
+      "from": {"emailAddress": {"name": "J.T. Conductor", "address": "jtconductor@personal.synthetic"}},
+      "toRecipients": [
+        {"emailAddress": {"name": "Kim Casemgr", "address": "kcasemgr@firm.synthetic"}}
+      ],
+      "ccRecipients": [
+        {"emailAddress": {"name": "Alex Counsel", "address": "acounsel@firm.synthetic"}}
+      ],
+      "body": {
+        "contentType": "html",
+        "content": "<html><body><p>SYNTHETIC / NON-CLIENT / TEST ONLY</p><p>Kim,</p><p>Scanned copies of the referral paperwork are attached as discussed.</p><p>J.T.</p></body></html>"
+      }
+    }
+  ]
+}

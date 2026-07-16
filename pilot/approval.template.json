@@ -1,0 +1,32 @@
+{
+  "pilot_id": "REPLACE-WITH-RUN-ID",
+  "reviewer": "ahfullerjd",
+  "reviewed_at": "REPLACE-WITH-ISO8601",
+  "artifacts": {
+    "intake": {
+      "path": "pilot_outputs/intake/intake_package.md",
+      "approved": false,
+      "sha256": "REPLACE-WITH-SHA256-OF-INTAKE-PACKAGE",
+      "notes": ""
+    },
+    "review": {
+      "path": "pilot_outputs/review/review_package.md",
+      "approved": false,
+      "sha256": "REPLACE-WITH-SHA256-OF-REVIEW-PACKAGE",
+      "notes": ""
+    }
+  },
+  "gates_checked": [
+    "SOL_issue_flag_not_deadline",
+    "FELA_attorney_review_gate",
+    "damages_expert_review_gate",
+    "production_preflight_step_0",
+    "no_prohibited_legal_conclusions",
+    "fixture_grounded_facts",
+    "validator_strict_pass",
+    "check_outputs_pass",
+    "casegraph_verify_cites_pass",
+    "casegraph_verify_chronology_pass",
+    "casegraph_check_isolation_pass"
+  ]
+}
