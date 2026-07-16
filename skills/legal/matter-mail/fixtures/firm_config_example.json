@@ -1,0 +1,40 @@
+{
+  "_comment": "SYNTHETIC / NON-CLIENT / TEST ONLY — example only. Real firm configs live outside the repo at $HERMES_HOME/matter_mail_firm.json and are never committed.",
+  "firm_contacts": [
+    {"name": "Alex Counsel", "emails": ["acounsel@firm.synthetic", "acounsel.overflow@personal.synthetic"], "role": "attorney"},
+    {"name": "Pat Paralegal", "emails": ["pparalegal@firm.synthetic"], "role": "paralegal"},
+    {"name": "Kim Casemgr", "emails": ["kcasemgr@firm.synthetic"], "role": "case manager"}
+  ],
+  "mail_accounts": [
+    {
+      "label": "work",
+      "address": "acounsel@firm.synthetic",
+      "transport": "graph",
+      "_comment": "M365 work mailbox accessed through Outlook — fetched via Microsoft Graph"
+    },
+    {
+      "label": "gmail_outlook",
+      "address": "acounsel.overflow@personal.synthetic",
+      "transport": "outlook-export",
+      "_comment": "personal Gmail account added to Outlook; not reachable via Graph — export from the Outlook client (.eml/.msg/.pst->convert), or set transport to gmail-api to fetch directly via the google-workspace skill"
+    }
+  ],
+  "priority_windows": [
+    {
+      "start": "2026-03-04",
+      "end": "2026-05-16",
+      "account": "gmail_outlook",
+      "mode": "exhaustive",
+      "reason": "primary email provider outage (synthetic example) — fallback mailbox used for nearly all matter correspondence in this span"
+    }
+  ],
+  "window_margin_days": 30,
+  "coverage_gap_days": 14,
+  "privilege_keywords": [
+    "attorney-client",
+    "work product",
+    "privileged",
+    "legal advice",
+    "litigation hold"
+  ]
+}
