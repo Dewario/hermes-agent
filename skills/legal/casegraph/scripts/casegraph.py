@@ -597,12 +597,14 @@ def cmd_build(args) -> int:
                 st.st_mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         ):
             # Filename Bates parsing can improve without the file bytes changing
-            # (e.g. batch names like "Plaintiff 000001-12.pdf"). Refresh from
-            # the current parser when the row looks like a single-page filename
-            # stamp or has no Bates yet; do not override a wider header range.
+            # (e.g. batch names like "Plaintiff 000001-12.pdf"). Never widen the
+            # indexed range from the filename alone — that launders cites past
+            # a narrower header Bates Range. Force a content rescan so headers
+            # win; filename fill-in remains only when _scan_file finds no header.
             fb = bates_from_filename(path.name)
+            force_rescan = False
             if fb is not None:
-                prefix, start, end = fb
+                _prefix, start, end = fb
                 cur_start = old.get("bates_start")
                 cur_end = old.get("bates_end")
                 if cur_start is None or (
@@ -610,13 +612,11 @@ def cmd_build(args) -> int:
                     and (cur_end is None or cur_end == cur_start)
                     and end > start
                 ):
-                    old = dict(old)
-                    old["bates_prefix"], old["bates_start"], old["bates_end"] = (
-                        prefix, start, end
-                    )
-            new_rows.append(old)
-            n_same += 1
-            continue
+                    force_rescan = True
+            if not force_rescan:
+                new_rows.append(old)
+                n_same += 1
+                continue
         row = _scan_file(matter_dir, path, args.no_text_cache)
         if old is None:
             n_new += 1

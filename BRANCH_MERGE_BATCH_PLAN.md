@@ -94,20 +94,35 @@ None deleted.
 ```powershell
 git fetch origin main
 git checkout -B integrate/custom-main origin/main
+$src = "refs/tags/backup/pre-merge-feature-20260716"
 
-# Product surface from frozen tip
-git checkout backup/pre-merge-feature-20260716 -- `
+# Product surface from frozen tip — NEVER blind-checkout .gitignore
+git checkout $src -- `
   skills/legal `
   skills/software-development/hermes-compat-scanner `
   tests/skills `
   pilot `
   tests/pilot `
-  scripts/validate_legal_discovery_skills.py `
-  .gitignore
+  scripts/validate_legal_discovery_skills.py
 
-# Park process docs (consistency: not root clutter)
-# (tag name is fine here — prefer refs/tags/... if a branch ever shares the name)
-git checkout backup/pre-merge-feature-20260716 -- `
+# Surgical ignore merge: keep origin/main base, append legal/pilot lines only
+Add-Content -Path .gitignore -Value @"
+
+# Legal discovery pilot ephemeral outputs
+pilot_outputs/
+pilot/COMMAND_LEDGER.jsonl
+.pytest_tmp/
+# Local codegraph / Shadow index cache (not source)
+.codegraph/
+# LGD2-008 goldens under legal discovery skills (exception to examples/ ignore)
+!skills/legal/discovery-intake/examples/
+!skills/legal/discovery-intake/examples/**
+!skills/legal/discovery-review/examples/
+!skills/legal/discovery-review/examples/**
+"@
+
+# Park process docs under pilot/docs/
+git checkout $src -- `
   LEGAL_DISCOVERY_FINALIZATION_REPORT.md `
   LEGAL_DISCOVERY_IMPLEMENTATION_PLAN.md `
   LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md `
@@ -118,21 +133,24 @@ git checkout backup/pre-merge-feature-20260716 -- `
   implementation-plan.md
 
 New-Item -ItemType Directory -Force pilot/docs | Out-Null
-git mv -f LEGAL_DISCOVERY_FINALIZATION_REPORT.md `
-  LEGAL_DISCOVERY_IMPLEMENTATION_PLAN.md `
-  LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md `
-  LEGAL_SKILL_INVENTORY.md `
-  MODEL_ROUTING_POLICY_LEGAL.md `
-  PROVIDER_TOKEN_INVENTORY_REDACTED.md `
-  BRANCH_MERGE_BATCH_PLAN.md `
-  implementation-plan.md `
-  pilot/docs/ 2>$null
+foreach ($f in @(
+  "LEGAL_DISCOVERY_FINALIZATION_REPORT.md",
+  "LEGAL_DISCOVERY_IMPLEMENTATION_PLAN.md",
+  "LEGAL_DISCOVERY_REVISION_FINAL_REPORT.md",
+  "LEGAL_SKILL_INVENTORY.md",
+  "MODEL_ROUTING_POLICY_LEGAL.md",
+  "PROVIDER_TOKEN_INVENTORY_REDACTED.md",
+  "BRANCH_MERGE_BATCH_PLAN.md",
+  "implementation-plan.md"
+)) { git mv -f $f "pilot/docs/$f" }
 
 git add -A
+git status --short
+# assert: no LEGAL_*.md / PROVIDER_* at repo root; mcp oauth skill test still present
 git commit -m "feat(custom): import legal skills, pilot harness, compat scanner"
 ```
 
-**Do not** checkout `gateway/`, `agent/`, `tools/`, or `run_agent.py` in this batch.
+**Do not** checkout `gateway/`, `agent/`, `tools/`, `run_agent.py`, or wholesale `.gitignore` in this batch.
 
 ### Done when
 

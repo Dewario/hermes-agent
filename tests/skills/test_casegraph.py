@@ -200,6 +200,43 @@ class TestBuildAndStatus:
         report = json.loads(capsys.readouterr().out)
         assert report["unchanged"] == 2 and report["new"] == 0
 
+    def test_incremental_filename_widen_respects_header(self, tmp_path):
+        """Stale single-page index + batch filename must not beat header range.
+
+        Red-team: filename ``Plaintiff 000001-12`` with header 000001-000002
+        must not expand to 1-12 on an mtime-stable rebuild (cite laundering).
+        """
+        m = tmp_path / "matter"
+        prod = m / "production"
+        prod.mkdir(parents=True)
+        (prod / "Plaintiff 000001-12.md").write_text(
+            "**Bates Range:** PLAINTIFF-000001 - PLAINTIFF-000002\n\n"
+            "Narrow header range; filename claims a wider batch.\n",
+            encoding="utf-8",
+        )
+        assert cg.main(["init", str(m), "--matter-id", "SYN-BATCH",
+                        "--bates-prefix", "PLAINTIFF"]) == 0
+        assert cg.main(["build", str(m)]) == 0
+        docs_path = m / ".casegraph" / "documents.jsonl"
+        poisoned = []
+        for line in docs_path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            row = json.loads(line)
+            if "Plaintiff" in row.get("relpath", ""):
+                row["bates_end"] = row["bates_start"]  # stale single-page stamp
+            poisoned.append(row)
+        docs_path.write_text(
+            "\n".join(json.dumps(r) for r in poisoned) + "\n", encoding="utf-8"
+        )
+        assert cg.main(["build", str(m)]) == 0
+        rows = cg.load_documents(m)
+        row = next(r for r in rows if "Plaintiff" in r["relpath"])
+        assert row["bates_start"] == 1 and row["bates_end"] == 2
+        out = tmp_path / "o.md"
+        out.write_text("Fact (PLAINTIFF-000008).\n", encoding="utf-8")
+        assert cg.main(["verify-cites", str(m), str(out), "--no-quotes"]) == 1
+
     def test_write_containment(self, matter, tmp_path):
         """build/gates must write only under .casegraph (and the explicit
         fingerprint store) — never into the production tree."""
