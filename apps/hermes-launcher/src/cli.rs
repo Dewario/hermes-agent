@@ -81,10 +81,6 @@ pub enum Command {
         /// Output as JSON.
         #[arg(long)]
         json: bool,
-
-        /// Release source URL used by --check (E2E/local mirrors).
-        #[arg(long)]
-        source: Option<String>,
     },
 
     /// Migrate a legacy git-checkout install to managed slots.
@@ -130,7 +126,6 @@ pub fn parse_from(args: impl IntoIterator<Item = String>) -> Cli {
             cli.command = Some(Command::Status {
                 check: false,
                 json: false,
-                source: None,
             });
         } else {
             // `hermes` with no subcommand → launch

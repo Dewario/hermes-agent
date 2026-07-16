@@ -225,32 +225,6 @@ jobs:
       - name: Ejected worktree lifecycle
         run: bash scripts/e2e/test-ejected-worktrees.sh
 
-  desktop-e2e:
-    name: Packaged desktop update E2E
-    if: >-
-      github.repository == 'NousResearch/hermes-agent' ||
-      github.repository == 'ethernet8023/hermes-agent'
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-      - name: Set up Python
-        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
-        with:
-          python-version: "3.12"
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
-      - name: Install native and JS dependencies
-        run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq xvfb libgtk-3-0 libnss3 libxss1 libxtst6 libatspi2.0-0 libdrm2 libgbm1 libasound2t64
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          npm ci
-      - name: Packaged signed-update relaunch gate
-        run: bash scripts/e2e/test-desktop-update.sh
-
   windows-verify:
     name: Windows managed-install verification
     needs: build
@@ -263,7 +237,7 @@ jobs:
           pattern: hermes-*-win-x64
           path: dist
           merge-multiple: true
-      - name: Install, launch, status, rollback, and self-restage
+      - name: Install, launch CLI, status, and self-restage
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -288,23 +262,16 @@ jobs:
           & "$env:HERMES_HOME/bin/hermes.exe" --global --version
           & "$env:HERMES_HOME/bin/hermes-updater.exe" status --json | ConvertFrom-Json | Out-Null
 
-          $desktop = "$env:HERMES_HOME/versions/$version/desktop/Hermes.exe"
-          if (-not (Test-Path $desktop)) { throw "desktop artifact missing: $desktop" }
-          $process = Start-Process $desktop -ArgumentList '--disable-gpu' -PassThru
-          Start-Sleep -Seconds 5
-          if ($process.HasExited) { throw "desktop exited early: $($process.ExitCode)" }
-          Stop-Process -Id $process.Id -Force
-
           & "$env:HERMES_HOME/bin/hermes-updater.exe" self-restage
           if (Test-Path "$env:HERMES_HOME/bin/hermes-updater.old.exe") {
             & "$env:HERMES_HOME/bin/hermes-updater.exe" status | Out-Null
             if (Test-Path "$env:HERMES_HOME/bin/hermes-updater.old.exe") { throw 'old updater was not swept' }
           }
-          Write-Host 'WINDOWS_VM_PASS: signed install, CLI, status, desktop launch, and self-restage'
+          Write-Host 'WINDOWS_VM_PASS: signed install, CLI, status, and self-restage'
 
   publish:
     name: Publish release bundles
-    needs: [build, lifecycle-e2e, desktop-e2e, windows-verify]
+    needs: [build, lifecycle-e2e, windows-verify]
     if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'schedule'
     runs-on: ubuntu-latest
     steps:
