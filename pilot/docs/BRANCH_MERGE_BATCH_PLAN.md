@@ -239,6 +239,10 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D8 status (2026-07-17):** GREEN @ tag `batch-d8-green` — cherry-picked `0698696b5` clean (`/steer` merges into pending instead of clobbering). Tests: 7 passed.
 
+**Batch D9 status (2026-07-17):** GREEN @ tag `batch-d9-green` — cherry-picked `6051d9ee0` timeout slice: `get_gateway_approval_timeout()` (default **1800s**), MCP elicitation + QQBot UI honor it; kept Batch B legal/pilot faithfulness files (ours). Tests: 110 passed (approval timeout + elicitation + steer + skills_guard).
+
+**Batch D overall:** D1–D9 complete on `integrate/custom-main`. Ready for Batch E (cut over local `main`) when you say go.
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
