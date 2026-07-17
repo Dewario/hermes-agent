@@ -1,9 +1,9 @@
 # Legal Discovery Workflow — Program Spec
 
-**Status:** SPEC ONLY for the multi-type program. Slice A1 (RFP response
-audit) is implemented under `skills/legal/discovery-response/` —
-**synthetic-only; not ready for live use.**
-**Date:** 2026-07-17
+**Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
+(RFP audit in `discovery-response/`) and **A2** (RFA audit in
+`discovery-workflow/scripts/rfa_audit.py`). **Not ready for live use.**
+**Date:** 2026-07-17 (amended: Slice A2 RFA audit landed)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -27,13 +27,12 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses | Interrogatory response audit |
-| One matter at a time | Interrogatory outgoing drafting |
-| Same-matter cites (bates/intake/transcript/discovery/case_file) | RFP outgoing drafting |
-| Synthetic validation + live OCR gate on `validate-audit` | RFA response audit |
-| §11.5 owner sign-off required before any live matter | RFA outgoing drafting |
-| | Mixed discovery-set workflow |
-| | Jury-prep / issue-targeted outgoing sets |
+| Audit proposed final **RFP** responses (A1) | Interrogatory response audit |
+| Audit proposed final **RFA** responses (A2) | Interrogatory outgoing drafting |
+| One matter at a time | RFP outgoing drafting |
+| Same-matter cites (bates/intake/transcript/discovery/case_file) | RFA outgoing drafting |
+| Synthetic validation + live OCR gate (skip OCR only if synthetic) | Mixed discovery-set workflow |
+| Per-matter × slice owner sign-off before live | Jury-prep / issue-targeted outgoing sets |
 
 This SPEC replaces the prior “RFP audit-first, then maybe generate RFPs”
 roadmap with a two-axis workflow. Keep Slice A1 code where it is; expand by
@@ -197,8 +196,8 @@ Do not open a later slice’s live gate before earlier synthetic matrices pass.
 | Slice | `request_type` | `mode` | Status |
 |-------|----------------|--------|--------|
 | **A1** | `rfp` | `audit_incoming_response` | Implemented (synthetic-only) in `discovery-response/` |
-| **A2** | `rfa` | `audit_incoming_response` | SPEC’d here — implement next |
-| **A3** | `rog` | `audit_incoming_response` | After A2 synthetic green |
+| **A2** | `rfa` | `audit_incoming_response` | Implemented (synthetic-only) in `scripts/rfa_audit.py` |
+| **A3** | `rog` | `audit_incoming_response` | Next — after A2 stays green |
 | **B1** | `rfa` | `draft_outgoing_request` | After A2 stable |
 | **B2** | `rog` | `draft_outgoing_request` | After A3 stable |
 | **B3** | `rfp` | `draft_outgoing_request` | After A1 live-or-owner-deferred + B1/B2 patterns reused |
@@ -247,15 +246,18 @@ python skills/legal/discovery-workflow/scripts/discovery_workflow.py \
   <parse|audit|package|validate|selftest|...>
 ```
 
-Until the umbrella lands, Slice A1 remains:
+Until the umbrella lands:
 
 ```
+# Slice A1 — RFP audit
 python skills/legal/discovery-response/scripts/discovery_response.py <cmd>
+
+# Slice A2 — RFA audit (dedicated module; refuses RFP/rog-looking sources)
+python skills/legal/discovery-workflow/scripts/rfa_audit.py <cmd>
 ```
 
-New slices may start as additional commands in `discovery_response.py` **only
-if** they take explicit `--request-type` / refuse RFP parsers for non-RFP
-input. Prefer a dedicated module per type once a second type lands.
+A2 commands: `parse-rfa`, `parse-proposed-rfa`, `audit-rfa`,
+`package-rfa-audit`, `validate-rfa-audit`, `selftest`.
 
 ---
 
@@ -303,6 +305,18 @@ All exit 0. No `--skip-ocr-queue` on live.
 - [ ] Single-matter invocation confirmed.
 - [ ] No client files under the repo.
 
+**Verification (2026-07-17 — A1+A2 synthetic tip):**
+
+| Slice | §9.1–9.3 synthetic | §9.5 owner sign-off | Live dry-run (§9.2) |
+|-------|--------------------|---------------------|---------------------|
+| A1 `rfp` / `audit_incoming_response` | Green (pytest + selftest) | **Open — not signed** | Not run |
+| A2 `rfa` / `audit_incoming_response` | Green (pytest + selftest) | **Open — not signed** | Not run |
+| A3 `rog` / `audit_incoming_response` | Not implemented | Blocked | Blocked |
+
+§9.5 is an **owner** gate. Engineering may mark §9.1–9.3 green; it must **not**
+check §9.5 boxes or run Allen/live matters until the owner writes approval for
+that exact matter ID + request_type + mode.
+
 ---
 
 ## 10. Relationship to `legal-discovery-response`
@@ -313,6 +327,8 @@ All exit 0. No `--skip-ocr-queue` on live.
 | Slice A1 detail (RFP audit schemas, CLI, §11 gates) | `skills/legal/discovery-response/SPEC.md` |
 | Slice A1 skill procedure | `skills/legal/discovery-response/SKILL.md` |
 | Slice A1 implementation | `skills/legal/discovery-response/scripts/discovery_response.py` |
+| Slice A2 skill procedure | `skills/legal/discovery-workflow/SKILL.md` |
+| Slice A2 implementation | `skills/legal/discovery-workflow/scripts/rfa_audit.py` |
 
 When this program SPEC and Slice A1 disagree on roadmap priority, **this file
 wins**. When they disagree on RFP-audit schema details already shipped, A1
@@ -322,13 +338,17 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-1. Commit this program SPEC + pointer updates (runbook, A1 SPEC header,
-   SKILL coverage limits). **No live clients.**
-2. Implement **Slice A2 — RFA audit** (parsers, classification enum, fixtures,
-   validate gates, synthetic cell).
-3. Implement **Slice A3 — rog audit**.
-4. Only then open outgoing drafting slices (B1→B3) with issue tags + templates.
-5. Live dry-run per matter only after the relevant slice’s §9.5 sign-off.
+1. Keep A1 + A2 synthetic cells green. **No live clients** without §9.5.
+2. Implement **Slice A3 — rog audit** (dedicated parsers; do not stretch RFA/RFP).
+3. Only then open outgoing drafting slices (B1→B3) with issue tags + templates.
+4. Live dry-run per matter only after the relevant slice’s §9.5 sign-off.
 
-**Do not** use the current RFP-audit tool live for a full discovery program
-that needs interrogatories, RFAs, or outgoing sets.
+**Do not** use A1/A2 live for a full discovery program that still needs
+interrogatories or outgoing sets.
+
+### A2 acceptance checklist (synthetic)
+
+- [x] Dedicated `rfa_audit.py` parser; refuses RFP/rog-looking sources.
+- [x] Classification enum + audit statuses + `rfa_response_audit_report.md`.
+- [x] `tests/skills/test_discovery_rfa_audit.py` + `selftest`.
+- [x] Live `validate-rfa-audit` does not skip OCR unless synthetic.

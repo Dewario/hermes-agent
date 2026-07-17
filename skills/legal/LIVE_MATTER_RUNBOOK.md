@@ -128,9 +128,10 @@ For medical-record timelines after review, use `skills/legal/medical-chronology/
 ## 8. Discovery workflows — not ready for live use
 
 Program roadmap: `skills/legal/discovery-workflow/SPEC.md` (`rog`|`rfp`|`rfa`
-× audit|draft). **Slice A1 only** is implemented today:
-`skills/legal/discovery-response/` — RFP response audit, synthetic-only.
-Do **not** use Hermes for Allen or any live matter’s interrogatories, RFAs,
-outgoing sets, or even RFP audit until the relevant slice’s acceptance
-criteria are green and the owner approves **that matter × request_type ×
-mode**. Never combine two clients’ records in one review context.
+× audit|draft). Implemented synthetic-only today: **A1** RFP audit
+(`discovery-response/`) and **A2** RFA audit
+(`discovery-workflow/scripts/rfa_audit.py`). Do **not** use Hermes for Allen
+or any live matter’s interrogatories, outgoing sets, or even RFP/RFA audit
+until the relevant slice’s acceptance criteria are green and the owner
+approves **that matter × request_type × mode**. Never combine two clients’
+records in one review context.
