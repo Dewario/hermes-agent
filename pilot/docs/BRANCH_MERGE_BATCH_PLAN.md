@@ -227,6 +227,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D2 status (2026-07-17):** GREEN @ tag `batch-d2-green` — cherry-picked `dc6c6a02d` + `168f84ba5` (slash_commands conflict: kept main multiplex/reasoning/fast-picker; used L8 public APIs). Follow-up: public `profile_runtime_scope` wrapper + consumers (`api_server`, `slash_commands`) off privates. Tests: 41 passed (`test_run_public_surface_l8` + `test_config_helpers_m14`).
 
+**Batch D3 status (2026-07-17):** GREEN @ tag `batch-d3-green` — cherry-picked `888b1e5f8`. Conflicts: kept main `_deliver_completion_notification` + routing metadata; set `tried_agent_notify` and fall through to user send on inject `False` (no silent drop); kept `approvals.gateway_timeout` 1800s (not CLI `timeout` 60s). Also landed process.wait no-clamp + activity heartbeats, head+tail tool previews, MCP late-refresh test file (D4 may be partial/no-op). Tests: 123 passed (long-job heartbeats, background notifications, tool_result_storage, L8).
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
