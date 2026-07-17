@@ -225,6 +225,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D1 status (2026-07-17):** GREEN @ `032613cfe` / tag `batch-d1-green` — cherry-picked `d708841b9` (resolved `gateway/relay/__init__.py`; also migrated new main IdP config path off `gateway.run`). Tests: 41 passed (`test_config_helpers_m14` + relay policy/self-provision).
 
+**Batch D2 status (2026-07-17):** GREEN @ tag `batch-d2-green` — cherry-picked `dc6c6a02d` + `168f84ba5` (slash_commands conflict: kept main multiplex/reasoning/fast-picker; used L8 public APIs). Follow-up: public `profile_runtime_scope` wrapper + consumers (`api_server`, `slash_commands`) off privates. Tests: 41 passed (`test_run_public_surface_l8` + `test_config_helpers_m14`).
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
