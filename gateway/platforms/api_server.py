@@ -1030,9 +1030,9 @@ class APIServerAdapter(BasePlatformAdapter):
     def _gateway_is_draining() -> bool:
         """Whether the owning gateway currently refuses new agent turns."""
         try:
-            from gateway.run import _gateway_runner_ref
+            from gateway.run import get_gateway_runner
 
-            runner = _gateway_runner_ref()
+            runner = get_gateway_runner()
             return bool(
                 runner
                 and (
@@ -1439,17 +1439,17 @@ class APIServerAdapter(BasePlatformAdapter):
                 from agent.secret_scope import is_multiplex_active
 
                 if is_multiplex_active():
-                    from gateway.run import _profile_runtime_scope
+                    from gateway.run import profile_runtime_scope
                     from hermes_constants import get_hermes_home
 
-                    return _profile_runtime_scope(get_hermes_home())
+                    return profile_runtime_scope(get_hermes_home())
             except Exception:
                 pass
             return nullcontext()
-        from gateway.run import _profile_runtime_scope
+        from gateway.run import profile_runtime_scope
         from hermes_cli.profiles import get_profile_dir
 
-        return _profile_runtime_scope(get_profile_dir(profile))
+        return profile_runtime_scope(get_profile_dir(profile))
 
     def _make_profile_prefix_middleware(self):
         """Reject unknown /p/<profile>/ prefixes and scope the request home."""
@@ -1869,10 +1869,10 @@ class APIServerAdapter(BasePlatformAdapter):
         # alive — gateway_running is True. Derive busy/drainable from the same
         # shared contract /api/status uses so the two surfaces never disagree.
         active_api_runs, process_depth, active_delegations = self._readiness_work_counts()
-        from gateway.run import _resolve_gateway_model
+        from gateway.run import resolve_gateway_model
 
         readiness = collect_runtime_readiness(
-            configured_model=_resolve_gateway_model(),
+            configured_model=resolve_gateway_model(),
             runtime_status=runtime,
             active_api_runs=active_api_runs,
             process_completion_queue_depth=process_depth,

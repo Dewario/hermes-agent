@@ -360,10 +360,10 @@ class GatewaySlashCommandsMixin:
 
         if multiplexed:
             try:
-                from gateway.run import _profile_runtime_scope
+                from gateway.run import profile_runtime_scope
 
                 profile_home = self._resolve_profile_home_for_source(source)
-                with _profile_runtime_scope(profile_home):
+                with profile_runtime_scope(profile_home):
                     display = display_hermes_home()
             except Exception:
                 display = display_hermes_home()
@@ -1779,9 +1779,9 @@ class GatewaySlashCommandsMixin:
                             return await _on_model_selected_scoped(
                                 _chat_id, model_id, provider_slug
                             )
-                        from gateway.run import _profile_runtime_scope
+                        from gateway.run import profile_runtime_scope
 
-                        with _profile_runtime_scope(_picker_profile_home):
+                        with profile_runtime_scope(_picker_profile_home):
                             return await _on_model_selected_scoped(
                                 _chat_id, model_id, provider_slug
                             )
