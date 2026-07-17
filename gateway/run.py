@@ -16523,11 +16523,13 @@ class GatewayRunner(GatewayAuthorizationMixin, GatewayKanbanWatchersMixin, Gatew
                     delivered = await self._deliver_completion_notification(
                         synth_text, completion_evt,
                     )
-                    if delivered is False:
-                        # The process remains terminal; retry after failed
-                        # adapter injection instead of suppressing the result.
-                        continue
-                    break
+                    if delivered is True or delivered is None:
+                        # True = agent turn accepted; None = no route / already
+                        # owned by another same-lifecycle caller.
+                        break
+                    # False = retryable adapter failure. Fall through to the
+                    # user-visible text notify so notify_on_complete never
+                    # silent-drops (D3 / long-job invariant).
 
                 # --- Normal text-only notification ---
                 # Also the fallback when agent_notify injection failed so the
