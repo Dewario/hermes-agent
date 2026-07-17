@@ -237,6 +237,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D7 status (2026-07-17):** GREEN @ tag `batch-d7-green` — cherry-picked `f7076925f` clean (skills_guard scan bypasses + shell-rc write gap). Tests: 118 passed.
 
+**Batch D8 status (2026-07-17):** GREEN @ tag `batch-d8-green` — cherry-picked `0698696b5` clean (`/steer` merges into pending instead of clobbering). Tests: 7 passed.
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
