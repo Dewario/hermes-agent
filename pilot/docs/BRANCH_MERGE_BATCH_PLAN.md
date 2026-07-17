@@ -231,6 +231,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D4 status (2026-07-17):** GREEN @ tag `batch-d4-green` — cherry-picked `cc21de3af`. Lifetime `_lifetime_api_calls` gate + `publish_guard` on late MCP refresh (prompt-cache safe). Notify fallback uses `agent_notify_failed` (only on inject False) with main deliver path. Tests: 83 passed (`test_mcp_late_refresh` + background notifications + long-job + L8).
 
+**Batch D5 status (2026-07-17):** GREEN @ tag `batch-d5-green` — cherry-picked `17e9e9717` clean (M20 off-loop hooks + L7 persist failure notice + `run_sync` async utils). Tests: 53 passed.
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
