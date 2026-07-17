@@ -543,6 +543,8 @@ def load_cli_config() -> Dict[str, Any]:
                 if key == "model":
                     continue  # Already handled above
                 if key in file_config:
+                    if isinstance(defaults[key], dict) and file_config[key] is None:
+                        continue
                     if isinstance(defaults[key], dict) and isinstance(file_config[key], dict):
                         defaults[key].update(file_config[key])
                     else:
@@ -1054,6 +1056,50 @@ def _arm_exit_watchdog(timeout_s: float | None = None) -> None:
         pass  # best-effort — never block shutdown on watchdog setup
 
 
+_signal_watchdog_armed = False
+
+
+def _arm_exit_watchdog_on_shutdown_signal() -> None:
+    """Arm the exit backstop the moment a termination signal arrives.
+
+    SIGTERM/SIGHUP establish unambiguous shutdown intent, but the graceful
+    path from signal → ``agent.interrupt()`` → ``app.exit()`` /
+    ``KeyboardInterrupt`` → ``finally`` → ``_run_cleanup`` has several wedge
+    points BEFORE ``_run_cleanup`` arms the normal watchdog: a main thread
+    parked in a syscall that never observes the unwind, a prompt_toolkit
+    teardown that never returns, or an agent worker blocking the ``finally``.
+    When that happens the process has NO backstop and a "dead" CLI lingers
+    (observed: ``hermes --tui`` alive ~47 min at 4% CPU after terminal close —
+    the #65998 class).
+
+    Arming at signal time closes that window. The leash is 2× the normal
+    cleanup timeout so a slow-but-progressing ``_run_cleanup`` (which arms
+    its own tighter timer when it starts) is never cut short by this outer
+    backstop — this timer only wins when cleanup was never reached at all.
+
+    Deliberately NOT armed at chat startup: the watchdog thread calls
+    ``os._exit(0)`` unconditionally after its sleep, so arming without
+    shutdown intent would hard-kill every session that outlives the timeout.
+
+    Idempotent (module flag) so repeated signals don't stack timer threads.
+    Never raises — safe to call from a signal handler.
+    """
+    global _signal_watchdog_armed
+    if _signal_watchdog_armed:
+        return
+    _signal_watchdog_armed = True
+    try:
+        base = float(os.getenv("HERMES_EXIT_WATCHDOG_S", "30"))
+    except (TypeError, ValueError):
+        base = 30.0
+    if base <= 0:
+        return  # explicitly disabled
+    try:
+        _arm_exit_watchdog(timeout_s=base * 2)
+    except Exception:
+        pass  # never let the backstop break signal handling
+
+
 def _run_cleanup(*, notify_session_finalize: bool = True):
     """Run resource cleanup exactly once."""
     global _cleanup_done
@@ -1110,6 +1156,19 @@ def _run_cleanup(*, notify_session_finalize: bool = True):
             )
     try:
         if _active_agent_ref and hasattr(_active_agent_ref, 'shutdown_memory_provider'):
+            # A /new shortly before exit leaves its end→switch boundary task
+            # (old-session extraction, LLM-bound) queued on the memory
+            # manager's serialized worker. shutdown_all()'s drain only waits
+            # ~5s and cancels queued tasks, so give pending work a bounded
+            # head start via the manager's own barrier — otherwise a
+            # "/new then quit" silently drops the old session's extraction.
+            # The 30s exit watchdog remains the hard backstop.
+            _mm = getattr(_active_agent_ref, '_memory_manager', None)
+            if _mm is not None and hasattr(_mm, 'flush_pending'):
+                try:
+                    _mm.flush_pending(timeout=10)
+                except Exception:
+                    pass
             # Forward the agent's own transcript so memory providers'
             # ``on_session_end`` hooks see the real conversation instead of
             # an empty list (#15165). ``_session_messages`` is set on
@@ -2980,29 +3039,9 @@ def _should_auto_attach_clipboard_image_on_paste(pasted_text: str) -> bool:
 
 
 def _strip_leaked_bracketed_paste_wrappers(text: str) -> str:
-    """Strip leaked bracketed-paste wrapper markers from user-visible text.
+    from hermes_cli.input_sanitize import strip_leaked_bracketed_paste_wrappers
 
-    Defensive normalization for cases where terminal/prompt_toolkit parsing
-    fails and bracketed-paste markers end up in the buffer as literal text.
-
-    We strip canonical wrappers unconditionally and also handle degraded
-    visible forms like ``[200~`` / ``[201~`` and ``00~`` / ``01~`` when they
-    look like wrapper boundaries, not arbitrary user content.
-    """
-    if not text:
-        return text
-
-    text = (
-        text.replace("\x1b[200~", "")
-        .replace("\x1b[201~", "")
-        .replace("^[[200~", "")
-        .replace("^[[201~", "")
-    )
-    text = re.sub(r"(^|[\s\n>:\]\)])\[200~", r"\1", text)
-    text = re.sub(r"\[201~(?=$|[\s\n<\[\(\):;.,!?])", "", text)
-    text = re.sub(r"(^|[\s\n>:\]\)])00~", r"\1", text)
-    text = re.sub(r"01~(?=$|[\s\n<\[\(\):;.,!?])", "", text)
-    return text
+    return strip_leaked_bracketed_paste_wrappers(text)
 
 
 def _apply_bracketed_paste_timeout_patch() -> None:
@@ -3902,9 +3941,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         )
         
         # Reasoning config (OpenRouter reasoning effort level)
-        self.reasoning_config = _parse_reasoning_config(
-            CLI_CONFIG["agent"].get("reasoning_effort", "")
-        )
+        # Per-model override > global reasoning_effort — resolved through the
+        # shared chokepoint in hermes_constants (Closes #21256).
+        from hermes_constants import resolve_reasoning_config
+        self.reasoning_config = resolve_reasoning_config(CLI_CONFIG, self.model)
         self.service_tier = _parse_service_tier_config(
             CLI_CONFIG["agent"].get("service_tier", "")
         )
@@ -4846,6 +4886,12 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         """Briefly force a transient reaction (wave/jump/failed) before resting."""
         self._pet_event = state
         self._pet_event_until = time.monotonic() + secs
+
+    def _on_reaction(self, kind: str) -> None:
+        """User affection (ily / <3 / good bot), core-detected — the pet's share
+        of the vibe signal that plays hearts on the TUI/desktop. Flash a celebrate."""
+        if kind == "vibe":
+            self._pet_flash("jump")
 
     def _pet_react_turn_end(self) -> None:
         """Flash the end-of-turn beat: failed on error, jump on a finished plan, else wave."""
@@ -6956,17 +7002,69 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             )
             return False
 
+    def _launch_session_boundary_memory_flush(
+        self,
+        history_snapshot: list,
+        *,
+        session_id: Optional[str] = None,
+    ) -> Optional[list]:
+        """Stage old-session memory extraction so /new stays responsive.
+
+        The context-engine ``on_session_end`` boundary is delivered
+        synchronously here: it is cheap (local state clear, no LLM call) and
+        ordering-sensitive — it must land before ``reset_session_state()``
+        rebinds the engine to the new session.
+
+        The memory-provider half (LLM-bound extraction, seconds) is NOT run
+        here. The returned snapshot is handed by ``new_session()`` to
+        ``MemoryManager.commit_session_boundary_async`` as a single
+        end→switch task on the manager's serialized background worker, so
+        extraction can never race the provider rebinding (providers key off
+        internal ``_session_id`` state — a late ``on_session_end`` after
+        ``on_session_switch`` would misattribute the old transcript to the
+        new session).
+
+        Returns the history snapshot to queue, or ``None`` when there is
+        nothing to extract (no agent / empty history / no memory manager).
+        """
+        agent = getattr(self, "agent", None)
+        if not agent or not history_snapshot:
+            return None
+
+        engine = getattr(agent, "context_compressor", None)
+        if engine is not None and hasattr(engine, "on_session_end"):
+            try:
+                engine.on_session_end(session_id or "", history_snapshot)
+            except Exception:
+                logger.debug(
+                    "Context engine on_session_end failed at /new boundary",
+                    exc_info=True,
+                )
+
+        # No provider extraction to queue when no memory manager is
+        # configured — new_session() falls back to the inline switch path.
+        if getattr(agent, "_memory_manager", None) is None:
+            return None
+        return history_snapshot
+
     def new_session(self, silent=False, title=None):
         """Start a fresh session with a new session ID and cleared agent state."""
+        old_session_id = self.session_id
+        _boundary_snapshot = None
         if self.agent and self.conversation_history:
-            # Trigger memory extraction on the old session before session_id rotates.
-            self.agent.commit_memory_session(self.conversation_history)
+            # Deliver the context-engine boundary synchronously and get back
+            # the history snapshot for the deferred provider extraction —
+            # queued below (after rotation) so /new never blocks on the
+            # LLM-bound extraction call.
+            _boundary_snapshot = self._launch_session_boundary_memory_flush(
+                list(self.conversation_history),
+                session_id=old_session_id,
+            )
             self._notify_session_boundary("on_session_finalize")
         elif self.agent:
             # First session or empty history — still finalize the old session
             self._notify_session_boundary("on_session_finalize")
 
-        old_session_id = self.session_id
         if self._session_db and old_session_id:
             # Flush any un-persisted messages from the current turn to the
             # old session *before* rotating.  /new can be called mid-turn
@@ -7054,15 +7152,29 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             # per-session state (_session_turns, _turn_counter, _document_id).
             # Fires BEFORE the plugin on_session_reset hook (shell hooks only
             # see the new id; Python providers see the transition). See #6672.
+            #
+            # When the old session has history, end-of-session extraction
+            # (LLM-bound, seconds) and this switch are queued as ONE task on
+            # the memory manager's serialized worker — end strictly before
+            # switch, without blocking /new (#16454). With no history there
+            # is nothing to extract; switch inline as before.
             try:
                 _mm = getattr(self.agent, "_memory_manager", None)
                 if _mm is not None:
-                    _mm.on_session_switch(
-                        self.session_id,
-                        parent_session_id=old_session_id or "",
-                        reset=True,
-                        reason="new_session",
-                    )
+                    if _boundary_snapshot:
+                        _mm.commit_session_boundary_async(
+                            _boundary_snapshot,
+                            new_session_id=self.session_id,
+                            parent_session_id=old_session_id or "",
+                            reason="new_session",
+                        )
+                    else:
+                        _mm.on_session_switch(
+                            self.session_id,
+                            parent_session_id=old_session_id or "",
+                            reset=True,
+                            reason="new_session",
+                        )
             except Exception:
                 pass
             self._notify_session_boundary("on_session_reset")
@@ -7072,7 +7184,6 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 print(f"(^_^)v New session started: {title}")
             else:
                 print("(^_^)v New session started!")
-
 
 
     def _consume_pending_resume_selection(self, text: str) -> bool:
@@ -8636,10 +8747,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         elif canonical == "compress":
             self._manual_compress(cmd_original)
         elif canonical == "usage":
-            self._show_usage()
-        elif canonical == "credits":
-            self._show_credits()
-        elif canonical == "billing":
+            self._handle_usage_command(cmd_original)
+        elif canonical == "subscription":
+            self._show_subscription()
+        elif canonical == "topup":
             self._show_billing(cmd_original)
         elif canonical == "insights":
             self._show_insights(cmd_original)
@@ -9060,6 +9171,55 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         return mgr
 
 
+
+    def _owns_process_notification(self, event: dict) -> bool:
+        """Return whether this CLI session provably owns a delegation event.
+
+        Delegations dispatched before context compression retain the original
+        session key, so resolve that key to its continuation before comparing.
+        Missing or foreign keys fail closed and remain queued for their owner.
+        """
+        event_key = str(event.get("session_key") or "")
+        current_key = str(getattr(self, "session_id", "") or "")
+        if not event_key or not current_key:
+            return False
+        if event_key == current_key:
+            return True
+        try:
+            session_db = getattr(self, "_session_db", None)
+            resolved_key = (
+                session_db.resolve_resume_session_id(event_key)
+                if session_db is not None
+                else event_key
+            ) or event_key
+        except Exception:
+            resolved_key = event_key
+        return str(resolved_key) == current_key
+
+    def _drain_process_notifications(self, consumer: str) -> None:
+        """Queue background notifications owned by this visible CLI session.
+
+        ``process_registry`` restores durable delegation completions into every
+        process using the same Hermes profile.  Always pass this CLI's stable
+        session identity when draining so another window cannot claim and mark
+        delivered a completion that belongs to this one.
+        """
+        from tools.process_registry import process_registry
+        from tools.async_delegation import (
+            claim_event_delivery,
+            complete_event_delivery,
+        )
+
+        session_key = getattr(self, "session_id", "") or ""
+        for event, synthetic_message in process_registry.drain_notifications(
+            session_key=session_key,
+            owns_event=self._owns_process_notification,
+        ):
+            claim = claim_event_delivery(event, consumer)
+            if claim is None:
+                continue
+            self._pending_input.put(synthetic_message)
+            complete_event_delivery(event, claim)
 
     def _drain_interrupt_queue_to_pending_input(self) -> None:
         """Move stray messages from ``_interrupt_queue`` into ``_pending_input``.
@@ -9525,8 +9685,14 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                     self.conversation_history,
                     approx_tokens,
                     new_tokens,
+                    compression_state=getattr(
+                        self.agent, "context_compressor", None
+                    ),
                 )
-                icon = "🗜️" if summary["noop"] else "✅"
+                if summary.get("aborted") or summary.get("fallback_used"):
+                    icon = "⚠️"
+                else:
+                    icon = "🗜️" if summary["noop"] else "✅"
                 print(f"  {icon} {summary['headline']}")
                 print(f"     {summary['token_line']}")
                 if summary["note"]:
@@ -9537,6 +9703,53 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
 
 
+    def _handle_usage_command(self, cmd_original: str):
+        """Dispatch `/usage [reset [--force]]`.
+
+        Bare `/usage` keeps the classic display. `/usage reset` redeems one
+        banked Codex rate-limit reset credit (guarded: refuses when limits
+        aren't exhausted unless --force).
+        """
+        parts = cmd_original.split()
+        args = [p.lower() for p in parts[1:]]
+        if args and args[0] == "reset":
+            self._usage_reset(force="--force" in args[1:])
+            return
+        if args:
+            print(f"  Unknown /usage subcommand: {' '.join(parts[1:])}. Try /usage or /usage reset [--force].")
+            return
+        self._show_usage()
+
+    def _usage_reset(self, force: bool = False):
+        """`/usage reset [--force]` — redeem one banked Codex reset credit."""
+        provider = (
+            (getattr(self.agent, "provider", None) if self.agent else None)
+            or getattr(self, "provider", None)
+        )
+        normalized = str(provider or "").strip().lower()
+        if normalized != "openai-codex":
+            print("  Banked usage resets are only available on the openai-codex provider.")
+            print("  Switch with `/model` or `hermes auth` first.")
+            return
+        base_url = (getattr(self.agent, "base_url", None) if self.agent else None) or getattr(self, "base_url", None)
+        api_key = (getattr(self.agent, "api_key", None) if self.agent else None) or getattr(self, "api_key", None)
+
+        from agent.account_usage import redeem_codex_reset_credit
+
+        print("  ⏳ Checking banked reset credits...")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as _pool:
+            try:
+                result = _pool.submit(
+                    redeem_codex_reset_credit,
+                    base_url=base_url,
+                    api_key=api_key,
+                    force=force,
+                ).result(timeout=45.0)
+            except concurrent.futures.TimeoutError:
+                print("  ❌ Timed out talking to the Codex backend — try again shortly.")
+                return
+        print(f"  {result.message}")
+
     def _show_usage(self):
         """Rate limits + session token usage (when a live agent exists) + Nous credits.
 
@@ -9546,7 +9759,9 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         which would otherwise early-return before any credits showed.
         """
         if not self.agent:
-            if not self._print_nous_credits_block():
+            if self._print_nous_credits_block():
+                self._print_usage_cta()
+            else:
                 print("(._.) No active agent -- send a message first.")
             return
 
@@ -9554,7 +9769,9 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         calls = agent.session_api_calls
 
         if calls == 0:
-            if not self._print_nous_credits_block():
+            if self._print_nous_credits_block():
+                self._print_usage_cta()
+            else:
                 print("(._.) No API calls made yet in this session.")
             return
 
@@ -9625,7 +9842,8 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
         # Nous credits magnitudes + monthly-grant gauge (agent-independent — also
         # runs at the no-agent / no-calls early-returns above). See the helper.
-        self._print_nous_credits_block()
+        if self._print_nous_credits_block():
+            self._print_usage_cta()
 
         if self.verbose:
             logging.getLogger().setLevel(logging.DEBUG)
@@ -9642,17 +9860,58 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             # installing a console StreamHandler in non-verbose mode.
 
     def _print_nous_credits_block(self) -> bool:
-        """Print the Nous credits magnitudes + monthly-grant gauge when a Nous account
+        """Print the Nous dollar balance block (two-bar view) when a Nous account
         is logged in. Returns True if it printed anything.
 
-        Delegates to the shared ``agent.account_usage.nous_credits_lines`` helper —
-        the single source for the /usage credits block across CLI, gateway, and TUI.
-        It's agent-independent (a portal fetch gated on "a Nous account is logged in",
-        NOT the inference-provider string), so /usage shows the block even in the TUI
+        Prefers the shared dollar usage model (``agent.billing_usage`` — two-bar
+        plan/top-up view, dollars-only, the /usage + /subscription source of
+        truth). Falls back to the legacy ``nous_credits_lines`` text only when the
+        model is unavailable. Agent-independent (a portal fetch gated on "a Nous
+        account is logged in"), so /usage shows the block even in the TUI
         slash-worker subprocess that resumes WITHOUT a live agent. Fail-open and
-        wall-clock-bounded inside the helper; also honors HERMES_DEV_CREDITS_FIXTURE
-        for offline testing — same behavior as every other surface.
+        wall-clock-bounded; honors HERMES_DEV_CREDITS_FIXTURE for offline testing.
         """
+        try:
+            from agent.billing_usage import build_usage_model, format_renews
+
+            usage = build_usage_model()
+        except Exception:
+            usage = None
+            format_renews = None  # type: ignore
+
+        if usage is not None and usage.available and format_renews is not None:
+            printed_any = False
+            plan = usage.plan_name or ("Free" if usage.status == "free" else None)
+            renews_display = getattr(usage, "renews_display", None) or format_renews(usage.renews_at)
+            renews = f" · renews {renews_display}" if renews_display else ""
+            if plan:
+                print()
+                _cprint(f"  {_b(f'Plan: {plan}{renews}')}")
+                printed_any = True
+
+            # All lines below go through _cprint (same renderer as the Plan line) so
+            # ordering is deterministic: raw print() and _cprint() flush to different
+            # buffers under patch_stdout and interleave nondeterministically (the bar
+            # would race above/below the Plan line across states). Keep one path.
+            for _bar_ln in self._usage_bar_lines(usage, usage.plan_name):
+                _cprint(_bar_ln)
+                printed_any = True
+            if usage.has_topup and usage.total_spendable_usd is not None:
+                _cprint(f"  Total spendable: ${usage.total_spendable_usd:,.2f}")
+
+            if usage.status == "free":
+                _cprint(f"  {_d('> Free · free models only. Run /subscription to reach paid models.')}")
+                printed_any = True
+            elif usage.status == "low":
+                _amt = f"${usage.total_spendable_usd:,.2f}" if usage.total_spendable_usd is not None else "under $5"
+                _low = f"! Low balance · {_amt} left. Run /topup or /subscription."
+                _cprint(f"  {_low}")
+                printed_any = True
+
+            if printed_any:
+                return True
+
+        # Fallback: legacy text lines (only when the model is unavailable).
         from agent.account_usage import nous_credits_lines
 
         lines = nous_credits_lines()
@@ -9663,102 +9922,576 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             print(f"  {line}")
         return True
 
-    def _show_credits(self):
-        """`/credits` — focused Nous credit balance + top-up handoff.
+    def _print_usage_cta(self) -> None:
+        """Print the `/usage` call-to-action pointing at /subscription + /topup.
 
-        Interactive CLI: balance block + identity line + a 3-button panel
-        (Open top-up / Copy link / Cancel). Non-interactive contexts — the TUI
-        slash-worker subprocess and any place without a live prompt_toolkit app
-        (``self._app is None``) — render a text variant (balance + tappable
-        top-up URL), because the modal would try to read the RPC stdin and crash
-        the worker. The terminal never confirms or polls payment (billing phase
-        2a). Fail-open: a portal hiccup or logged-out account degrades to a clear
-        message, never a crash.
+        Mirrors the TUI's ``USAGE_CTA`` (``session.ts``) so every surface ends a
+        usage read with the same nudge. Only called when a Nous account is logged
+        in (the balance block printed), since both commands are Nous-account only.
         """
-        from agent.account_usage import build_credits_view
+        _cprint(f"  {_d('Run /subscription to change plan · /topup to add to your balance')}")
 
-        view = build_credits_view()
+    # ------------------------------------------------------------------
+    # /subscription — view plan + change it in the browser (CLI surface)
+    # ------------------------------------------------------------------
 
-        if not view.logged_in:
+    def _show_subscription(self):
+        """`/subscription` (alias `/upgrade`) — view the Nous plan + browser hand-off.
+
+        The CLI mirror of the TUI ``SubscriptionOverlay``: a read of the current
+        plan, this cycle's subscription credits, renewal date, and the plans you
+        could switch to — then a deep-link to NAS's own ``/manage-subscription``
+        page (NOT the Stripe portal; that page routes upgrade→Checkout /
+        downgrade→scheduled internally). The terminal NEVER charges for a
+        subscription. Fail-open: logged-out / portal hiccup degrades to a clear
+        message, never a crash. Mirrors ``_show_billing``
+        discipline for the interactive-vs-text split.
+        """
+        from agent.subscription_view import build_subscription_state, subscription_manage_url
+
+        state = build_subscription_state()
+
+        if not state.logged_in:
             print()
-            _cprint(f"  💳 {_d('Not logged into Nous Portal.')}")
-            print("  Run `hermes portal` to log in, then /credits.")
+            if state.error:
+                _cprint(f"  💳 {_d(f'Could not load subscription: {state.error}')}")
+            else:
+                _cprint(f"  💳 {_d('Not logged into Nous Portal.')}")
+                print("  Run `hermes portal` to log in, then /subscription.")
             return
 
-        print()
-        print("  💳 Nous credits")
-        print(f"  {'─' * 41}")
-        for line in view.balance_lines:
-            # Drop the helper's own "📈 Nous credits" header — we print our own.
-            if line.lstrip().startswith("📈"):
-                continue
-            print(f"  {line}")
-        print(f"  {'─' * 41}")
-        if view.identity_line:
-            print(f"  {view.identity_line}")
-
-        if not view.topup_url:
+        # Team context: no personal plan — teams run on a shared balance.
+        if state.context == "team":
+            print()
+            _cprint(f"  ⚕ {_b('Team subscription')}")
+            print(f"  {'─' * 41}")
+            if state.org_name:
+                role = (state.role or "").title()
+                _org_line = f"Org: {state.org_name}{f' · {role}' if role else ''}"
+                _cprint(f"  {_d(_org_line)}")
+            org = state.org_name or "a team org"
+            print(f"  This terminal is connected to {org}. Teams run on a shared")
+            print("  balance · use /topup to add funds.")
+            _cprint(f"  {_d('Personal subscriptions live on your personal account.')}")
             return
 
-        # Non-interactive (TUI slash-worker, piped, no live app): the
-        # prompt_toolkit modal can't run here — it would read the worker's
-        # JSON-RPC stdin and crash the command. Render the text variant: the
-        # tappable URL IS the affordance, same as the messaging surfaces.
+        self._subscription_overview(state, subscription_manage_url(state))
+
+    def _subscription_overview(self, state, manage_url):
+        """Print the plan read block, then the browser hand-off to manage it.
+
+        Dollars-only (no "credits") — mirrors the TUI overlay: a status line, the
+        shared two-bar dollar usage view (plan + top-up) with the plan name on
+        the bar, and state-matched free/low nudges. No in-terminal tier picker —
+        the only action is managing the subscription on the portal.
+        """
+        # Shared dollar usage model (the only source with top-up dollars).
+        from agent.billing_usage import format_renews
+        try:
+            from agent.billing_usage import build_usage_model
+
+            usage = build_usage_model()
+        except Exception:
+            usage = None
+
+        c = state.current
+        is_free = not (c and c.tier_id)
+        can_change = state.can_change_plan
+
+        plan_name = (c.tier_name or c.tier_id) if c else (usage.plan_name if usage else None)
+        u_status = getattr(usage, "status", None) if usage else None
+        view_only = not can_change
+        renews_display = getattr(usage, "renews_display", None) if usage else None
+        if not renews_display and c and c.cycle_ends_at:
+            renews_display = format_renews(c.cycle_ends_at)
+
+        # Status line — dollars-only, with a "→ Plus" echo of a pending change so
+        # the headline itself carries a scheduled downgrade/cancellation.
+        _flip = ""
+        if c and c.cancel_at_period_end:
+            _flip = " → cancels"
+        elif c and c.pending_downgrade_tier_name:
+            _flip = f" → {c.pending_downgrade_tier_name}"
+        if not plan_name:
+            status = "Plan: Free · free models only"
+        elif usage is not None and u_status == "low" and usage.total_spendable_usd is not None:
+            _tot = f"${usage.total_spendable_usd:,.2f}"
+            status = f"Plan: {plan_name}{_flip} · {_tot} left"
+        else:
+            _spend = getattr(usage, "total_spendable_usd", None) if usage else None
+            _left = f" · ${_spend:,.2f} left" if _spend is not None else ""
+            _tail = " · view only" if view_only else (f" · renews {renews_display}" if renews_display else "")
+            status = f"Plan: {plan_name}{_flip}{_left}{_tail}"
+
+        # Lead with the scheduled change (cancel > downgrade) so it can't read as
+        # "nothing happened" — mirrors the TUI banner. All-`_cprint` (blanks
+        # included) so the block orders deterministically even when piped.
+        _trans = None
+        if c and c.cancel_at_period_end:
+            _when = format_renews(c.cancellation_effective_at) or "the end of the billing period"
+            _trans = ((c.tier_name or "your plan"), "cancels", _when)
+        elif c and c.pending_downgrade_tier_name:
+            _when = format_renews(c.pending_downgrade_at) or "the end of the cycle"
+            _trans = ((c.tier_name or "your plan"), c.pending_downgrade_tier_name, _when)
+        _cprint("")
+        if _trans:
+            _from, _to, _when = _trans
+            _cprint(f"  ⏳ {_b('Scheduled change')}")
+            _cprint(f"  {_from} ──▶ {_to}  {_d('· ' + _when)}")
+            _cprint(f"  {_d(f'You keep {_from} (and its credits) until then.')}")
+            _cprint("")
+
+        _cprint(f"  ⚕ {_b(status)}")
+        print(f"  {'─' * 41}")
+
+        # Two-bar dollar usage view — plan name labels the plan bar.
+        for _bar_ln in self._usage_bar_lines(usage, plan_name):
+            print(_bar_ln)
+        if usage and getattr(usage, "has_topup", False) and getattr(usage, "total_spendable_usd", None) is not None:
+            print(f"  Total spendable: ${usage.total_spendable_usd:,.2f}")
+
+        # State-matched nudge (free upsell / low alert; healthy stays silent).
+        if is_free:
+            _cprint(f"  {_d('> Paid models need a subscription. Start one to reach them.')}")
+        elif u_status == "low":
+            _amt = f"${usage.total_spendable_usd:,.2f}" if usage is not None and usage.total_spendable_usd is not None else "under $5"
+            _low = f"! Low balance · {_amt} left. Top up or upgrade before a mid-run cutoff."
+            _cprint(f"  {_low}")
+
+        if state.org_name:
+            role = (state.role or "").title()
+            _org_line = f"Org: {state.org_name}{f' · {role}' if role else ''}"
+            _cprint(f"  {_d(_org_line)}")
+        print(f"  {'─' * 41}")
+
+        # ── Actions ── Members (non-admin) and non-interactive contexts fall back
+        # to the portal hand-off; a paid admin/owner gets the full in-terminal
+        # change flow (parity with the TUI overlay).
+        if not can_change:
+            print()
+            _cprint(f"  {_d('Plan changes need an org admin/owner.')}")
+            if manage_url:
+                print(f"  Manage on portal: {manage_url}")
+            return
+
         if not getattr(self, "_app", None):
+            # Non-interactive (TUI slash-worker / piped): the modal can't run.
             print()
-            print(f"  Top up: {view.topup_url}")
-            print("  Complete your top-up in the browser — credits will appear in /credits shortly.")
+            if manage_url:
+                print(f"  Manage your subscription: {manage_url}")
+                print("  Open it in your browser, then re-run /subscription.")
             return
 
+        if is_free:
+            # Starting a NEW subscription needs a fresh card — deep-link only.
+            self._subscription_open_portal(state, manage_url, verb="Start a subscription")
+            return
+
+        # Paid + admin/owner + interactive → the in-terminal change flow.
+        self._subscription_change_menu(state, manage_url)
+
+    def _subscription_open_portal(self, state, manage_url, *, verb="Manage your subscription"):
+        """Open / copy the manage-subscription URL — the portal hand-off."""
+        if not manage_url:
+            print()
+            _cprint(f"  {_d('No manage URL available — is your portal configured?')}")
+            return
+        print()
         choices = [
-            ("open", "Open top-up in browser", "launch the portal billing page"),
-            ("copy", "Copy link", "copy the top-up URL to your clipboard"),
+            ("open", verb, "open the subscription page in your browser"),
+            ("copy", "Copy link", "copy the manage-subscription URL to your clipboard"),
             ("cancel", "Cancel", "do nothing"),
         ]
-        raw = self._prompt_text_input_modal(
-            title="💳 Add credits?",
-            detail=f"Top-up page:\n{view.topup_url}",
-            choices=choices,
-        )
+        raw = self._prompt_text_input_modal(title=verb, detail="", choices=choices)
         choice = self._normalize_slash_confirm_choice(raw, choices)
-
         if choice == "open":
             opened = False
             try:
                 import webbrowser
 
-                opened = webbrowser.open(view.topup_url)
+                opened = webbrowser.open(manage_url)
             except Exception:
                 opened = False
             if not opened:
-                print(f"  Open this URL to top up: {view.topup_url}")
+                print(f"  Open this URL: {manage_url}")
             print()
-            print("  Complete your top-up in the browser — credits will appear in /credits shortly.")
+            print("  Finish in your browser, then re-run /subscription.")
         elif choice == "copy":
             try:
-                self._write_osc52_clipboard(view.topup_url)
-                print(f"  📋 Copied: {view.topup_url}")
+                self._write_osc52_clipboard(manage_url)
+                print(f"  📋 Copied: {manage_url}")
             except Exception:
-                print(f"  Top-up URL: {view.topup_url}")
+                print(f"  Manage URL: {manage_url}")
         else:
-            print("  🟡 Cancelled. No credits added.")
+            print("  🟡 Cancelled.")
+
+    def _subscription_change_menu(self, state, manage_url):
+        """The in-terminal change menu for a paid admin/owner (interactive)."""
+        c = state.current
+        has_pending = bool(c and (c.cancel_at_period_end or c.pending_downgrade_tier_name))
+        keep_name = (c.tier_name if c else None) or "your plan"
+        # When a change is already scheduled, undo is the most likely next intent →
+        # promote it first (parity with the TUI). The Close row uses value "close"
+        # (not "cancel") so typing the word "cancel" — which the alias table would
+        # map to a Close row — can't be confused with "Cancel subscription".
+        if has_pending:
+            choices = [
+                ("keep", f"Keep {keep_name} (undo the scheduled change)", "cancel the pending change"),
+                ("change", "Change plan", "upgrade or downgrade in the terminal"),
+            ]
+        else:
+            choices = [
+                ("change", "Change plan", "upgrade or downgrade in the terminal"),
+                ("cancel_sub", "Cancel subscription", "schedule cancellation at period end"),
+            ]
+        choices.append(("portal", "Manage on portal", "open the billing page in your browser"))
+        choices.append(("close", "Close", "do nothing"))
+        raw = self._prompt_text_input_modal(title="Manage your subscription", detail="", choices=choices)
+        choice = self._normalize_slash_confirm_choice(raw, choices)
+        if choice == "change":
+            self._subscription_pick_tier(state)
+        elif choice == "keep":
+            self._subscription_apply(state, ("resume", None))
+        elif choice == "cancel_sub":
+            self._subscription_confirm_cancel(state)
+        elif choice == "portal":
+            self._subscription_open_portal(state, manage_url)
+        else:
+            print("  🟡 Closed. No plan change.")
+
+    def _subscription_pick_tier(self, state):
+        """Tier picker → preview → confirm (mirrors the TUI picker screen)."""
+        from agent.billing_view import format_money
+
+        c = state.current
+        tiers = tuple(state.tiers or ())
+        cur_order = next((t.tier_order for t in tiers if t.is_current), 0)
+        # Selectable = enabled paid tiers other than current (free/no-sub excluded;
+        # dropping to free is a cancellation, on the change menu). Sorted by price.
+        selectable = sorted(
+            [t for t in tiers if t.is_enabled and not t.is_current and (t.tier_order or 0) > 0],
+            key=lambda t: t.tier_order or 0,
+        )
+        if not selectable:
+            print("  No other plans are available to switch to right now.")
+            return
+        choices = []
+        for t in selectable:
+            direction = "upgrade" if (t.tier_order or 0) > cur_order else "downgrade"
+            choices.append((t.tier_id, f"{t.name} · {format_money(t.dollars_per_month)}/mo · {direction}", f"switch to {t.name}"))
+        choices.append(("cancel", "Back", "do nothing"))
+        raw = self._prompt_text_input_modal(
+            title="Change plan",
+            detail=f"Current: {c.tier_name if c else 'Free'}. Pick a plan to preview the effect.",
+            choices=choices,
+        )
+        choice = self._normalize_slash_confirm_choice(raw, choices)
+        if not choice or choice == "cancel":
+            print("  🟡 Cancelled. No plan change.")
+            return
+        self._subscription_preview_and_confirm(state, choice)
+
+    def _subscription_preview_and_confirm(self, state, tier_id, *, allow_stepup=True):
+        """Preview the change (chargeless quote), show the effect, then confirm+apply.
+
+        ``allow_stepup=False`` (a post-grant replay) declines a second step-up on a
+        repeated scope denial so the flow can't re-prompt/re-open the browser in a
+        loop.
+        """
+        from agent.subscription_view import subscription_change_preview_from_payload
+        from hermes_cli.nous_billing import BillingError, BillingScopeRequired, post_subscription_preview
+
+        _cprint(f"  {_d('Checking the change…')}")
+        try:
+            payload = post_subscription_preview(subscription_type_id=tier_id)
+        except BillingScopeRequired:
+            if allow_stepup:
+                self._subscription_handle_scope_required(state, retry=("preview", tier_id))
+            else:
+                print("  Terminal billing still isn't enabled for this org — enable it on the portal, then retry.")
+            return
+        except BillingError as exc:
+            self._subscription_render_error(state, exc)
+            return
+        p = subscription_change_preview_from_payload(payload)
+        effect = p.effect
+        target = p.target_tier_name or "the selected plan"
+        print()
+        if effect == "no_op":
+            _cprint(f"  {_d(f'You are already on {target} — nothing to change.')}")
+            return
+        if effect not in ("charge_now", "scheduled"):
+            # blocked OR an unknown/unexpected effect → fail SAFE (never schedule a
+            # real change on an unrecognized string, unlike a bare `else`), and
+            # re-offer the portal hand-off like the TUI's blocked branch.
+            from agent.subscription_view import subscription_manage_url
+
+            _cprint(f"  🟡 {p.reason or 'This change cannot be confirmed here — manage it on the portal.'}")
+            _mu = subscription_manage_url(state)
+            if _mu:
+                print(f"  Manage on portal: {_mu}")
+            return
+        if effect == "charge_now":
+            _amt = f"${p.amount_due_now_cents / 100:.2f}" if p.amount_due_now_cents is not None else None
+            _cprint(f"  {_b('Confirm plan change')}  {_d('· charged now')}")
+            if _amt:
+                _cprint(f"  Upgrade to {target}. You will be charged {_amt} now (prorated).")
+            else:
+                _cprint(f"  Upgrade to {target}. You will be charged the prorated amount now.")
+            # Best-effort: name the exact card (billing.state), but only when the
+            # resolver rung matches what a subscription charge actually uses
+            # (subPin / customerDefault — Stripe's own precedence). Any failure or
+            # older NAS → the generic line stands.
+            _card_line = "The card on your subscription will be charged."
+            try:
+                from agent.billing_view import build_billing_state
+
+                _bs = build_billing_state(timeout=6.0)
+                _c = _bs.card if _bs.logged_in else None
+                if _c is not None and _c.resolved_via in ("subPin", "customerDefault"):
+                    _card_line = f"{_c.masked} — the card on your subscription — will be charged."
+            except Exception:
+                pass
+            _cprint(f"  {_d(_card_line)}")
+            pay_label = f"Pay {_amt} & upgrade now" if _amt else "Upgrade now (prorated charge)"
+            action = ("upgrade", tier_id)
+            # The money-moving row is NOT the default — a bare Enter hits "Go back",
+            # so a single stray keystroke can't charge the card.
+            confirm_choices = [
+                ("cancel", "Go back", "do not charge"),
+                ("yes", pay_label, "charge + upgrade now"),
+            ]
+        else:  # scheduled (whitelisted above)
+            _when = p.effective_at[:10] if (p.effective_at and len(p.effective_at) >= 10) else "the end of the billing period"
+            _cprint(f"  {_b('Confirm plan change')}  {_d('· scheduled · not today')}")
+            _cprint(f"  Change to {target} — takes effect {_when}. No charge now; you keep your current plan until then.")
+            pay_label = f"Schedule change to {target}"
+            action = ("schedule", tier_id)
+            confirm_choices = [
+                ("yes", pay_label, "apply this change"),
+                ("cancel", "Go back", "do not change"),
+            ]
+        if p.monthly_credits_delta:
+            _cprint(f"  {_d(f'Monthly credits change: {p.monthly_credits_delta}.')}")
+        raw = self._prompt_text_input_modal(title=pay_label, detail="", choices=confirm_choices)
+        if self._normalize_slash_confirm_choice(raw, confirm_choices) != "yes":
+            print("  🟡 Cancelled. No plan change.")
+            return
+        self._subscription_apply(state, action, allow_stepup=allow_stepup)
+
+    def _subscription_confirm_cancel(self, state):
+        """Confirm, then schedule a cancellation at period end."""
+        from agent.billing_usage import format_renews
+
+        c = state.current
+        _end = (format_renews(c.cycle_ends_at) if (c and c.cycle_ends_at) else None) or "the end of the billing period"
+        print()
+        _cprint(f"  {_b('Confirm cancellation')}  {_d('· scheduled · not today')}")
+        _cprint(f"  Cancel {(c.tier_name if c else 'your plan')} — it stays active until {_end}, then won't renew.")
+        _cprint(f"  {_d('You keep your remaining credits for this period. You can resume before it ends.')}")
+        confirm_choices = [
+            ("yes", "Cancel subscription", "schedule cancellation at period end"),
+            ("cancel", "Go back", "keep your plan"),
+        ]
+        raw = self._prompt_text_input_modal(title="Cancel subscription?", detail="", choices=confirm_choices)
+        if self._normalize_slash_confirm_choice(raw, confirm_choices) != "yes":
+            print("  🟡 Cancelled. Your plan is unchanged.")
+            return
+        self._subscription_apply(state, ("cancel", None))
+
+    def _subscription_apply(self, state, action, idempotency_key=None, *, allow_stepup=True):
+        """Run the mutation for `action`, handling the scope step-up + the result.
+
+        `action` is one of ("upgrade", tier_id) / ("schedule", tier_id) /
+        ("cancel", None) / ("resume", None). insufficient_scope routes to the
+        step-up and replays; the upgrade idempotency key is reused across the replay.
+        ``allow_stepup=False`` (a post-grant replay) declines a second step-up on a
+        repeated scope denial so the flow can't re-prompt/re-open the browser in a loop.
+        """
+        from hermes_cli.nous_billing import (
+            BillingError,
+            BillingRateLimited,
+            BillingRemoteSpendingRevoked,
+            BillingScopeRequired,
+            BillingSessionRevoked,
+            delete_subscription_pending_change,
+            post_subscription_upgrade,
+            put_subscription_pending_change,
+        )
+
+        kind, arg = action
+        key = None
+        if kind == "upgrade":
+            from agent.billing_view import new_idempotency_key
+
+            key = idempotency_key or new_idempotency_key()
+        try:
+            if kind == "upgrade":
+                try:
+                    res = post_subscription_upgrade(subscription_type_id=arg, idempotency_key=key) or {}
+                except BillingScopeRequired:
+                    raise  # a scope denial rejects BEFORE charging → route to the step-up
+                except (BillingRateLimited, BillingSessionRevoked, BillingRemoteSpendingRevoked) as exc:
+                    # Deterministic PRE-charge typed rejections (429 / 401 / 403) never
+                    # reached Stripe → surface the CORRECT recovery (retry_after / re-login /
+                    # reconnect), NOT the "maybe charged" ambiguity copy.
+                    self._subscription_render_error(state, exc)
+                    return
+                except BillingError as exc:
+                    _status = getattr(exc, "status", None)
+                    _code = getattr(exc, "error", None)
+                    if _code in ("network_error", "endpoint_unavailable") or _status is None or _status >= 500:
+                        # Genuinely INDETERMINATE — transport / unparseable 2xx / a 5xx the
+                        # server hit mid-request: NAS may have already prorated + charged.
+                        # Steer to a re-check, never a blind retry (a fresh key can't dedup →
+                        # a real second charge).
+                        self._subscription_render_upgrade_ambiguous(exc)
+                    else:
+                        # A deterministic 4xx (role_required / no_payment_method / …) → the
+                        # normal error copy, not "maybe charged".
+                        self._subscription_render_error(state, exc)
+                    return
+                status = res.get("status")
+                name = res.get("targetTierName") or "your new plan"
+                _url = res.get("recoveryUrl")
+                if status == "already_on_tier":
+                    _cprint(f"  {_DIM}✓ You are already on {name}.{_RST}")
+                elif status == "upgraded":
+                    _cprint(f"  {_DIM}✓ Upgraded to {name}. Your new monthly credits land in a moment.{_RST}")
+                elif status == "requires_action":
+                    _cprint("  🟡 This upgrade needs extra verification (3DS). Finish it on the portal.")
+                    if _url:
+                        _cprint(f"  Portal: {_url}")
+                elif status == "payment_failed":
+                    _cprint("  🔴 Your card was declined. Update your payment method on the portal and try again.")
+                    if _url:
+                        _cprint(f"  Portal: {_url}")
+                else:
+                    # Unknown / absent 2xx status → also ambiguous, not a flat failure.
+                    self._subscription_render_upgrade_ambiguous(None)
+                return
+            if kind == "schedule":
+                put_subscription_pending_change(subscription_type_id=arg)
+                _cprint(f"  {_DIM}✓ Scheduled — your plan doesn't change today. You keep it until the end of the billing period, then it switches.{_RST}")
+            elif kind == "cancel":
+                put_subscription_pending_change(cancel=True)
+                _cprint(f"  {_DIM}✓ Scheduled — your plan stays active until the end of the billing period, then it cancels. Nothing changes today.{_RST}")
+            elif kind == "resume":
+                delete_subscription_pending_change()
+                _cprint(f"  {_DIM}✓ Undone — you stay on your current plan.{_RST}")
+            _cprint(f"  {_d('Re-run /subscription anytime to review it.')}")
+        except BillingScopeRequired:
+            if allow_stepup:
+                self._subscription_handle_scope_required(state, retry=action, idempotency_key=key)
+            else:
+                print("  Terminal billing still isn't enabled for this org — enable it on the portal, then retry.")
+        except BillingError as exc:
+            self._subscription_render_error(state, exc)
+
+    def _subscription_handle_scope_required(self, state, *, retry, idempotency_key=None):
+        """insufficient_scope → grant terminal billing (step-up), then replay `retry`.
+
+        Mirrors _billing_handle_scope_required: the classic CLI calls
+        step_up_nous_billing_scope directly (it opens the browser + blocks), then
+        replays the held preview/mutation so the user never re-runs the command.
+        """
+        print()
+        print("  ! One-time setup")
+        _cprint(f"  {_d('To change your plan from the terminal, enable terminal billing once. It opens your browser to authorize, then your change picks up right here.')}")
+        if not getattr(self, "_app", None):
+            print("  Run `hermes portal` and enable terminal billing, then re-run /subscription.")
+            return
+        confirm_choices = [
+            ("yes", "Enable terminal billing", "open your browser to authorize"),
+            ("no", "Not now", "cancel"),
+        ]
+        raw = self._prompt_text_input_modal(
+            title="Enable terminal billing",
+            detail="Opens your browser to authorize this terminal.",
+            choices=confirm_choices,
+        )
+        if self._normalize_slash_confirm_choice(raw, confirm_choices) != "yes":
+            print("  No change made. Enable terminal billing when you're ready.")
+            return
+        print("  Opening your browser to enable terminal billing…")
+        try:
+            from hermes_cli.auth import step_up_nous_billing_scope
+
+            granted = step_up_nous_billing_scope(open_browser=True)
+        except Exception as exc:
+            print(f"  Couldn't enable terminal billing: {exc}")
+            return
+        if not granted:
+            print("  Couldn't enable terminal billing — an org admin or owner has to approve it for this org.")
+            return
+        _cprint(f"  {_DIM}✓ Terminal billing enabled.{_RST}")
+        # Bust the 30s token cache so the replay uses the freshly-scoped token. The
+        # cache still holds the pre-grant unscoped token, and _request only busts it
+        # on a 401 (not a 403 scope denial) — without this, the replay would 403
+        # again and (before the allow_stepup guard) re-prompt in a loop.
+        try:
+            from hermes_cli import nous_billing as _nb
+
+            _nb._token_cache = None
+        except Exception:
+            pass
+        # Re-fetch fresh state, then replay the held action ONCE (allow_stepup=False
+        # so a repeated scope denial can't re-enter the step-up).
+        from agent.subscription_view import build_subscription_state
+
+        try:
+            fresh = build_subscription_state()
+        except Exception:
+            fresh = state
+        rkind, rarg = retry
+        if rkind == "preview":
+            self._subscription_preview_and_confirm(fresh, rarg, allow_stepup=False)
+        else:
+            self._subscription_apply(fresh, retry, idempotency_key=idempotency_key, allow_stepup=False)
+
+    def _subscription_render_error(self, state, exc):
+        """Render a subscription BillingError (a lighter _billing_render_charge_error)."""
+        code = getattr(exc, "error", None)
+        msg = str(exc) or "Something went wrong."
+        if code == "insufficient_scope":
+            # Defensive: the flow routes scope to the step-up before reaching here.
+            _cprint("  🟡 Terminal billing isn't enabled. Enable it, then retry.")
+        elif code in ("subscription_mutation_rejected", "preview_rejected"):
+            _cprint(f"  🟡 {msg}")
+        else:
+            _cprint(f"  🔴 {msg}")
+        _url = getattr(exc, "portal_url", None)
+        if _url:
+            _cprint(f"  Portal: {_url}")
+
+    def _subscription_render_upgrade_ambiguous(self, exc):
+        """A charge-route failure (transport / timeout / 500 / unknown status) is
+        AMBIGUOUS — NAS may have already prorated + charged. Steer to a re-check,
+        never a flat failure that invites a blind retry (mirrors the TUI's
+        upgradeResult(null) — the CLI can't persist the key across a command re-run,
+        so a re-check is the safe path)."""
+        _cprint("  🟡 Couldn't confirm the upgrade — your card may or may not have been charged.")
+        _cprint(f"  {_d('Re-run /subscription to check your plan before trying again.')}")
+        _url = getattr(exc, "portal_url", None) if exc is not None else None
+        if _url:
+            _cprint(f"  Portal: {_url}")
 
     # ------------------------------------------------------------------
     # /billing — Phase 2b terminal billing (CLI surface, all 5 screens)
     # ------------------------------------------------------------------
 
-    def _show_billing(self, command: str = "/billing"):
-        """`/billing` — terminal billing for Nous (one interactive modal).
+    def _show_billing(self, command: str = "/topup"):
+        """`/topup` — terminal billing for Nous (one interactive modal).
 
-        ZERO sub-commands: any argument is ignored. Bare ``/billing`` always
+        ZERO sub-commands: any argument is ignored. Bare ``/topup`` always
         opens the Overview (Screen 1), whose numbered menu is the *only* way to
         reach the Buy / Auto-reload / Monthly-limit sub-screens. (Per the unified
-        UX spec §0.4 — ``/billing buy`` etc. are gone; we don't error on a stray
+        UX spec §0.4 — ``/topup buy`` etc. are gone; we don't error on a stray
         arg, we just open the menu.)
 
         Interactive CLI uses the prompt_toolkit modal; non-interactive contexts
         (TUI slash-worker / no live app) render text + the portal deep-link, never
-        prompting (the URL is the affordance), same discipline as ``_show_credits``.
+        prompting (the URL is the affordance), same discipline as ``_show_billing``.
         All money is Decimal end-to-end; the terminal never collects card details.
         """
         from agent.billing_view import build_billing_state
@@ -9771,7 +10504,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 _cprint(f"  💳 {_d(_msg)}")
             else:
                 _cprint(f"  💳 {_d('Not logged into Nous Portal.')}")
-                print("  Run `hermes portal` to log in, then /billing.")
+                print("  Run `hermes portal` to log in, then /topup.")
             return
 
         # Any sub-arg is intentionally ignored — always open the menu.
@@ -9787,24 +10520,34 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         print(f"  Manage on portal: {url}")
 
     def _billing_overview(self, state):
-        """Screen 1 — overview: balance, spend bar, role-gated action menu."""
+        """Screen 1 — overview: balance in title, two-bar dollar usage, action menu.
+
+        Dollars-only (no "credits") — mirrors the TUI /topup overlay: balance
+        leads in the title, the shared plan + top-up bars render below, then the
+        reordered menu (Add funds first). No scope preflight — terminal billing
+        is discovered reactively when a charge 403s insufficient_scope.
+        """
         from agent.billing_view import format_money
 
+        # Shared dollar usage model (plan + top-up bars), same source as /usage.
+        try:
+            from agent.billing_usage import build_usage_model
+
+            usage = build_usage_model()
+        except Exception:
+            usage = None
+
         print()
-        _cprint(f"  💳 {_b('Usage credits')}")
+        _cprint(f"  💳 {_b(f'Top up · balance {format_money(state.balance_usd)}')}")
+        if state.org_name:
+            role = (state.role or "").title()
+            _org_line = f"Org: {state.org_name}{f' · {role}' if role else ''}"
+            _cprint(f"  {_d(_org_line)}")
         print(f"  {'─' * 41}")
 
-        cap = state.monthly_cap
-        if cap is not None and cap.limit_usd is not None:
-            spent = format_money(cap.spent_this_month_usd)
-            limit = format_money(cap.limit_usd)
-            ceiling = " (default ceiling)" if cap.is_default_ceiling else ""
-            bar, pct = self._billing_spend_bar(
-                cap.spent_this_month_usd, cap.limit_usd
-            )
-            print(f"  {spent} of {limit} used{ceiling}   {bar} {pct}%")
-
-        print(f"  Balance: {format_money(state.balance_usd)}")
+        # Two-bar dollar usage view (plan name on the plan bar; top-up below).
+        for _bar_ln in self._usage_bar_lines(usage, getattr(usage, "plan_name", None)):
+            print(_bar_ln)
 
         ar = state.auto_reload
         if ar is not None:
@@ -9815,11 +10558,14 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 )
             else:
                 print("  Auto-reload: off")
-
-        if state.org_name:
-            role = (state.role or "").title()
-            _org_line = f"Org: {state.org_name}{f' · {role}' if role else ''}"
-            _cprint(f"  {_d(_org_line)}")
+        # Card presence at a glance: which card a charge would use (with why —
+        # "the card on your subscription"), or that none is saved. Only for the
+        # full-menu case (admin + billing on) — others get the portal note below.
+        if state.is_admin and state.cli_billing_enabled:
+            if state.card is not None:
+                print(f"  Card: {state.card.display}")
+            else:
+                _cprint(f"  {_d('No saved card on file — “Add funds” walks you through adding one.')}")
         print(f"  {'─' * 41}")
 
         # Action gating: admin + kill-switch for charge/auto-reload; everyone gets portal.
@@ -9829,17 +10575,13 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             return
         if not state.cli_billing_enabled:
             _cprint(f"  {_d('Terminal billing is turned off for this org.')}")
-            self._billing_portal_hint(state, reason="Enable it on the portal to buy credits here.")
+            self._billing_portal_hint(state, reason="Enable it on the portal to add funds here.")
             return
 
-        # Optimistic funnel: no card on file → a charge will 403 no_payment_method.
-        # Surface that up front (with the portal link) but DON'T hide Buy — /state.card
-        # can't fully prove CLI-chargeability, so we advise rather than gate.
-        if state.card is None:
-            _cprint(
-                f"  {_d('No saved card for terminal charges yet — set one up on the portal first.')}"
-            )
-            self._billing_portal_hint(state)
+        # A missing card does NOT gate the whole overview — the org may already have
+        # balance, auto-reload, or a limit to view/manage. The card only matters at
+        # CHARGE time: "Add funds" -> _billing_buy_flow, which detects no card and
+        # hands off to the portal there. So always show the full menu below.
 
         # Non-interactive (slash-worker / no live app): no modal, no sub-command
         # advertising — just the portal funnel (the URL is the affordance).
@@ -9847,17 +10589,23 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             self._billing_portal_hint(state)
             return
 
+        # Add funds first, then settings, then the scopeless browser handoff.
+        # No "Enable terminal billing" item — that's discovered at pay time.
+        # "Add funds" charges in-terminal against the org's portal-saved card
+        # (server-held via POST /charge — no card ref leaves the client). A
+        # missing card is NOT gated here: the buy flow reacts to the server's
+        # no_payment_method 403 and hands off to the portal at charge time.
         choices = [
-            ("buy", "Buy credits", "purchase a one-time credit top-up"),
-            ("auto", "Adjust auto-reload", "configure automatic top-ups"),
-            ("limit", "Adjust monthly limit", "show the monthly spend cap (read-only)"),
+            ("buy", "Add funds", "add money to your balance"),
+            ("auto", "Auto-reload", "configure automatic top-ups"),
+            ("limit", "Monthly limit", "show the monthly spend cap (read-only)"),
             ("portal", "Manage on portal", "open the billing page in your browser"),
             ("cancel", "Cancel", "do nothing"),
         ]
         # The overview summary is already printed above; the modal only needs to
         # present the action menu — repeating the title/balance reads as a dupe.
         raw = self._prompt_text_input_modal(
-            title="💳 Choose an action", detail="",
+            title="Top up your balance", detail="",
             choices=choices,
         )
         choice = self._normalize_slash_confirm_choice(raw, choices)
@@ -9870,14 +10618,17 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         elif choice == "portal":
             self._billing_open_portal(state)
         else:
-            print("  🟡 Cancelled.")
+            print("  Cancelled.")
 
     def _billing_spend_bar(self, spent, limit, *, cells: int = 10):
-        """Render a 10-cell `█`/`░` spend bar + integer percent from spent/limit.
+        """Render a 10-cell `█`/`░` usage bar (filled = REMAINING) + % used.
 
-        Returns ``(bar, pct)`` where ``bar`` is like ``[████░░░░░░]`` and ``pct``
-        is the spent/limit percentage clamped to 0..100. Box-drawing glyphs are
-        not SGR codes, so this is leak-safe even without ``_b()``/``_d()``.
+        Returns ``(bar, pct)`` where ``bar`` is like ``[███████░░░]`` and ``pct``
+        is the spent/limit percentage clamped to 0..100. The bar fills by what's
+        LEFT (fuel-gauge), matching the shared model's ``fill_fraction``, the
+        top-up bar (full = balance), and the TUI — so the same account renders
+        identically on CLI and TUI. Box-drawing glyphs are not SGR codes, so this
+        is leak-safe even without ``_b()``/``_d()``.
         """
         from decimal import Decimal
 
@@ -9888,13 +10639,34 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             s, l = Decimal("0"), Decimal("0")
         if l <= 0:
             pct = 0
+            filled = 0
         else:
-            pct = int((s / l) * 100)
-        pct = max(0, min(100, pct))
-        filled = int(round(pct / 100 * cells))
+            pct = max(0, min(100, int((s / l) * 100)))
+            remaining = max(Decimal("0"), l - s)
+            filled = int(round((remaining / l) * cells))
         filled = max(0, min(cells, filled))
         bar = ("█" * filled) + ("░" * (cells - filled))
         return bar, pct
+
+    def _usage_bar_lines(self, usage, plan_name) -> list:
+        """The plan + top-up dollar bars as ready-to-print lines (filled = remaining).
+
+        Returns [] when there's nothing to draw. The caller resolves ``plan_name``
+        (the plan-bar label) and picks its own print fn — block ordering differs
+        per surface (``_cprint`` vs ``print`` under patch_stdout). One source of
+        truth for the bar format across /usage, /subscription, and /topup.
+        """
+        lines: list = []
+        pb = getattr(usage, "plan_bar", None) if usage else None
+        if pb is not None and pb.total_usd > 0:
+            bar, _ = self._billing_spend_bar(pb.spent_usd, pb.total_usd)
+            pct_s = f" · {pb.pct_used}% used" if pb.pct_used is not None else ""
+            label = (plan_name or "plan").ljust(8)[:8]
+            lines.append(f"  {label}[{bar}]  ${pb.remaining_usd:,.2f} left of ${pb.total_usd:,.2f}{pct_s}")
+        tb = getattr(usage, "topup_bar", None) if usage else None
+        if tb is not None and tb.remaining_usd > 0:
+            lines.append(f"  {'top-up'.ljust(8)}[{'█' * 10}]  ${tb.remaining_usd:,.2f} · never expires")
+        return lines
 
     def _billing_open_portal(self, state):
         url = getattr(state, "portal_url", None)
@@ -9926,6 +10698,48 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             return False
         return True
 
+    def _billing_add_card_flow(self, state):
+        """No saved card → guide adding one on the portal, with a re-check loop.
+
+        Cards are added on the portal (never in-terminal). "I've added it" re-fetches
+        billing state so the purchase continues right here once the card is saved —
+        this also recovers a transient miss (the card display is best-effort
+        server-side). Returns the refreshed state (card present), or None to abandon.
+        """
+        print()
+        _cprint(f"  💳 {_b('Add a card first')}")
+        _cprint("  No saved card on file.")
+        _cprint(f"  {_d('Add a card once on the portal billing page — after that you can top up right from the terminal.')}")
+        choices = [
+            ("portal", "Add a card on the portal", "opens the billing page in your browser"),
+            ("recheck", "I've added it — check again", "re-check for the card and continue"),
+            ("cancel", "Back", "do nothing"),
+        ]
+        for _ in range(8):  # bounded: portal-open plus a handful of re-checks
+            raw = self._prompt_text_input_modal(title="Add a card", detail="", choices=choices)
+            choice = self._normalize_slash_confirm_choice(raw, choices)
+            if choice == "portal":
+                self._billing_open_portal(state)
+                _cprint(f"  {_d('Add the card on the billing page, then pick “check again” here.')}")
+                continue
+            if choice == "recheck":
+                from agent.billing_view import build_billing_state
+
+                try:
+                    fresh = build_billing_state()
+                except Exception:
+                    fresh = None
+                if fresh is not None and fresh.logged_in:
+                    state = fresh
+                if state.card is not None:
+                    _cprint(f"  {_DIM}✓ Card found: {state.card.display} — continuing.{_RST}")
+                    return state
+                print("  Still no card on file — finish adding it on the portal, then check again.")
+                continue
+            break
+        print("  Cancelled. No funds added.")
+        return None
+
     def _billing_buy_flow(self, state):
         """Screen 2 (preset select) → Screen 3 (confirm + charge + poll)."""
         from agent.billing_view import format_money, validate_charge_amount
@@ -9933,15 +10747,29 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         if not self._billing_require_admin(state):
             return
 
+        # No card / scope preflight here — that's the rejected anti-pattern. We let
+        # the charge fly and react to whatever 403 the server returns: scope first
+        # (insufficient_scope → in-flight reauth), then card (no_payment_method →
+        # portal handoff via _billing_render_charge_error). Mirrors the server's gate
+        # order; the user only hits the flow they actually need.
+
         # Screen 3 — preset selection.
         if not getattr(self, "_app", None):
             presets = ", ".join(format_money(p) for p in state.charge_presets)
             print()
-            _cprint(f"  💳 {_b('Buy usage credits')}")
+            _cprint(f"  💳 {_b('Add funds')}")
             print(f"  Presets: {presets}")
             print("  Run this in the interactive CLI to complete a purchase.")
             self._billing_portal_hint(state)
             return
+
+        # No card on file → the guided ADD-CARD path first (portal + re-check),
+        # so the user isn't walked through picking an amount that will 403.
+        # Returns refreshed state with a card, or None (abandoned).
+        if state.card is None:
+            state = self._billing_add_card_flow(state)
+            if state is None or state.card is None:
+                return
 
         preset_choices = []
         for p in state.charge_presets:
@@ -9950,13 +10778,13 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         preset_choices.append(("cancel", "Cancel", "do nothing"))
 
         card = state.card
-        detail = f"Payment: {card.masked}" if card else "No saved card on file"
+        detail = f"Payment: {card.display}" if card else "No saved card on file"
         raw = self._prompt_text_input_modal(
-            title="💳 Buy usage credits", detail=detail, choices=preset_choices,
+            title="Add funds", detail=detail, choices=preset_choices,
         )
         choice = self._normalize_slash_confirm_choice(raw, preset_choices)
         if not choice or choice == "cancel":
-            print("  🟡 Cancelled. No credits added.")
+            print("  Cancelled. No funds added.")
             return
 
         from decimal import Decimal
@@ -9965,7 +10793,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             entered = self._prompt_text_input("  Amount (USD): ")
             if entered is None:
                 # None = cancelled (e.g. slash-worker can't prompt off-thread).
-                print("  🟡 Cancelled. No credits added.")
+                print("  Cancelled. No funds added.")
                 return
             v = validate_charge_amount(
                 entered or "", min_usd=state.min_usd, max_usd=state.max_usd
@@ -9993,7 +10821,11 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         print(f"  {'─' * 41}")
         print(f"  Total: {format_money(amount)}")
         if card:
-            print(f"  Payment: {card.masked}")
+            print(f"  Payment: {card.display}")
+            # Provenance-less payloads (older NAS) keep the generic line; when
+            # the resolver says WHY this card, the Payment line carries it.
+            if card.provenance is None:
+                _cprint(f"  {_d('Your card saved on the portal will be charged.')}")
         print(f"  {'─' * 41}")
         _consent = (
             "By confirming, you allow Nous Research to charge your card."
@@ -10002,19 +10834,23 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
         confirm_choices = [
             ("pay", f"Pay {format_money(amount)} now", "submit the charge"),
+            ("portal", "Manage on portal", "manage your card / billing in the browser"),
             ("cancel", "Go back", "do not charge"),
         ]
         if not getattr(self, "_app", None):
             print("  Run in the interactive CLI to confirm a purchase.")
             return
         raw = self._prompt_text_input_modal(
-            title=f"💳 Pay {format_money(amount)}?",
-            detail=(card.masked if card else "no saved card"),
+            title=f"Pay {format_money(amount)}?",
+            detail=(card.display if card else "no saved card"),
             choices=confirm_choices,
         )
         choice = self._normalize_slash_confirm_choice(raw, confirm_choices)
+        if choice == "portal":
+            self._billing_open_portal(state)
+            return
         if choice != "pay":
-            print("  🟡 Cancelled. No credits added.")
+            print("  Cancelled. No funds added.")
             return
 
         # Submit the charge with a fresh idempotency key (reused on retry).
@@ -10028,7 +10864,9 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         try:
             result = post_charge(amount_usd=amount, idempotency_key=key)
         except BillingScopeRequired:
-            self._billing_handle_scope_required(state)
+            # In-flight reauth: enable terminal billing, then resume THIS charge
+            # (press-Enter beat) — no command re-run. Reuses the same idem key.
+            self._billing_handle_scope_required(state, amount=amount, idempotency_key=key)
             return
         except BillingError as exc:
             self._billing_render_charge_error(state, exc)
@@ -10072,7 +10910,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 from agent.billing_view import parse_money
 
                 shown = format_money(parse_money(amt)) if amt else format_money(amount)
-                print(f"  ✅ {shown} in credits added.")
+                print(f"  ✓ {shown} added to your balance.")
                 return
             if state_str == "failed":
                 self._billing_render_charge_failed(state, status.get("reason"))
@@ -10101,15 +10939,32 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
     def _billing_render_charge_error(self, state, exc):
         """Render a typed BillingError at submit time (pre-poll)."""
-        from hermes_cli.nous_billing import BillingRateLimited
+        from hermes_cli.nous_billing import (
+            BillingRateLimited,
+            BillingRemoteSpendingRevoked,
+            BillingSessionRevoked,
+        )
 
         code = getattr(exc, "error", None)
+        actor = getattr(exc, "actor", None)
         portal_url = getattr(exc, "portal_url", None) or getattr(state, "portal_url", None)
-        if code == "no_payment_method":
-            print("  💳 No saved card for terminal charges yet. Set one up on the "
-                  "portal (one-time credit buys don't save a reusable card).")
-        elif code == "cli_billing_disabled":
-            print("  🔴 Terminal billing is turned off for this org — an admin must enable it on the portal.")
+        if isinstance(exc, BillingRemoteSpendingRevoked) or code == "remote_spending_revoked":
+            # CF-4: this terminal's spend was revoked. Recovery is reconnect.
+            who = ("An admin stopped this terminal's spending."
+                   if actor == "admin"
+                   else "You stopped this terminal's spending.")
+            print(f"  🔴 {who} Reconnect to restore — run `hermes portal` to re-authorize.")
+        elif isinstance(exc, BillingSessionRevoked) or code == "session_revoked":
+            print("  🔴 Your session was logged out. Run `hermes portal` to log in again.")
+        elif code == "no_payment_method":
+            print("  💳 No card on file — top up and manage billing on the portal.")
+        elif code in ("cli_billing_disabled", "remote_spending_disabled") or \
+                getattr(exc, "code", None) == "remote_spending_disabled":
+            print("  Terminal billing is off for this account — an admin must enable it on the portal.")
+        elif code == "role_required":
+            print("  Adding funds needs an org admin/owner. Ask an admin, or manage on the portal.")
+        elif code == "idempotency_conflict":
+            print("  🔴 That charge key was already used for a different amount. Start a fresh top-up.")
         elif code == "monthly_cap_exceeded":
             remaining = (getattr(exc, "payload", {}) or {}).get("remainingUsd")
             if remaining is not None:
@@ -10120,60 +10975,119 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             wait = getattr(exc, "retry_after", None)
             mins = f" (try again in ~{max(1, round(wait / 60))} min)" if wait else ""
             print(f"  🟡 Too many charges right now{mins}. This isn't a payment failure.")
+        elif code == "insufficient_scope":
+            # Never leak the raw billing:manage scope (the post-grant replay can
+            # re-raise it if the grant raced) — the concept is "terminal billing".
+            print("  🔴 Terminal billing needs approval — run /topup to enable it, then retry.")
         else:
             print(f"  🔴 {exc}")
         if portal_url:
             print(f"  Portal: {portal_url}")
 
-    def _billing_handle_scope_required(self, state):
-        """403 insufficient_scope → lazy step-up re-auth (plan D-A)."""
+    def _billing_handle_scope_required(self, state, *, amount=None, idempotency_key=None):
+        """403 insufficient_scope → in-flight reauth, then resume the held charge.
+
+        The buy path discovers terminal billing isn't enabled only when the
+        charge 403s — there is no preflight. We enable it in-flight ("Enable
+        terminal billing" → browser device-flow), then on return ask the user to
+        press Enter to resume the held ``amount`` (reusing ``idempotency_key`` so
+        the resumed charge collapses with the original). Never leaks the raw
+        billing:manage scope.
+        """
+        from agent.billing_view import format_money
+
+        amount_str = format_money(amount) if amount is not None else "your top-up"
         print()
-        print("  💳 Terminal billing needs an extra permission (billing:manage).")
-        _scope_msg = (
-            "An org admin/owner must tick \"Allow terminal billing\" during "
-            "login."
-        )
-        _cprint(f"  {_d(_scope_msg)}")
+        print("  ! One-time setup")
+        _cprint(f"  {_d(f'To charge this terminal, enable terminal billing once. It opens your browser to authorize, then {amount_str} picks up right here.')}")
         if not getattr(self, "_app", None):
-            print("  Run `hermes portal` and approve terminal billing, then retry.")
+            print("  Run `hermes portal` and enable terminal billing, then retry.")
             return
         confirm_choices = [
-            ("yes", "Re-authorize now", "open the portal to grant billing access"),
+            ("yes", "Enable terminal billing", "open your browser to authorize"),
             ("no", "Not now", "cancel"),
         ]
         raw = self._prompt_text_input_modal(
-            title="💳 Grant terminal billing access?",
-            detail="Opens the portal device-authorization page.",
+            title="Enable terminal billing",
+            detail="Opens your browser to authorize this terminal.",
             choices=confirm_choices,
         )
         choice = self._normalize_slash_confirm_choice(raw, confirm_choices)
         if choice != "yes":
-            print("  🟡 Cancelled.")
+            print("  No charge made. Run /topup when you want to enable terminal billing.")
             return
+        print("  Opening your browser to enable terminal billing…")
         try:
             from hermes_cli.auth import step_up_nous_billing_scope
 
             granted = step_up_nous_billing_scope(open_browser=True)
         except Exception as exc:
-            print(f"  🔴 Re-authorization failed: {exc}")
+            print(f"  Couldn't enable terminal billing: {exc}")
             return
-        if granted:
-            print("  ✅ Billing permission granted.")
-            # Step-up only grants the billing:manage TOKEN scope; the ORG
-            # kill-switch (cli_billing_enabled) is a separate gate. Re-fetch
-            # /state so we don't over-promise when a charge would still hit
-            # cli_billing_disabled.
-            from agent.billing_view import build_billing_state
+        if not granted:
+            print("  Couldn't enable terminal billing — an org admin or owner has to approve it. Your card was not charged.")
+            return
 
-            fresh = build_billing_state()
-            if fresh.logged_in and fresh.cli_billing_enabled:
-                print("  Run /billing buy again to continue.")
-            else:
-                print("  🟡 Permission granted, but terminal billing is still turned "
-                      "off for this org. Enable it in the portal, then run /billing again.")
-                self._billing_portal_hint(fresh)
-        else:
-            print("  🟡 Terminal billing was not granted (an admin must tick the box).")
+        # Granted. The token now carries the scope, but the ORG kill-switch
+        # (cli_billing_enabled) is a separate gate — re-fetch /state so we don't
+        # over-promise when a charge would still hit cli_billing_disabled.
+        from agent.billing_view import build_billing_state
+
+        fresh = build_billing_state()
+        if not (fresh.logged_in and fresh.cli_billing_enabled):
+            print("  Terminal billing was enabled for this terminal, but it's still turned off for this org. Enable it in the portal, then run /topup again.")
+            self._billing_portal_hint(fresh)
+            return
+
+        # Scope granted + org kill-switch on — but a charge still needs a card on
+        # file. If there's none, this is a half-done state: say so and route to the
+        # portal to top up / manage billing, rather than a bare "✓ enabled" that reads as done.
+        if fresh.card is None:
+            print("  ✓ Terminal billing enabled — but there's no card on file yet.")
+            _cprint(f"  {_d('Top up and manage billing on the portal to continue.')}")
+            self._billing_portal_hint(fresh)
+            return
+
+        # Nothing to resume (scope-required hit outside a charge, e.g. auto-reload
+        # config) → just tell the user it's ready.
+        if amount is None:
+            print("  ✓ Terminal billing enabled. Run /topup to continue.")
+            return
+
+        # Press-Enter beat: the user is back from the browser; resume the held
+        # purchase on an explicit confirm (reassuring, not silent).
+        print("  ✓ Terminal billing enabled.")
+        resume_choices = [
+            ("resume", f"Resume {format_money(amount)} top-up", "finish the held purchase"),
+            ("cancel", "Cancel", "do not charge"),
+        ]
+        raw = self._prompt_text_input_modal(
+            title="Resume your top-up",
+            detail=f"{format_money(amount)} is ready to finish — press Enter to resume.",
+            choices=resume_choices,
+        )
+        if self._normalize_slash_confirm_choice(raw, resume_choices) != "resume":
+            print("  Cancelled. No funds added.")
+            return
+
+        # Replay the held charge, reusing the original idempotency key so a
+        # double-submit collapses to one charge.
+        from hermes_cli.nous_billing import BillingError, post_charge
+
+        from agent.billing_view import new_idempotency_key
+
+        key = idempotency_key or new_idempotency_key()
+        try:
+            result = post_charge(amount_usd=amount, idempotency_key=key)
+        except BillingError as exc:
+            self._billing_render_charge_error(fresh, exc)
+            return
+        charge_id = result.get("chargeId")
+        if not charge_id:
+            print("  No charge id returned; please check the portal.")
+            return
+        _cprint(f"  {_d('Resuming your top-up — confirming settlement…')}")
+        self._billing_poll_charge(fresh, charge_id, amount)
 
     def _billing_auto_reload_flow(self, state):
         """Screen 4 — auto-reload config: threshold + reload-to → PATCH.
@@ -10194,11 +11108,11 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         print()
         _cprint(f"  💳 {_b('Auto-reload')}")
         print(f"  {'─' * 41}")
-        _cprint(f"  {_d('Automatically buy more credits when your balance is low.')}")
+        _cprint(f"  {_d('Automatically add funds when your balance is low.')}")
         if card:
             print(f"  Card on file: {card.masked}")
         else:
-            print("  No saved card — set one up on the portal first.")
+            print("  No saved card — manage billing on the portal.")
             self._billing_portal_hint(state)
             return
         if currently_on:
@@ -10220,7 +11134,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 ("cancel", "Cancel", "do nothing"),
             ]
             raw = self._prompt_text_input_modal(
-                title="💳 Auto-reload",
+                title="Auto-reload",
                 detail=(
                     f"On — below {format_money(ar.threshold_usd)} → "
                     f"reload to {format_money(ar.reload_to_usd)}"
@@ -10290,7 +11204,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             ("cancel", "Cancel", "do nothing"),
         ]
         raw = self._prompt_text_input_modal(
-            title="💳 Turn on auto-reload?",
+            title="Turn on auto-reload?",
             detail=f"Below {format_money(threshold_amt)} → reload to {format_money(reload_amt)}",
             choices=confirm_choices,
         )
@@ -11597,13 +12511,15 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         return ""
 
     def _approval_callback(self, command: str, description: str,
-                           *, allow_permanent: bool = True) -> str:
+                           *, allow_permanent: bool = True,
+                           smart_denied: bool = False) -> str:
         """
         Prompt for dangerous command approval through the prompt_toolkit UI.
 
         Called from the agent thread. Shows a selection UI similar to clarify
-        with choices: once / session / always / deny. When allow_permanent
-        is False (tirith warnings present), the 'always' option is hidden.
+        with choices: once / session / always / deny. Smart DENY owner
+        overrides show only once / deny. When allow_permanent is False for
+        another reason (for example tirith), only 'always' is hidden.
         Long commands also get a 'view' option so the full command can be
         expanded before deciding.
 
@@ -11620,7 +12536,11 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             self._approval_state = {
                 "command": command,
                 "description": description,
-                "choices": self._approval_choices(command, allow_permanent=allow_permanent),
+                "choices": self._approval_choices(
+                    command,
+                    allow_permanent=allow_permanent,
+                    smart_denied=smart_denied,
+                ),
                 "selected": 0,
                 "response_queue": response_queue,
             }
@@ -11666,9 +12586,13 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             _cprint(f"\n{_DIM}  ⏱ Timeout — denying command{_RST}")
             return "deny"
 
-    def _approval_choices(self, command: str, *, allow_permanent: bool = True) -> list[str]:
+    def _approval_choices(self, command: str, *, allow_permanent: bool = True,
+                          smart_denied: bool = False) -> list[str]:
         """Return approval choices for a dangerous command prompt."""
-        choices = ["once", "session", "always", "deny"] if allow_permanent else ["once", "session", "deny"]
+        if smart_denied:
+            choices = ["once", "deny"]
+        else:
+            choices = ["once", "session", "always", "deny"] if allow_permanent else ["once", "session", "deny"]
         if len(command) > 70:
             choices.append("view")
         return choices
@@ -12033,7 +12957,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             request_overrides=turn_route.get("request_overrides"),
         ):
             return None
-        
+        agent = self.agent
+        if agent is None:
+            return None
+
         # Route image attachments based on the active model's vision capability.
         # "native" → pass pixels as OpenAI-style content parts (adapters
         #            translate for Anthropic/Gemini/Bedrock).
@@ -12121,8 +13048,31 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             from run_agent import _sanitize_surrogates
             message = _sanitize_surrogates(message)
 
-        # Add user message to history
-        self.conversation_history.append({"role": "user", "content": message})
+        # Keep the exact CLI input dict available until turn-start persistence.
+        # Copy the completed agent transcript before appending: otherwise this
+        # UI-only staging step mutates ``agent._session_messages`` and exposes a
+        # duplicate-prone intermediate snapshot to terminal-close persistence.
+        if self.conversation_history is getattr(agent, "_session_messages", None):
+            self.conversation_history = list(self.conversation_history)
+        # The prior turn's override applies only to its own user dict. Clear it
+        # before exposing the next staged input to close persistence; otherwise
+        # a shutdown before the worker prologue can write old API-local text as
+        # this new user message (#63766).
+        persist_lock = getattr(agent, "_session_persist_lock", None)
+
+        def _stage_user_message() -> None:
+            agent._persist_user_message_idx = None
+            agent._persist_user_message_override = None
+            agent._persist_user_message_timestamp = None
+            staged_user_message = {"role": "user", "content": message}
+            agent._pending_cli_user_message = staged_user_message
+            self.conversation_history.append(staged_user_message)
+
+        if persist_lock is None:
+            _stage_user_message()
+        else:
+            with persist_lock:
+                _stage_user_message()
 
         ChatConsole().print(f"[{_accent_hex()}]{'─' * 40}[/]")
         print(flush=True)
@@ -12259,13 +13209,20 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 self._pending_moa_config = None
                 if _moa_cfg is None:
                     _moa_cfg = None
+                # Model/skill notes and voice instructions are API-local. Keep
+                # the original staged input as the durable transcript value so a
+                # close-path marker follows the same dict into turn setup rather
+                # than producing a second noted user row (#63766).
+                _persist_clean_user_message = (
+                    message if (_voice_prefix or agent_message != message) else None
+                )
                 try:
                     result = self.agent.run_conversation(
                         user_message=agent_message,
                         conversation_history=self.conversation_history[:-1],  # Exclude the message we just added
                         stream_callback=stream_callback,
                         task_id=self.session_id,
-                        persist_user_message=message if _voice_prefix else None,
+                        persist_user_message=_persist_clean_user_message,
                         moa_config=_moa_cfg,
                     )
                     if getattr(self, "_pending_moa_disable_after_turn", False):
@@ -12474,6 +13431,12 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                     _title_failure_cb = getattr(
                         self.agent, "_emit_auxiliary_failure", None
                     ) if self.agent else None
+                    # Snapshot the runtime identity; the validator lets the
+                    # background titler skip its LLM call if the user switches
+                    # models before it fires (a stale request would reload an
+                    # unloaded Ollama model, #19027).
+                    _title_model = self.model
+                    _title_provider = self.provider
                     maybe_auto_title(
                         self._session_db,
                         self.session_id,
@@ -12488,6 +13451,10 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                             "api_key": self.api_key,
                             "api_mode": self.api_mode,
                         },
+                        runtime_validator=lambda: (
+                            getattr(self, "model", None) == _title_model
+                            and getattr(self, "provider", None) == _title_provider
+                        ),
                     )
                 except Exception:
                     pass
@@ -12728,20 +13695,75 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         if not agent or not hasattr(agent, "_persist_session"):
             return
 
-        messages = getattr(agent, "_session_messages", None)
-        if not isinstance(messages, list):
-            messages = getattr(self, "conversation_history", None)
-        if not isinstance(messages, list) or not messages:
-            return
+        persist_lock = getattr(agent, "_session_persist_lock", None)
 
-        conversation_history = getattr(self, "conversation_history", None)
-        if not isinstance(conversation_history, list):
-            conversation_history = messages
+        def _snapshot_and_persist() -> None:
+            # This snapshot must share the staging lock with ``chat()``. Without
+            # it, close can retain a mutable history baseline just before chat
+            # appends its pending dict; the later flush then mistakes that dict
+            # for durable history and stamps it without writing a row (#63766).
+            messages = getattr(agent, "_session_messages", None)
+            pending_cli_message = getattr(agent, "_pending_cli_user_message", None)
+            if not isinstance(messages, list):
+                messages = getattr(self, "conversation_history", None)
+            if not isinstance(messages, list):
+                return
+            if isinstance(pending_cli_message, dict) and not any(
+                message is pending_cli_message for message in messages
+            ):
+                # The UI has accepted a new input but the worker still exposes its
+                # prior snapshot. Include only that staged dict; the baseline below
+                # keeps any durable resumed prefix from being re-appended.
+                messages = [*messages, pending_cli_message]
+            if not messages:
+                return
 
-        try:
+            # A normal turn builds a new list that reuses the resumed-history dicts.
+            # Keep that CLI history as the baseline so a signal between assigning
+            # ``_session_messages`` and the turn's DB flush cannot append its durable
+            # prefix a second time. Once the CLI takes the turn result, however, both
+            # names can point at the same live list; passing that alias would mark an
+            # unflushed tail durable without writing it. Marker-only persistence is
+            # correct only in that alias case.
+            conversation_history = getattr(self, "conversation_history", None)
+            pending_cli_message = getattr(agent, "_pending_cli_user_message", None)
+            if (
+                isinstance(conversation_history, list)
+                and conversation_history
+                and conversation_history[-1] is pending_cli_message
+            ):
+                # The UI accepted this user message before the agent finished its
+                # early persistence. Its dict can already be in ``messages`` but is
+                # not durable yet, so exclude it from the resumed-history baseline.
+                conversation_history = conversation_history[:-1]
+            elif not isinstance(conversation_history, list) or conversation_history is messages:
+                conversation_history = None
+
+            # A first-turn close can arrive before the worker builds its cached
+            # prompt. Build or restore it before the DB row is created so the
+            # durable transcript never leaves a NULL system_prompt cache entry.
+            if getattr(agent, "_cached_system_prompt", None) is None:
+                try:
+                    from agent.conversation_loop import _restore_or_build_system_prompt
+
+                    _restore_or_build_system_prompt(agent, None, conversation_history)
+                except Exception:
+                    logger.debug("Could not build system prompt during CLI close", exc_info=True)
+                    return
+            if getattr(agent, "_cached_system_prompt", None) is None:
+                return
+
+            agent._ensure_db_session()
             agent._persist_session(messages, conversation_history)
             if getattr(agent, "session_id", None):
                 self.session_id = agent.session_id
+
+        try:
+            if persist_lock is None:
+                _snapshot_and_persist()
+            else:
+                with persist_lock:
+                    _snapshot_and_persist()
         except (Exception, KeyboardInterrupt) as e:
             logger.debug("Could not persist active CLI session before close: %s", e)
 
@@ -15089,11 +16111,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                             # Check for background process notifications (completions
                             # and watch pattern matches) while agent is idle.
                             try:
-                                from tools.process_registry import process_registry
-                                from tools.approval import get_current_session_key
-                                _drain_sk = get_current_session_key(default="")
-                                for _evt, _synth in process_registry.drain_notifications(session_key=_drain_sk):
-                                    self._pending_input.put(_synth)
+                                self._drain_process_notifications("cli-idle")
                             except Exception:
                                 pass
                         continue
@@ -15253,9 +16271,7 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                         # Drain process notifications (completions + watch matches)
                         # that arrived while the agent was running.
                         try:
-                            from tools.process_registry import process_registry
-                            for _evt, _synth in process_registry.drain_notifications():
-                                self._pending_input.put(_synth)
+                            self._drain_process_notifications("cli-post-turn")
                         except Exception:
                             pass  # Non-fatal — don't break the main loop
 
@@ -15303,6 +16319,13 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
                 logger.debug("Received signal %s, triggering graceful shutdown", signum)
             except Exception:
                 pass  # never let logging raise from a signal handler (#13710 regression)
+            # Shutdown intent is now unambiguous — arm the exit backstop
+            # IMMEDIATELY, before the graceful unwind below.  If any step of
+            # that unwind wedges (main thread parked in a syscall, prompt_toolkit
+            # teardown never returning), _run_cleanup never runs and would
+            # never arm its own watchdog — leaving a "dead" CLI alive for
+            # minutes (#65998 class).  Never raises.
+            _arm_exit_watchdog_on_shutdown_signal()
             try:
                 if getattr(self, "agent", None) and getattr(self, "_agent_running", False):
                     self.agent.interrupt(f"received signal {signum}")
@@ -15907,6 +16930,10 @@ def main(
     # default for debugging.
     def _signal_handler_q(signum, frame):
         logger.debug("Received signal %s in single-query mode", signum)
+        # Arm the exit backstop now that shutdown intent is unambiguous —
+        # covers wedges in the unwind below that would otherwise leave the
+        # process alive with no watchdog (#65998 class). Never raises.
+        _arm_exit_watchdog_on_shutdown_signal()
         try:
             _agent = getattr(cli, "agent", None)
             if _agent is not None:

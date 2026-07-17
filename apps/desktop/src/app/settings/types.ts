@@ -8,8 +8,10 @@ export type SettingsView =
   | 'about'
   | 'billing'
   | 'gateway'
+  | 'keybinds'
   | 'keys'
   | 'notifications'
+  | 'plugins'
   | 'providers'
   | 'sessions'
   | `config:${string}`
