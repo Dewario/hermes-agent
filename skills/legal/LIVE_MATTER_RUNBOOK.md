@@ -124,3 +124,13 @@ Requires `$HERMES_HOME/matter_mail_firm.json` with `mail_accounts[].address` set
 Full pipeline only — see discovery-review Step 6. Never run against a personal mailbox until MM-H1/H2/H3 fixes are in the tree you are running.
 
 For medical-record timelines after review, use `skills/legal/medical-chronology/SKILL.md`.
+
+## 8. Discovery responses — not ready for live use
+
+See `skills/legal/discovery-response/SPEC.md`. **Phase A (first):** audit
+proposed final responses, **one matter/client at a time**. **Phase B:**
+draft/generate RFP responses — deferred until Phase A gates pass. Do **not**
+use Hermes to audit or produce discovery responses for Allen or any live
+matter until that spec’s Phase A acceptance criteria (§11) are green and the
+owner approves per matter. Never combine two clients’ records in one review
+context.
