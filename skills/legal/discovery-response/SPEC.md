@@ -2,12 +2,17 @@
 
 **Status:** SPEC ONLY — not implemented. **Not ready for live use.**
 **Date:** 2026-07-17 (amended: audit-existing is first implementation slice)
-**Primary first use:** Critically **review proposed final discovery responses**
+**Primary first use:** Critically **review proposed final RFP responses**
 against that client's documents, testimony (where relevant), and case-file /
 discovery corpus — **one matter (one client) at a time**.
 **Secondary (later):** Generate draft RFP response packages (Phase B).
-**Out of scope (later slices):** interrogatory/RFA generation; motion practice;
-cross-client combined factual review.
+**Out of scope (later slices):** interrogatory/RFA **audit or** generation;
+motion practice; cross-client combined factual review.
+
+**RFP-only (HARD for Phase A v1):** Audit parsers and fixtures target served
+RFPs / proposed RFP responses (`request_type: "rfp"`). If first materials are
+interrogatory answers or RFAs, amend Phase A for `request_type: rfp|rog|rfa`
+**before** live use — do not stretch the current parsers.
 **Depends on:** `legal-casegraph`, `LIVE_MATTER_RUNBOOK.md`, `live_preflight.py`,
 `check_provider_auth.py`. Matter dirs under `C:\Matters\<id>\` (outside repo).
 
