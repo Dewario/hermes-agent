@@ -71,6 +71,13 @@ def build_write_denied_paths(home: str) -> set[str]:
             os.path.join(home, ".kshrc"),
             os.path.join(home, ".cshrc"),
             os.path.join(home, ".tcshrc"),
+            # Windows PowerShell profiles (FABLE5 D7 gap): same persistence
+            # vector as ~/.bashrc. pwsh uses Documents/PowerShell; Windows
+            # PowerShell 5.x uses Documents/WindowsPowerShell.
+            os.path.join(home, "Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+            os.path.join(home, "Documents", "PowerShell", "profile.ps1"),
+            os.path.join(home, "Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
+            os.path.join(home, "Documents", "WindowsPowerShell", "profile.ps1"),
             "/etc/sudoers",
             "/etc/passwd",
             "/etc/shadow",

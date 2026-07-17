@@ -276,8 +276,18 @@ _HERMES_CONFIG_PATH = (
 _PROJECT_ENV_PATH = r'(?:(?:/|\.{1,2}/)?(?:[^\s/"\'`]+/)*\.env(?:\.[^/\s"\'`]+)*)'
 _PROJECT_CONFIG_PATH = r'(?:(?:/|\.{1,2}/)?(?:[^\s/"\'`]+/)*config\.yaml)'
 _SHELL_RC_FILES = (
+    r'(?:'
     r'(?:~|\$home|\$\{home\})/\.'
     r'(?:bashrc|zshrc|profile|bash_profile|zprofile)\b'
+    r'|'
+    # Windows PowerShell profiles (pwsh + Windows PowerShell 5.x)
+    r'(?:~|\$home|\$\{home\}|%userprofile%|\$env:userprofile)'
+    r'(?:/|\\)Documents(?:/|\\)(?:Windows)?PowerShell(?:/|\\)'
+    r'(?:Microsoft\.)?PowerShell_profile\.ps1\b'
+    r'|'
+    r'(?:~|\$home|\$\{home\}|%userprofile%|\$env:userprofile)'
+    r'(?:/|\\)Documents(?:/|\\)(?:Windows)?PowerShell(?:/|\\)profile\.ps1\b'
+    r')'
 )
 _CREDENTIAL_FILES = (
     r'(?:~|\$home|\$\{home\})/\.'

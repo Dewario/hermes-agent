@@ -10093,11 +10093,47 @@ def _cmd_update_impl(args, gateway_mode: bool):
                 text=True,
             )
             if pull_result.returncode != 0:
-                # ff-only failed — local and remote have diverged (e.g. upstream
-                # force-pushed or rebase).  Since local changes are already
-                # stashed, reset to match the remote exactly.
+                # ff-only failed — histories diverged. Never `reset --hard` when
+                # this checkout still has commits not on origin (custom forks,
+                # rebased carry, etc.) — that silently destroys local tip.
+                ahead_result = subprocess.run(
+                    git_cmd + ["rev-list", "--count", f"origin/{branch}..HEAD"],
+                    cwd=PROJECT_ROOT,
+                    capture_output=True,
+                    text=True,
+                )
+                local_ahead = 0
+                if ahead_result.returncode == 0:
+                    try:
+                        local_ahead = int((ahead_result.stdout or "0").strip() or "0")
+                    except ValueError:
+                        local_ahead = 0
+                if local_ahead > 0:
+                    print()
+                    print(
+                        f"✗ Fast-forward not possible, and this checkout is "
+                        f"{local_ahead} commit(s) ahead of origin/{branch}."
+                    )
+                    print(
+                        "  Refusing `git reset --hard` — that would destroy "
+                        "local commits not present upstream."
+                    )
+                    print("  Options:")
+                    print(
+                        f"    git fetch origin && git rebase origin/{branch}"
+                    )
+                    print(
+                        "    # or update from a clean upstream clone / "
+                        "worktree without your carried tip"
+                    )
+                    print(
+                        "  Do NOT run: "
+                        f"git reset --hard origin/{branch}"
+                    )
+                    sys.exit(1)
                 print(
-                    "  ⚠ Fast-forward not possible (history diverged), resetting to match remote..."
+                    "  ⚠ Fast-forward not possible (history diverged), "
+                    "resetting to match remote..."
                 )
                 reset_result = subprocess.run(
                     git_cmd + ["reset", "--hard", f"origin/{branch}"],

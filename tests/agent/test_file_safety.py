@@ -30,6 +30,16 @@ class TestShellRcWriteDenied:
         assert is_write_denied(os.path.join("~", name)) is True
         assert is_write_denied(os.path.join(os.path.expanduser("~"), name)) is True
 
+    @pytest.mark.parametrize("rel", [
+        os.path.join("Documents", "PowerShell", "Microsoft.PowerShell_profile.ps1"),
+        os.path.join("Documents", "PowerShell", "profile.ps1"),
+        os.path.join("Documents", "WindowsPowerShell", "Microsoft.PowerShell_profile.ps1"),
+        os.path.join("Documents", "WindowsPowerShell", "profile.ps1"),
+    ])
+    def test_powershell_profile_write_denied(self, rel):
+        assert is_write_denied(os.path.join("~", rel)) is True
+        assert is_write_denied(os.path.join(os.path.expanduser("~"), rel)) is True
+
     def test_normal_home_file_not_denied(self):
         # A regular file in home is still writable -- no over-blocking.
         assert is_write_denied(os.path.join("~", "notes.txt")) is False

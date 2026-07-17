@@ -410,6 +410,43 @@ class TestCmdUpdateBranchFallback:
 
     @patch("shutil.which", return_value=None)
     @patch("subprocess.run")
+    def test_update_refuses_hard_reset_when_local_ahead(
+        self, mock_run, _mock_which, mock_args, capsys
+    ):
+        """ff-only failure must not wipe a custom tip that is ahead of origin."""
+
+        def side_effect(cmd, **kwargs):
+            joined = " ".join(str(c) for c in cmd)
+            if "rev-parse" in joined and "--abbrev-ref" in joined:
+                return subprocess.CompletedProcess(cmd, 0, stdout="main\n", stderr="")
+            if "rev-parse" in joined and "--verify" in joined:
+                return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+            # Behind count (HEAD..origin/main) — need an update
+            if "rev-list" in joined and "HEAD..origin/main" in joined:
+                return subprocess.CompletedProcess(cmd, 0, stdout="2\n", stderr="")
+            # Ahead count (origin/main..HEAD) — local carries unique commits
+            if "rev-list" in joined and "origin/main..HEAD" in joined:
+                return subprocess.CompletedProcess(cmd, 0, stdout="35\n", stderr="")
+            if "pull" in joined and "ff-only" in joined:
+                return subprocess.CompletedProcess(
+                    cmd, 1, stdout="", stderr="fatal: Not possible to fast-forward\n"
+                )
+            return subprocess.CompletedProcess(cmd, 0, stdout="", stderr="")
+
+        mock_run.side_effect = side_effect
+
+        with pytest.raises(SystemExit) as exc:
+            cmd_update(mock_args)
+        assert exc.value.code == 1
+
+        out = capsys.readouterr().out
+        assert "Refusing" in out
+        assert "reset --hard" in out
+        commands = [" ".join(str(a) for a in c.args[0]) for c in mock_run.call_args_list]
+        assert not any("reset" in c and "--hard" in c for c in commands)
+
+    @patch("shutil.which", return_value=None)
+    @patch("subprocess.run")
     def test_update_on_fork_checks_upstream_when_origin_up_to_date(
         self, mock_run, _mock_which, mock_args, capsys
     ):

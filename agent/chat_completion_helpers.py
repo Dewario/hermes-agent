@@ -3456,11 +3456,10 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             if agent.api_mode == "anthropic_messages":
                 try:
                     # FABLE5 H10: this stale-stream detector runs on the monitor
-                    # (stranger) thread. Abort the old client's sockets (FD-safe)
-                    # rather than close()-ing it while the worker's SSL BIO is
-                    # live, then swap in a fresh client for the reconnect.
+                    # (stranger) thread. Abort the transport only (FD-safe);
+                    # never close()/rebuild here — lazy rebuild happens on the
+                    # owner thread in `_anthropic_messages_create`.
                     agent._abort_anthropic_client(reason="stale_stream_kill")
-                    agent._rebuild_anthropic_client()
                 except Exception:
                     pass
             else:
@@ -3492,10 +3491,9 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
             try:
                 if agent.api_mode == "anthropic_messages":
                     # FABLE5 H10: interrupt-check runs on the monitor (stranger)
-                    # thread — abort the transport (FD-safe) then rebuild, rather
-                    # than racing client.close() against the live worker.
+                    # thread — abort the transport only (FD-safe); lazy rebuild
+                    # on the owner thread in `_anthropic_messages_create`.
                     agent._abort_anthropic_client(reason="stream_interrupt_abort")
-                    agent._rebuild_anthropic_client()
                 else:
                     _close_request_client_once("stream_interrupt_abort")
             except Exception:

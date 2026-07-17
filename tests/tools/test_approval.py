@@ -567,6 +567,12 @@ class TestTeePattern:
         assert dangerous is True
         assert key is not None
 
+    def test_tee_powershell_profile(self):
+        profile = Path.home() / "Documents" / "PowerShell" / "Microsoft.PowerShell_profile.ps1"
+        dangerous, key, desc = detect_dangerous_command(f"echo x | tee {profile}")
+        assert dangerous is True
+        assert key is not None
+
     def test_tee_custom_hermes_home_env(self):
         dangerous, key, desc = detect_dangerous_command("echo x | tee $HERMES_HOME/.env")
         assert dangerous is True
@@ -773,6 +779,19 @@ class TestSensitiveRedirectPattern:
     def test_redirect_to_absolute_home_bashrc(self):
         bashrc = Path.home() / ".bashrc"
         dangerous, key, desc = detect_dangerous_command(f"echo 'alias ll=\"ls -la\"' > {bashrc}")
+        assert dangerous is True
+        assert key is not None
+
+    def test_redirect_to_powershell_profile(self):
+        profile = (
+            Path.home()
+            / "Documents"
+            / "WindowsPowerShell"
+            / "Microsoft.PowerShell_profile.ps1"
+        )
+        dangerous, key, desc = detect_dangerous_command(
+            f"echo 'Write-Host hi' > {profile}"
+        )
         assert dangerous is True
         assert key is not None
 

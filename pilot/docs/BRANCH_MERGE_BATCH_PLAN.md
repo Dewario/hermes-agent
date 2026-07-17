@@ -71,9 +71,9 @@ land as Batch B+ hotfix or before Batch C). See panel notes in chat 2026-07-16.
 
 ### Done when
 
-- [ ] `git status` shows clean tracked tree (or only intentional untracked debris).
-- [ ] Tag `backup/pre-merge-feature-20260716` exists and points at feature tip (incl. WIP commit).
-- [ ] No hermes.exe holding the venv.
+- [x] `git status` shows clean tracked tree (or only intentional untracked debris).
+- [x] Tag `backup/pre-merge-feature-20260716` exists and points at feature tip (incl. WIP commit).
+- [x] No hermes.exe holding the venv.
 
 ### Rollback
 
@@ -154,10 +154,10 @@ git commit -m "feat(custom): import legal skills, pilot harness, compat scanner"
 
 ### Done when
 
-- [ ] `integrate/custom-main` = `origin/main` + one (or few) transplant commit(s).
-- [ ] `skills/legal/**` and `hermes-compat-scanner` present.
-- [ ] Root has no `LEGAL_*.md` / token inventory (they live under `pilot/docs/` or were intentionally omitted).
-- [ ] No CODEX_/cache files staged.
+- [x] `integrate/custom-main` = `origin/main` + one (or few) transplant commit(s).
+- [x] `skills/legal/**` and `hermes-compat-scanner` present.
+- [x] Root has no `LEGAL_*.md` / token inventory (they live under `pilot/docs/` or were intentionally omitted).
+- [x] No CODEX_/cache files staged.
 
 ### Rollback
 
@@ -268,10 +268,10 @@ Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/cus
 
 ### Done when
 
-- [ ] All D1–D9 clusters applied or explicitly waived with written reason in `pilot/docs/`.
-- [ ] Targeted gateway/agent/tools tests for applied clusters green.
-- [ ] Prompt-cache invariant: MCP late-refresh does not mutate tools mid-session (D4).
-- [ ] Long-job path: heartbeats / notify path still works (D3).
+- [x] All D1–D9 clusters applied or explicitly waived with written reason in `pilot/docs/`.
+- [x] Targeted gateway/agent/tools tests for applied clusters green.
+- [x] Prompt-cache invariant: MCP late-refresh does not mutate tools mid-session (D4).
+- [x] Long-job path: heartbeats / notify path still works (D3).
 
 ### Rollback
 
@@ -306,8 +306,11 @@ hermes chat   # banner: not 1150+ behind; legal skills present
 
 Dep sync **after** cutover, carefully:
 
-- Prefer manual venv sync from this checkout, **or**
-- `hermes update` only when you understand it may reset if histories diverge — with tags in place first.
+- Prefer manual venv sync from this checkout (`UV_PROJECT_ENVIRONMENT=<venv> uv sync --extra …`).
+- **Do not** use `hermes update` to merge a custom tip: on ff-only failure it used to
+  `git reset --hard origin/<branch>`. Current tree refuses that reset when local is
+  ahead of origin (preserves carried commits); still prefer `git fetch && git rebase
+  origin/main` for this fork.
 
 ### E2 — Retire local branches (only after E1 smoke OK)
 
@@ -344,10 +347,15 @@ Do **not** delete `pilot/`, `skills/legal/`, or `pilot/docs/`.
 
 ### Done when
 
-- [ ] Only meaningful local branch: `main` (+ optional short-lived backups).
-- [ ] Backup tags exist and `git show backup/pre-merge-feature-20260716` works.
-- [ ] Working tree free of cache/report debris.
-- [ ] Banner healthy; legal skills + long-job behavior verified once.
+- [x] Only meaningful local branch: `main` (+ optional short-lived backups).
+- [x] Backup tags exist and `git show backup/pre-merge-feature-20260716` works.
+- [x] Working tree free of cache/report debris.
+- [x] Banner healthy; legal skills + long-job behavior verified once.
+
+**Batch E + post-merge red-team fixes (2026-07-17):** cutover + rebase onto
+`origin/main`; H10 stream abort-only; PowerShell profile denylist; Matrix
+approval timeout aligned to `get_gateway_approval_timeout()`; duplicate
+`TestAuxiliaryMaxTokensParam` merged; `hermes update` refuses reset when ahead.
 
 ### Rollback (nuclear)
 

@@ -971,11 +971,19 @@ class MatrixAdapter(BasePlatformAdapter):
             "MATRIX_APPROVAL_REQUIRE_SENDER", "true"
         ).lower() in ("true", "1", "yes")
         try:
+            from tools.approval import get_gateway_approval_timeout
+            _matrix_approval_default = str(get_gateway_approval_timeout())
+        except Exception:
+            _matrix_approval_default = "1800"
+        try:
             self._approval_timeout_seconds = int(
-                os.getenv("MATRIX_APPROVAL_TIMEOUT_SECONDS", "300")
+                os.getenv(
+                    "MATRIX_APPROVAL_TIMEOUT_SECONDS",
+                    _matrix_approval_default,
+                )
             )
         except ValueError:
-            self._approval_timeout_seconds = 300
+            self._approval_timeout_seconds = int(_matrix_approval_default)
         self._model_picker_prompts_by_event: Dict[str, _MatrixModelPickerPrompt] = {}
         self._choice_picker_prompts_by_event: Dict[str, _MatrixChoicePickerPrompt] = {}
         allowed_users_raw = os.getenv("MATRIX_ALLOWED_USERS", "")
