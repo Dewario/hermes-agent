@@ -273,7 +273,8 @@ export const billingDevFixtures = {
   'auto-refill-divergent': withUsage('Auto Refill Divergent', {
     autoReload: {
       ...postTrainBillingState.auto_reload,
-      card: { kind: 'distinct', payment_method_id: 'pm_divergent_1', brand: 'mastercard', last4: '4444' }
+      card: { kind: 'distinct', payment_method_id: 'pm_divergent_1', brand: 'mastercard', last4: '4444' },
+      enabled: true
     },
     remaining: '132'
   }),
