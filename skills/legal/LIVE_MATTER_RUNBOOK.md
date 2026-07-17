@@ -1,6 +1,6 @@
 # Live Matter Runbook — Layout, Auth, OCR
 
-**CONFIDENTIAL — ATTORNEY WORK PRODUCT when filled with real matter data.**  
+**CONFIDENTIAL — ATTORNEY WORK PRODUCT when filled with real matter data.**
 Synthetic examples only in this repository. Real matters live **outside** the repo.
 
 ## 1. Matter directory layout (create once per matter)

@@ -357,6 +357,24 @@ Do **not** delete `pilot/`, `skills/legal/`, or `pilot/docs/`.
 approval timeout aligned to `get_gateway_approval_timeout()`; duplicate
 `TestAuxiliaryMaxTokensParam` merged; `hermes update` refuses reset when ahead.
 
+### External review remediation (GO-with-fixes → GO)
+
+**Reviewer verdict (2026-07-17):** GO-with-fixes on `35fe4cac4`.
+
+| Finding | Disposition |
+|---------|-------------|
+| `test_cmd_update.py` red / PID lock | **Fixed.** Concurrent review pytest tripped Windows venv-holder guard (`SystemExit: 2`). Tests now stub `_detect_venv_python_processes` / `_detect_concurrent_hermes_instances` (guard still covered in `test_update_venv_health.py`). Also hermeticize npm path resolution on native Windows. |
+| Trailing whitespace (`git diff --check`) | **Fixed** in carried markdown/templates. `SYNTHETIC_concordance.dat` has no space/tab EOL (ASCII `0x14` field sep only — not whitespace). |
+| Attending legal reports | Historical / process docs under `pilot/docs/` — not a merge blocker; keep as provenance. |
+
+**Proceed plan (revised):**
+
+1. Land remediation commit on `main`; push `fork/main`.
+2. Re-verify: `tests/hermes_cli/test_cmd_update.py` green on Windows with isolated `--basetemp`.
+3. Re-run `git diff --check` on working tree / after commit vs `origin/main`.
+4. Ask reviewer to upgrade **GO-with-fixes → GO** (no new merge campaign).
+5. Day-to-day: prefer `git fetch && git rebase origin/main` + `uv sync`; do **not** use `hermes update` to absorb upstream on this carried tip.
+
 ### Rollback (nuclear)
 
 ```powershell

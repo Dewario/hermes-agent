@@ -1,6 +1,6 @@
 # Mailsuite Backend Spike (Future)
 
-**Status:** interface notes only — no Hermes integration, no live runs.  
+**Status:** interface notes only — no Hermes integration, no live runs.
 **Policy:** firm-only mail accounts; read-only transport; synthetic fixtures in-repo.
 
 [mailsuite](https://github.com/seanthegeek/mailsuite) is a candidate future fetch

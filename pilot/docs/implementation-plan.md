@@ -1,10 +1,10 @@
 # Custom Hermes Main — Cleanup & Merge Plan
 
-**Date:** 2026-07-16  
-**Target:** one local `main` = current `origin/main` + kept custom delta  
-**Source tip:** `local/finalize-legal-discovery-skills-20260707` @ `3ea7bd224`  
-**Upstream tip:** `origin/main` @ `bd37ff913`  
-**Divergence:** +42 / −1152 commits · 144 files · +21,050 / −452 lines  
+**Date:** 2026-07-16
+**Target:** one local `main` = current `origin/main` + kept custom delta
+**Source tip:** `local/finalize-legal-discovery-skills-20260707` @ `3ea7bd224`
+**Upstream tip:** `origin/main` @ `bd37ff913`
+**Divergence:** +42 / −1152 commits · 144 files · +21,050 / −452 lines
 **Merge-base:** `830165473` (2026-07-06)
 
 > Panel note: Opus / GPT-Sol / Fable / GLM / Terra seats hit API limits (empty).
@@ -90,8 +90,8 @@ backup/legal-finalize-3ea7bd224   ← annotated tag of today’s feature tip (im
 local/finalize-…                  ← leave untouched until cutover verified
 ```
 
-**Name:** keep calling production branch `main` (matches `hermes update`).  
-**History style:** prefer **2–4 thematic commits** on top of upstream, not a 42-commit rebase replay.  
+**Name:** keep calling production branch `main` (matches `hermes update`).
+**History style:** prefer **2–4 thematic commits** on top of upstream, not a 42-commit rebase replay.
 **Do not** squash away the backup tag.
 
 ---

@@ -71,6 +71,22 @@ def _patch_managed_uv(request):
         yield
 
 
+@pytest.fixture(autouse=True)
+def _quiet_windows_update_process_guards():
+    """Keep cmd_update unit tests independent of the live process table.
+
+    On Windows, ``_cmd_update_impl`` refuses to proceed when any other
+    process is using this install's venv python (desktop backend, gateway,
+    concurrent pytest). That guard is correct for real ``hermes update``
+    runs, but it makes this file non-hermetic under parallel local review
+    suites. Stub the detectors here; the guard itself is covered in
+    ``test_update_venv_health.py``.
+    """
+    with patch("hermes_cli.main._detect_venv_python_processes", return_value=[]), \
+         patch("hermes_cli.main._detect_concurrent_hermes_instances", return_value=[]):
+        yield
+
+
 class TestCmdUpdateNpmLockfileCache:
     @staticmethod
     def _cache_file(hermes_root, project_root):
@@ -492,6 +508,8 @@ class TestCmdUpdateBranchFallback:
         import subprocess as _subprocess
         build_ok = _subprocess.CompletedProcess([], 0, stdout="", stderr="")
         with patch.object(hm, "_is_termux_env", return_value=False), \
+             patch.object(hm, "_resolve_node_runtime_npm", return_value="/usr/bin/npm"), \
+             patch.object(hm, "_web_ui_build_needed", return_value=True), \
              patch.object(hm, "_run_with_idle_timeout", return_value=build_ok) as mock_idle:
             cmd_update(mock_args)
 
@@ -1135,10 +1153,15 @@ class TestNodeRuntimeNpmResolution:
     def test_resolve_rejects_windows_npm_and_rescans_path(self, monkeypatch):
         """On WSL/Linux, a Windows npm is refused and PATH is re-scanned
         (skipping /mnt mounts) for a Linux-native npm."""
+        import os
+
         from hermes_cli import main as hm
         import hermes_constants
 
         monkeypatch.setattr(hm, "_is_windows", lambda: False)
+        # Simulate a POSIX host even when this file runs on native Windows
+        # (otherwise os.pathsep is ';' and the ':' PATH below is one token).
+        monkeypatch.setattr(os, "pathsep", ":")
         monkeypatch.setenv(
             "PATH", "/mnt/c/Program Files/nodejs:/root/.local/bin:/usr/bin"
         )
@@ -1160,10 +1183,13 @@ class TestNodeRuntimeNpmResolution:
         assert hm._resolve_node_runtime_npm() == "/root/.local/bin/npm"
 
     def test_resolve_returns_none_when_only_windows_npm(self, monkeypatch):
+        import os
+
         from hermes_cli import main as hm
         import hermes_constants
 
         monkeypatch.setattr(hm, "_is_windows", lambda: False)
+        monkeypatch.setattr(os, "pathsep", ":")
         monkeypatch.setenv("PATH", "/mnt/c/Program Files/nodejs:/usr/bin")
 
         def fake_which(cmd, path=None):

@@ -1,6 +1,6 @@
 # LEGAL SKILL INVENTORY
 
-Generated: 2026-07-07  
+Generated: 2026-07-07
 Revised: 2026-07-12 (six-skill inventory; Batch A closed; live Rickman owner ops)
 
 Branch: `local/finalize-legal-discovery-skills-20260707`

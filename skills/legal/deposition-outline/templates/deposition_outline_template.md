@@ -4,9 +4,9 @@
 
 # Deposition Outline
 
-**Matter:** [Matter identifier]  
-**Witness:** [Witness name and role]  
-**Prepared for:** Attorney review  
+**Matter:** [Matter identifier]
+**Witness:** [Witness name and role]
+**Prepared for:** Attorney review
 **Casegraph status:** [Current / refresh required]
 
 ## Objectives
@@ -18,15 +18,15 @@
 
 ### [Topic name]
 
-**Objective:** [Fact to establish or test.]  
-**Source / Bates:** [Bates range and document description.]  
-**Foundation:** [Personal knowledge, authorship, or authentication questions.]  
+**Objective:** [Fact to establish or test.]
+**Source / Bates:** [Bates range and document description.]
+**Foundation:** [Personal knowledge, authorship, or authentication questions.]
 **Primary questions:**
 
 1. [Open question.]
 2. [Follow-up question.]
 
-**Transition / fallback:** [Neutral next question.]  
+**Transition / fallback:** [Neutral next question.]
 **Attorney review note:** [Gap, risk, or required follow-up.]
 
 ## Key Admissions Sought
