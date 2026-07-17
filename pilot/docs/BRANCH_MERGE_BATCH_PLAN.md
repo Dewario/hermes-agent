@@ -203,8 +203,13 @@ Optional smoke: `hermes chat` once from this checkout — legal skills should li
 
 ### Done when
 
-- [ ] Above test list green.
-- [ ] No skill frontmatter regressions introduced (descriptions already ≤60 chars).
+- [x] Above test list green.
+- [x] No skill frontmatter regressions introduced (descriptions already ≤60 chars).
+
+**Batch C status (2026-07-17):** GREEN on `integrate/custom-main` @ `3bb391f1a` —
+191 passed, 2 skipped (Windows venv pytest; WSL `run_tests.sh` could not see venv).
+One test fix landed: OCR `recommended_action` assertion matches extract status.
+Note: branch is ahead 2 / behind ~47 vs `origin/main` — rebase/merge before or during Batch D/E.
 
 ### Rollback
 
