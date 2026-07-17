@@ -243,7 +243,7 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D overall:** D1–D9 complete on `integrate/custom-main`. Ready for Batch E (cut over local `main`) when you say go.
 
-**Batch E status (2026-07-17):** Synced with `origin/main` (0 behind). Cut over local `main` ← `integrate/custom-main`; tag `backup/custom-main-cutover-20260717`. Retired integrate + local feature branches; kept backup tags.
+**Batch E status (2026-07-17):** Cut over local `main` ← `integrate/custom-main`; retired integrate + local feature branches. Smoke OK (banner +34 carried, legal skills enabled). Venv synced via `uv sync --extra all --extra dev --extra messaging --extra anthropic` (`UV_PROJECT_ENVIRONMENT=venv`). Rebased onto newer `origin/main` (`2f00cca4`); tip `d38af3b07`; tag `backup/custom-main-cutover-20260717`. **Not pushed** (await publish decision).
 
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
