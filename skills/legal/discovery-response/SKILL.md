@@ -14,10 +14,11 @@ metadata:
 
 # Legal Discovery Response Skill
 
-Phase A only: audit proposed final **RFP** responses against one client's indexed
-matter record. Interrogatory/RFA audit is out of scope until SPEC is amended.
-This skill is **not ready for live use** until `SPEC.md` section 11 gates pass
-and the owner approves that specific matter.
+Slice A1 only: audit proposed final **RFP** responses against one client's
+indexed matter record. Interrogatories, RFAs, and outgoing drafting are **out
+of scope** — see `../discovery-workflow/SPEC.md`. This skill is **not**
+live-use-ready for a full discovery program; even RFP audit needs `SPEC.md`
+§11 + owner §11.5 per matter.
 
 ## Hard Rules
 

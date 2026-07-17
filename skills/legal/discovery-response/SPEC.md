@@ -1,39 +1,39 @@
-# Legal Discovery Response — Spec (Audit-First, RFP Slice)
+# Legal Discovery Response — Spec (Slice A1: RFP Response Audit)
 
-**Status:** Phase A implemented, synthetic-only; **not ready for live use.**
-**Date:** 2026-07-17 (amended: Phase A audit CLI + synthetic gates landed)
-**Primary first use:** Critically **review proposed final RFP responses**
-against that client's documents, testimony (where relevant), and case-file /
-discovery corpus — **one matter (one client) at a time**.
-**Secondary (later):** Generate draft RFP response packages (Phase B).
-**Out of scope (later slices):** interrogatory/RFA **audit or** generation;
-motion practice; cross-client combined factual review.
+**Status:** Slice A1 implemented, synthetic-only; **not ready for live use.**
+**Program roadmap:** `skills/legal/discovery-workflow/SPEC.md` (rog|rfp|rfa ×
+audit|draft axes). This file is **only** RFP `audit_incoming_response`.
+**Date:** 2026-07-17 (amended: program pointer + multi-type roadmap)
+**Primary use of this slice:** Critically **review proposed final RFP
+responses** against that client's documents, testimony (where relevant), and
+case-file / discovery corpus — **one matter (one client) at a time**.
 
-**RFP-only (HARD for Phase A v1):** Audit parsers and fixtures target served
-RFPs / proposed RFP responses (`request_type: "rfp"`). If first materials are
-interrogatory answers or RFAs, amend Phase A for `request_type: rfp|rog|rfa`
-**before** live use — do not stretch the current parsers.
+**RFP-only (HARD for this slice):** Parsers and fixtures target served RFPs /
+proposed RFP responses (`request_type: "rfp"`). Do **not** stretch these
+parsers to interrogatories or RFAs — those are separate slices in the program
+SPEC (A2 RFA audit, A3 rog audit, then outgoing drafting).
 **Depends on:** `legal-casegraph`, `LIVE_MATTER_RUNBOOK.md`, `live_preflight.py`,
 `check_provider_auth.py`. Matter dirs under `C:\Matters\<id>\` (outside repo).
 
 **Hard ban:** Do not run against Allen, Client A, Client B, or any live matter
 until §11 acceptance criteria pass on **synthetic** fixtures and the owner
-signs off. Generation (Phase B) must not start until Phase A audit gates are
-green.
+signs off **for this slice**. This tool is **not** live-use-ready for a full
+discovery program (rog/rfa/outgoing). Program-level drafting and other request
+types follow `discovery-workflow/SPEC.md`, not the deferred Phase B sketch
+below.
 
 ---
 
 ## 0. Implementation priority (HARD)
 
-| Phase | Slice | Build when |
-|-------|-------|------------|
-| **A (FIRST)** | `audit-existing` — review proposed final RFP responses vs record | Immediately after this spec is accepted |
-| **B** | Draft/generate RFP response packages from served RFPs | Only after Phase A synthetic + owner sign-off |
-| **C** | Interrogatory / RFA audit (same proposition model) | After Phase A stable |
+| Slice | Scope | Status / when |
+|-------|-------|---------------|
+| **A1 (this skill)** | RFP `audit_incoming_response` | Implemented — synthetic-only |
+| **A2+** | RFA/rog audit, outgoing drafts, `draft_response` | See `discovery-workflow/SPEC.md` — **not** this file |
 
-§12 Phase B content (generation schemas, objection templates, draft CLI) is
-**deferred reference** — do not implement until Phase A is done. Owner's first
-need is audit, not generation.
+Historical “Phase B RFP generation” notes in §10 are superseded by the program
+SPEC’s `draft_outgoing_request` / `draft_response` slices. Do not implement
+generation from this file alone.
 
 ---
 
@@ -437,8 +437,10 @@ skills/legal/discovery-response/
 
 ---
 
-## 15. Next action after this spec
+## 15. Next action after this slice
 
-1. Commit this amended SPEC + runbook §8 pointer.
-2. Owner/attorney review of §3.1, §5, §6.
-3. Implement §12 Phase A only — synthetic first; still no live clients until §11.5.
+1. Keep A1 synthetic gates green; no live use without §11.5.
+2. Follow `discovery-workflow/SPEC.md` for A2 (RFA audit) next — do not stretch
+   A1 parsers.
+3. Full six-cell synthetic matrix + per-matter §9.5 before any live dry-run of
+   the broader program.
