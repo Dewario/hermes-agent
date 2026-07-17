@@ -235,6 +235,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D6 status (2026-07-17):** GREEN @ tag `batch-d6-green` — applied M2/M6 (`2f3406af9`), M16 (`d7619f848`), M17 (`e65f6819d`), H11 (`dc64bcd79`), H9+H10 (`4a8273c31`), fail-closed (`50717be7b`), Batch3 aux plumbing (`e36a74506`). **Skipped** `291fefe95` (L4 process-global lock) — superseded by main’s ContextVar `scoped_runtime_main` / `_RUNTIME_MAIN_CONTEXT`. Conflicts resolved onto main dispatch helpers; kept `approvals`/stream invariants. Spot tests: 15 passed (origin inherit, Batch3 async, executor containment, H11 rollback, BedrockStreamKill).
 
+**Batch D7 status (2026-07-17):** GREEN @ tag `batch-d7-green` — cherry-picked `f7076925f` clean (skills_guard scan bypasses + shell-rc write gap). Tests: 118 passed.
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
