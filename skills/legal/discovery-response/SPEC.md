@@ -1,7 +1,7 @@
 # Legal Discovery Response — Spec (Audit-First, RFP Slice)
 
-**Status:** SPEC ONLY — not implemented. **Not ready for live use.**
-**Date:** 2026-07-17 (amended: audit-existing is first implementation slice)
+**Status:** Phase A implemented, synthetic-only; **not ready for live use.**
+**Date:** 2026-07-17 (amended: Phase A audit CLI + synthetic gates landed)
 **Primary first use:** Critically **review proposed final RFP responses**
 against that client's documents, testimony (where relevant), and case-file /
 discovery corpus — **one matter (one client) at a time**.
@@ -70,7 +70,7 @@ multi-client review.
 | Auth | Signed `03_attorney/PROVIDER_AUTH.md` before any remote model sees client text |
 | Synthetic in-repo | Fixtures/goldens only; banner `SYNTHETIC / NON-CLIENT / TEST ONLY` |
 | One matter | Every invocation takes exactly one `--matter-dir` |
-| Gates | `casegraph status`, `verify-cites`, `check-isolation --strict`, `live_preflight.py` |
+| Gates | `casegraph status`, `verify-cites`, `check-isolation --strict`, `live_preflight.py` (full OCR queue for live; synthetic may skip OCR) |
 
 ### 3.1 Multi-client ban (HARD)
 
@@ -350,17 +350,30 @@ All must pass before any live matter:
 
 ### 11.3 Casegraph / live gates
 
+**Live readiness** (no `.synthetic` marker; OCR queue must be clear):
+
+```
+python skills/legal/discovery-response/scripts/discovery_response.py \
+  validate-audit <matter_dir>
+# equivalent live_preflight (OCR enforced — do NOT pass --skip-ocr-queue):
+python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> \
+  --output <matter_dir>/02_outputs/response_audit_report.md
+```
+
+Underlying casegraph gates (also run by `validate-audit`):
+
 ```
 python skills/legal/casegraph/scripts/casegraph.py status <matter_dir>
 python skills/legal/casegraph/scripts/casegraph.py verify-cites <matter_dir> \
   <matter_dir>/02_outputs/response_audit_report.md
 python skills/legal/casegraph/scripts/casegraph.py check-isolation <matter_dir> \
   <matter_dir>/02_outputs/response_audit_report.md --strict
-python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> \
-  --output <matter_dir>/02_outputs/response_audit_report.md
 ```
 
-All exit 0.
+**Synthetic smoke** only (fixture / selftest matters with `.synthetic`, or
+`validate-audit --synthetic`): `live_preflight` may use `--skip-ocr-queue`.
+That path proves packaging and isolation — it does **not** satisfy live OCR
+readiness. All listed live commands must exit 0 before §11.5.
 
 ### 11.4 Tests / hygiene
 

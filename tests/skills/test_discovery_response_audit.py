@@ -126,6 +126,28 @@ def test_package_and_validate_audit(tmp_path):
     assert dr.main(["validate-audit", str(matter)]) == 0
 
 
+def test_validate_audit_live_mode_enforces_ocr_queue(tmp_path, monkeypatch):
+    """Live matters must not pass --skip-ocr-queue to live_preflight."""
+    matter = _matter(tmp_path)
+    for command in ("parse-rfp", "parse-proposed", "audit-existing", "package-audit"):
+        assert dr.main([command, str(matter)]) == 0
+    (matter / ".synthetic").unlink()
+
+    captured: list[list[str]] = []
+    original = dr.run_command
+
+    def _capture(command):
+        captured.append(list(command))
+        if "live_preflight.py" in " ".join(command):
+            return 0
+        return original(command)
+
+    monkeypatch.setattr(dr, "run_command", _capture)
+    assert dr.main(["validate-audit", str(matter)]) == 0
+    preflight = next(cmd for cmd in captured if "live_preflight.py" in " ".join(cmd))
+    assert "--skip-ocr-queue" not in preflight
+
+
 def test_validate_rejects_invalid_transcript_cite(tmp_path):
     matter = _matter(tmp_path)
     for command in ("parse-rfp", "parse-proposed", "audit-existing"):

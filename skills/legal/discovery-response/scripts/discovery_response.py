@@ -759,7 +759,20 @@ def cmd_validate_audit(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(report), "--strict"],
     ]
     if not args.skip_live_preflight:
-        gates.append([sys.executable, str(LIVE_PREFLIGHT_SCRIPT), "--matter-dir", str(root), "--output", str(report), "--skip-ocr-queue"])
+        # Live readiness enforces the OCR queue. Synthetic smoke (`.synthetic`
+        # marker or --synthetic) may skip OCR; that path is not live-ready.
+        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
+        preflight = [
+            sys.executable,
+            str(LIVE_PREFLIGHT_SCRIPT),
+            "--matter-dir",
+            str(root),
+            "--output",
+            str(report),
+        ]
+        if synthetic:
+            preflight.append("--skip-ocr-queue")
+        gates.append(preflight)
     for command in gates:
         code = run_command(command)
         if code != 0:
@@ -858,6 +871,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("validate-audit", help="run Phase A validators and gates")
     p.add_argument("matter_dir")
     p.add_argument("--skip-live-preflight", action="store_true", help="skip live_preflight.py gate")
+    p.add_argument(
+        "--synthetic",
+        action="store_true",
+        help="synthetic smoke path: allow live_preflight --skip-ocr-queue (not live-ready)",
+    )
     p.set_defaults(fn=cmd_validate_audit)
 
     p = sub.add_parser("selftest", help="run offline synthetic Phase A audit")

@@ -48,6 +48,10 @@ python $dr package-audit $m
 python $dr validate-audit $m
 ```
 
+Live `validate-audit` enforces full `live_preflight` including the OCR queue.
+Synthetic fixtures (`.synthetic` marker) or `validate-audit --synthetic` may
+skip OCR for smoke tests only — that is not live readiness.
+
 Outputs:
 
 - `02_outputs/proposed_propositions.jsonl`
