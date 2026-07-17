@@ -223,6 +223,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Inputs:** Batch C green. Still on `integrate/custom-main`. Budget several focused sessions (not one mega-rebase).
 
+**Batch D1 status (2026-07-17):** GREEN @ `032613cfe` / tag `batch-d1-green` — cherry-picked `d708841b9` (resolved `gateway/relay/__init__.py`; also migrated new main IdP config path off `gateway.run`). Tests: 41 passed (`test_config_helpers_m14` + relay policy/self-provision).
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
