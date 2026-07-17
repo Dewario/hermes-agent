@@ -553,3 +553,110 @@ class TestContentFilterStallActivatesFallback:
             "_try_activate_fallback — it should fall through to continuation."
         )
         assert result["completed"] is True
+
+class TestBedrockStreamKill:
+    """FABLE5 M16: a wedged Bedrock converse_stream must be force-closed from
+    the monitor thread on interrupt and on stale-timeout — the cooperative
+    on_interrupt_check only fires between events and cannot unblock a read
+    stalled on a dead socket."""
+
+    def _bedrock_agent(self):
+        agent = _make_agent()
+        agent.api_mode = "bedrock_converse"
+        agent._interrupt_requested = False
+        return agent
+
+    @staticmethod
+    def _blocking_stream_factory(closed, published=None):
+        def _blocking_stream(*a, **k):
+            # Runs only after the worker has published raw_response, so this is
+            # a safe signal that the stream is available to force-close.
+            if published is not None:
+                published.set()
+            # Simulate a wedged read: block until the stream is force-closed.
+            if closed.wait(timeout=5):
+                raise RuntimeError("bedrock stream closed")
+            return SimpleNamespace(choices=[])
+        return _blocking_stream
+
+    @patch("agent.bedrock_adapter._get_bedrock_runtime_client")
+    @patch("agent.bedrock_adapter.stream_converse_with_callbacks")
+    @patch("agent.bedrock_adapter.invalidate_runtime_client")
+    def test_interrupt_force_closes_bedrock_stream(
+        self, mock_invalidate, mock_stream_fn, mock_get_client,
+    ):
+        import threading
+
+        closed = threading.Event()
+        published = threading.Event()
+        state = {"close_called": False}
+
+        class _FakeStream:
+            def close(self):
+                state["close_called"] = True
+                closed.set()
+
+        fake_client = MagicMock()
+        fake_client.converse_stream.return_value = {"stream": _FakeStream()}
+        mock_get_client.return_value = fake_client
+        mock_stream_fn.side_effect = self._blocking_stream_factory(closed, published)
+
+        agent = self._bedrock_agent()
+
+        # Request the interrupt only once the worker has published the live
+        # stream, so the monitor has something concrete to force-close (avoids
+        # racing the first-time boto3 import). The API call blocks the main
+        # thread, so a side thread trips the interrupt flag.
+        def _interrupt_when_ready():
+            if published.wait(timeout=5):
+                agent._interrupt_requested = True
+        threading.Thread(target=_interrupt_when_ready, daemon=True).start()
+
+        with pytest.raises(InterruptedError):
+            agent._interruptible_streaming_api_call({})
+
+        assert state["close_called"], (
+            "interrupt must force-close the wedged bedrock stream, not just "
+            "abandon the daemon worker"
+        )
+        assert mock_invalidate.called, (
+            "the cached bedrock client must be invalidated so the retry loop "
+            "rebuilds a fresh connection pool"
+        )
+
+    @patch("agent.chat_completion_helpers.get_provider_stale_timeout",
+           return_value=None)
+    @patch("agent.bedrock_adapter._get_bedrock_runtime_client")
+    @patch("agent.bedrock_adapter.stream_converse_with_callbacks")
+    @patch("agent.bedrock_adapter.invalidate_runtime_client")
+    def test_stale_stream_force_closed(
+        self, mock_invalidate, mock_stream_fn, mock_get_client, _mock_stale,
+        monkeypatch,
+    ):
+        import threading
+
+        closed = threading.Event()
+        state = {"close_called": False}
+
+        class _FakeStream:
+            def close(self):
+                state["close_called"] = True
+                closed.set()
+
+        fake_client = MagicMock()
+        fake_client.converse_stream.return_value = {"stream": _FakeStream()}
+        mock_get_client.return_value = fake_client
+        mock_stream_fn.side_effect = self._blocking_stream_factory(closed)
+
+        monkeypatch.setenv("HERMES_STREAM_STALE_TIMEOUT", "1")
+        agent = self._bedrock_agent()
+
+        # No deltas ever arrive, so last_activity stays old and stale fires.
+        with pytest.raises(RuntimeError, match="bedrock stream closed"):
+            agent._interruptible_streaming_api_call({})
+
+        assert state["close_called"], (
+            "a stale bedrock stream must be force-closed after the timeout"
+        )
+        assert mock_invalidate.called
+
