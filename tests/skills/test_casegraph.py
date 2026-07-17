@@ -191,7 +191,12 @@ class TestBuildAndStatus:
             d for d in payload["documents"]
             if "scan_TVRR-PROD-000010.pdf" in d["relpath"]
         )
-        assert queued["recommended_action"] == "ocrmypdf"
+        # ocrmypdf only when extract status is none/partial; unsupported
+        # (no usable PDF parser path) routes to manual_or_vision.
+        if row["text_extractable"] in ("none", "partial"):
+            assert queued["recommended_action"] == "ocrmypdf"
+        else:
+            assert queued["recommended_action"] == "manual_or_vision"
         assert "Docling is an optional" in payload["guidance"]
         assert cg.main(["export-ocr-queue", str(matter)]) == 1
 
