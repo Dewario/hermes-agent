@@ -92,6 +92,55 @@ def test_parser_member_role_cannot_change_plan():
     assert s.can_change_plan is False
 
 
+@pytest.mark.parametrize(
+    "role,can_change_plan_raw,is_admin,can_change_plan",
+    [
+        ("OWNER", None, True, True),
+        ("ADMIN", None, True, True),
+        ("FINANCE_ADMIN", True, False, True),
+        ("SECURITY_ADMIN", None, False, False),
+        ("MEMBER", None, False, False),
+    ],
+)
+def test_parser_five_roles(
+    role, can_change_plan_raw, is_admin, can_change_plan
+):
+    payload = {"org": {"role": role}}
+    if can_change_plan_raw is not None:
+        payload["canChangePlan"] = can_change_plan_raw
+
+    state = subscription_state_from_payload(payload, portal_url=None)
+
+    assert state.is_admin is is_admin
+    assert state.can_change_plan_raw is can_change_plan_raw
+    assert state.can_change_plan is can_change_plan
+
+
+@pytest.mark.parametrize(
+    "role,server_capability",
+    [("MEMBER", True), ("OWNER", False)],
+)
+def test_parser_can_change_plan_prefers_server_capability(role, server_capability):
+    state = subscription_state_from_payload(
+        {"org": {"role": role}, "canChangePlan": server_capability},
+        portal_url=None,
+    )
+
+    assert state.can_change_plan is server_capability
+
+
+def test_parser_can_change_plan_falls_back_to_legacy_role_check():
+    owner = subscription_state_from_payload(
+        {"org": {"role": "OWNER"}}, portal_url=None
+    )
+    member = subscription_state_from_payload(
+        {"org": {"role": "MEMBER"}}, portal_url=None
+    )
+
+    assert owner.can_change_plan is True
+    assert member.can_change_plan is False
+
+
 def test_parser_defaults_unknown_context_to_personal():
     s = subscription_state_from_payload({"context": "wat"}, portal_url=None)
     assert s.context == "personal"

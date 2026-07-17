@@ -107,7 +107,8 @@ class SubscriptionState:
     logged_in: bool
     org_name: Optional[str] = None
     org_id: Optional[str] = None  # org.id from the NAS response
-    role: Optional[str] = None  # "OWNER" | "ADMIN" | "MEMBER"
+    role: Optional[str] = None  # "OWNER" | "ADMIN" | "FINANCE_ADMIN" | "SECURITY_ADMIN" | "MEMBER"
+    can_change_plan_raw: Optional[bool] = None
     context: str = "personal"  # "personal" | "team"
     current: Optional[CurrentSubscription] = None
     tiers: tuple[SubscriptionTier, ...] = ()  # selectable catalog (picker)
@@ -117,12 +118,18 @@ class SubscriptionState:
 
     @property
     def is_admin(self) -> bool:
-        """True for OWNER/ADMIN — the roles that can change plans."""
+        """Deprecated/display only — a legacy OWNER/ADMIN check.
+
+        NOT a capability check; use :attr:`can_change_plan` for gating billing
+        plan-change actions.
+        """
         return (self.role or "").upper() in ("OWNER", "ADMIN")
 
     @property
     def can_change_plan(self) -> bool:
-        """True when the UI should offer plan-change actions (role gate from NAS)."""
+        """Server capability when supplied; otherwise the legacy role fallback."""
+        if self.can_change_plan_raw is not None:
+            return self.can_change_plan_raw
         return self.is_admin
 
 
@@ -226,6 +233,11 @@ def subscription_state_from_payload(
         org_name=org.get("name"),
         org_id=org.get("id") or None,
         role=org.get("role"),
+        can_change_plan_raw=(
+            payload.get("canChangePlan")
+            if isinstance(payload.get("canChangePlan"), bool)
+            else None
+        ),
         context=context,
         current=_parse_current(payload.get("current")),
         tiers=tiers,
@@ -406,5 +418,4 @@ def dev_fixture_subscription_state() -> Optional[SubscriptionState]:
 
     # Unknown name → behave as logged-out so the misconfiguration is visible.
     return SubscriptionState(logged_in=False, error=f"unknown HERMES_DEV_SUBSCRIPTION_FIXTURE: {name}")
-
 

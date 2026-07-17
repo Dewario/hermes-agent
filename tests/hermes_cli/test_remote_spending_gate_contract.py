@@ -107,9 +107,9 @@ def test_envelope_session_revoked_kind():
     assert env["recovery"] == "login"
 
 
-def test_envelope_503_is_rate_limited_with_retry():
+def test_envelope_503_preserves_server_code_with_retry():
     env = _serialize(503, {"error": "temporarily_unavailable"}, {"Retry-After": "30"})
-    assert env["error"] == "rate_limited"
+    assert env["error"] == "temporarily_unavailable"
     assert env["retry_after"] == 30
 
 

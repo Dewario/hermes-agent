@@ -79,11 +79,9 @@ _CARD_PROVENANCE_LABELS = {
 class CardInfo:
     brand: str
     last4: str
-    # NAS card-on-file fields (post card-resolver): which ladder rung found the
-    # card, and whether it is known-failing (auto-reload payment failures).
-    # Both default off so pre-resolver payloads parse unchanged.
+    # NAS card-on-file field (post card-resolver): which ladder rung found the
+    # card. Defaults off so pre-resolver payloads parse unchanged.
     resolved_via: Optional[str] = None
-    needs_repair: bool = False
 
     @property
     def masked(self) -> str:
@@ -117,10 +115,19 @@ class MonthlyCap:
 
 
 @dataclass(frozen=True)
+class AutoReloadCard:
+    kind: str  # "canonical" | "distinct" | "none"
+    payment_method_id: Optional[str] = None
+    brand: Optional[str] = None
+    last4: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class AutoReload:
     enabled: bool = False
     threshold_usd: Optional[Decimal] = None
     reload_to_usd: Optional[Decimal] = None
+    card: Optional[AutoReloadCard] = None
 
 
 @dataclass(frozen=True)
@@ -135,7 +142,8 @@ class BillingState:
     org_id: Optional[str] = None
     org_slug: Optional[str] = None
     org_name: Optional[str] = None
-    role: Optional[str] = None  # "OWNER" | "ADMIN" | "MEMBER"
+    role: Optional[str] = None  # "OWNER" | "ADMIN" | "FINANCE_ADMIN" | "SECURITY_ADMIN" | "MEMBER"
+    can_change_plan_raw: Optional[bool] = None
     balance_usd: Optional[Decimal] = None
     cli_billing_enabled: bool = False
     charge_presets: tuple[Decimal, ...] = ()
@@ -150,8 +158,19 @@ class BillingState:
 
     @property
     def is_admin(self) -> bool:
-        """True for OWNER/ADMIN — the roles that can manage billing."""
+        """Deprecated/display only — a legacy OWNER/ADMIN check.
+
+        NOT a capability check; use :attr:`can_change_plan` for gating billing
+        plan-change actions.
+        """
         return (self.role or "").upper() in ("OWNER", "ADMIN")
+
+    @property
+    def can_change_plan(self) -> bool:
+        """Server capability when supplied; otherwise the legacy role fallback."""
+        if self.can_change_plan_raw is not None:
+            return self.can_change_plan_raw
+        return self.is_admin
 
     @property
     def can_charge(self) -> bool:
@@ -174,13 +193,7 @@ def _parse_card(raw: Any) -> Optional[CardInfo]:
     resolved_via = raw.get("resolvedVia")
     if not isinstance(resolved_via, str):
         resolved_via = None
-    chargeability = raw.get("chargeability")
-    needs_repair = (
-        isinstance(chargeability, dict) and chargeability.get("kind") == "needs_repair"
-    )
-    return CardInfo(
-        brand=brand, last4=last4, resolved_via=resolved_via, needs_repair=needs_repair
-    )
+    return CardInfo(brand=brand, last4=last4, resolved_via=resolved_via)
 
 
 def _parse_monthly_cap(raw: Any) -> Optional[MonthlyCap]:
@@ -200,6 +213,27 @@ def _parse_auto_reload(raw: Any) -> Optional[AutoReload]:
         enabled=bool(raw.get("enabled")),
         threshold_usd=parse_money(raw.get("thresholdUsd")),
         reload_to_usd=parse_money(raw.get("reloadToUsd")),
+        card=_parse_auto_reload_card(raw.get("card")),
+    )
+
+
+def _parse_auto_reload_card(raw: Any) -> Optional[AutoReloadCard]:
+    if not isinstance(raw, dict):
+        return None
+    kind = raw.get("kind")
+    if kind not in ("canonical", "distinct", "none"):
+        return None
+    if kind in ("canonical", "none"):
+        return AutoReloadCard(kind=kind)
+
+    payment_method_id = raw.get("paymentMethodId")
+    brand = raw.get("brand")
+    last4 = raw.get("last4")
+    return AutoReloadCard(
+        kind=kind,
+        payment_method_id=payment_method_id if isinstance(payment_method_id, str) else None,
+        brand=brand if isinstance(brand, str) else None,
+        last4=last4 if isinstance(last4, str) else None,
     )
 
 
@@ -224,6 +258,11 @@ def billing_state_from_payload(
         org_slug=org.get("slug"),
         org_name=org.get("name"),
         role=org.get("role"),
+        can_change_plan_raw=(
+            payload.get("canChangePlan")
+            if isinstance(payload.get("canChangePlan"), bool)
+            else None
+        ),
         balance_usd=parse_money(payload.get("balanceUsd")),
         cli_billing_enabled=bool(payload.get("cliBillingEnabled")),
         charge_presets=tuple(presets),
@@ -349,12 +388,6 @@ def _dev_fixture_billing_state() -> Optional[BillingState]:
         # Post-resolver: the card came from the subscription (provenance label).
         _sub_card = CardInfo(brand="Visa", last4="4242", resolved_via="subPin")
         return BillingState(logged_in=True, card=_sub_card, **common)
-    if name in ("card-repair", "card_repair"):
-        # Post-resolver: auto-reload card with failing payments (warn, don't block).
-        _bad_card = CardInfo(
-            brand="Mastercard", last4="9911", resolved_via="autoRefill", needs_repair=True
-        )
-        return BillingState(logged_in=True, card=_bad_card, auto_reload=autoreload_on, **common)
     if name in ("card-autoreload", "card_autoreload", "autoreload"):
         return BillingState(logged_in=True, card=card, auto_reload=autoreload_on, **common)
     if name in ("notadmin", "not-admin", "member"):

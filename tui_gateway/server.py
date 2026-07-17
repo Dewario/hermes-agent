@@ -7938,7 +7938,7 @@ def _serialize_billing_error(exc) -> dict:
     elif isinstance(exc, BillingScopeRequired):
         kind = "insufficient_scope"
     elif isinstance(exc, BillingRateLimited):
-        kind = "rate_limited"
+        kind = str(exc.error) if getattr(exc, "error", None) else "rate_limited"
     elif getattr(exc, "error", None):
         kind = str(exc.error)
     return {
@@ -7976,7 +7976,6 @@ def _serialize_billing_state(state) -> dict:
             # matches what a subscription charge would use).
             "display": state.card.display,
             "resolved_via": state.card.resolved_via,
-            "needs_repair": state.card.needs_repair,
         }
     monthly_cap = None
     if state.monthly_cap is not None:
@@ -7991,12 +7990,24 @@ def _serialize_billing_state(state) -> dict:
     auto_reload = None
     if state.auto_reload is not None:
         ar = state.auto_reload
+        card_out = None
+        if ar.card is not None:
+            if ar.card.kind == "distinct":
+                card_out = {
+                    "kind": "distinct",
+                    "payment_method_id": ar.card.payment_method_id,
+                    "brand": ar.card.brand,
+                    "last4": ar.card.last4,
+                }
+            else:
+                card_out = {"kind": ar.card.kind}
         auto_reload = {
             "enabled": ar.enabled,
             "threshold_usd": _s(ar.threshold_usd),
             "threshold_display": format_money(ar.threshold_usd),
             "reload_to_usd": _s(ar.reload_to_usd),
             "reload_to_display": format_money(ar.reload_to_usd),
+            "card": card_out,
         }
     return {
         "ok": True,
@@ -8005,6 +8016,7 @@ def _serialize_billing_state(state) -> dict:
         "org_slug": state.org_slug,
         "role": state.role,
         "is_admin": state.is_admin,
+        "can_change_plan": state.can_change_plan,
         "can_charge": state.can_charge,
         "balance_usd": _s(state.balance_usd),
         "balance_display": format_money(state.balance_usd),

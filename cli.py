@@ -10564,8 +10564,6 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
         if state.is_admin and state.cli_billing_enabled:
             if state.card is not None:
                 print(f"  Card: {state.card.display}")
-                if state.card.needs_repair:
-                    _cprint("  ⚠️ This card has been failing automatic top-ups — update it on the portal.")
             else:
                 _cprint(f"  {_d('No saved card on file — “Add funds” walks you through adding one.')}")
         print(f"  {'─' * 41}")
@@ -10781,8 +10779,6 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
 
         card = state.card
         detail = f"Payment: {card.display}" if card else "No saved card on file"
-        if card is not None and card.needs_repair:
-            _cprint("  ⚠️ This card has been failing automatic top-ups — it may decline. Update it on the portal.")
         raw = self._prompt_text_input_modal(
             title="Add funds", detail=detail, choices=preset_choices,
         )
@@ -10830,8 +10826,6 @@ class HermesCLI(CLIAgentSetupMixin, CLICommandsMixin):
             # the resolver says WHY this card, the Payment line carries it.
             if card.provenance is None:
                 _cprint(f"  {_d('Your card saved on the portal will be charged.')}")
-            if card.needs_repair:
-                _cprint("  ⚠️ This card has been failing automatic top-ups — it may decline. Update it on the portal.")
         print(f"  {'─' * 41}")
         _consent = (
             "By confirming, you allow Nous Research to charge your card."

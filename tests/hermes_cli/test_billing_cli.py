@@ -148,18 +148,17 @@ def _scripted(*responses):
     return _modal
 
 
-def test_overview_shows_card_with_provenance_and_repair_warning(cli, monkeypatch, capsys):
+def test_overview_shows_card_with_provenance(cli, monkeypatch, capsys):
     state = BillingState(
         logged_in=True, role="OWNER", balance_usd=Decimal("10"),
         cli_billing_enabled=True, charge_presets=(Decimal("25"),),
-        card=CardInfo(brand="Visa", last4="4242", resolved_via="subPin", needs_repair=True),
+        card=CardInfo(brand="Visa", last4="4242", resolved_via="subPin"),
         portal_url="https://portal/billing",
     )
     monkeypatch.setattr(bv, "build_billing_state", lambda *a, **kw: state)
     cli._show_billing("/topup")
     out = capsys.readouterr().out
     assert "Card: Visa ····4242 — the card on your subscription" in out
-    assert "failing automatic top-ups" in out
 
 
 def test_overview_shows_no_card_hint(cli, monkeypatch, capsys):

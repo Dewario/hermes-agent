@@ -132,6 +132,25 @@ class BillingRateLimited(BillingError):
     """
 
 
+class BillingStripeUnavailable(BillingRateLimited):
+    """``503 stripe_unavailable`` — Stripe itself is down.
+
+    TRANSIENT: back off and retry using Retry-After; this is NOT the same as
+    being throttled by our own rate limiter, so surfaces must not render "rate
+    limited" copy for it — they should read ``.error`` to tell the two apart.
+    Subclasses BillingRateLimited so existing back-off call sites still catch it.
+    """
+
+
+class BillingUpgradeCapExceeded(BillingRateLimited):
+    """``429 upgrade_cap_exceeded`` — the org hit its 5-upgrades/day cap.
+
+    Distinct from the hourly ``rate_limited`` charge cap (same HTTP status,
+    different meaning + no useful short-Retry-After backoff). Subclasses
+    BillingRateLimited for the same reason as BillingStripeUnavailable.
+    """
+
+
 # =============================================================================
 # Base-URL + auth resolution
 # =============================================================================
@@ -297,6 +316,15 @@ def _raise_for_error(
         "code": code,
         "recovery": recovery,
     }
+
+    if error == "stripe_unavailable":
+        raise BillingStripeUnavailable(
+            message or "Stripe is temporarily unavailable — try again shortly.", **common
+        )
+    if error == "upgrade_cap_exceeded":
+        raise BillingUpgradeCapExceeded(
+            message or "Daily plan-change limit reached — try again tomorrow.", **common
+        )
 
     if status == 401:
         # session_revoked is a full logout (→ re-login), stronger than a 401
@@ -614,5 +642,3 @@ def post_subscription_upgrade(
         extra_headers={"Idempotency-Key": idempotency_key.strip()},
         timeout=timeout,
     )
-
-
