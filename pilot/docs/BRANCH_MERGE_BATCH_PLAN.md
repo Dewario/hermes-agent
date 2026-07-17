@@ -243,6 +243,8 @@ Revert fix commits on `integrate/custom-main`, or reset integrate to post–Batc
 
 **Batch D overall:** D1–D9 complete on `integrate/custom-main`. Ready for Batch E (cut over local `main`) when you say go.
 
+**Batch E status (2026-07-17):** Synced with `origin/main` (0 behind). Cut over local `main` ← `integrate/custom-main`; tag `backup/custom-main-cutover-20260717`. Retired integrate + local feature branches; kept backup tags.
+
 Cherry-pick **from** `backup/pre-merge-feature-20260716` **onto** `integrate/custom-main`, one cluster at a time. After each cluster: run the matching tests listed.
 
 | Cluster | Commits (primary) | Tests after pick | Invariant to keep |
