@@ -2756,6 +2756,11 @@ def get_gateway_runner():
         return None
 
 
+def profile_runtime_scope(profile_home: "Path"):
+    """Context manager that scopes HERMES_HOME + secrets to a profile dir."""
+    return _profile_runtime_scope(profile_home)
+
+
 def telegramize_command_mentions(text: str, platform: Any) -> str:
     return _telegramize_command_mentions(text, platform)
 
