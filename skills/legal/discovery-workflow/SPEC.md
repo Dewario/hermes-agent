@@ -2,8 +2,8 @@
 
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
-draft). **Not ready for live use.**
-**Date:** 2026-07-17 (amended: Slice B1 outgoing RFA draft landed)
+draft), **B2** (outgoing ROG draft). **Not ready for live use.**
+**Date:** 2026-07-17 (amended: Slice B2 outgoing ROG draft landed)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -27,10 +27,11 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses (A1) | Interrogatory outgoing drafting (B2) |
-| Audit proposed final **RFA** responses (A2) | RFP outgoing drafting (B3) |
-| Audit proposed final **ROG** answers (A3) | Mixed discovery-set workflow |
-| Draft outgoing **RFAs** with issue tags (B1) | `draft_response` modes |
+| Audit proposed final **RFP** responses (A1) | RFP outgoing drafting (B3) |
+| Audit proposed final **RFA** responses (A2) | Mixed discovery-set workflow |
+| Audit proposed final **ROG** answers (A3) | `draft_response` modes |
+| Draft outgoing **RFAs** with issue tags (B1) | |
+| Draft outgoing **ROGs** with issue tags (B2) | |
 | One matter at a time | Full six-cell “ready” marketing |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | Live use without §9.5 |
 
@@ -199,8 +200,8 @@ Do not open a later slice’s live gate before earlier synthetic matrices pass.
 | **A2** | `rfa` | `audit_incoming_response` | Implemented (synthetic-only) in `scripts/rfa_audit.py` |
 | **A3** | `rog` | `audit_incoming_response` | Implemented (synthetic-only) in `scripts/rog_audit.py` |
 | **B1** | `rfa` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rfa_outgoing.py` |
-| **B2** | `rog` | `draft_outgoing_request` | Next — after B1 stays green |
-| **B3** | `rfp` | `draft_outgoing_request` | After A1 live-or-owner-deferred + B1/B2 patterns reused |
+| **B2** | `rog` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rog_outgoing.py` |
+| **B3** | `rfp` | `draft_outgoing_request` | Next — after B1/B2 stay green |
 | **C*** | `rog`\|`rfp`\|`rfa` | `draft_response` | Only after matching audit slice is intentional for live |
 
 \* `draft_response` remains deferred relative to outgoing requests unless the
@@ -219,7 +220,7 @@ Offline fixtures only (two synthetic matters for isolation where audit cites
 are involved):
 
 1. audit rog response *(Slice A3 — exists)*
-2. draft outgoing rog
+2. draft outgoing rog *(Slice B2 — exists)*
 3. audit RFP response *(Slice A1 — exists)*
 4. draft outgoing RFP
 5. audit RFA response *(Slice A2 — exists)*
@@ -260,6 +261,9 @@ python skills/legal/discovery-workflow/scripts/rog_audit.py <cmd>
 
 # Slice B1 — outgoing RFA draft (issue-tagged; not audit parsers)
 python skills/legal/discovery-workflow/scripts/rfa_outgoing.py <cmd>
+
+# Slice B2 — outgoing ROG draft (issue-tagged; refuses Admit / audit parsers)
+python skills/legal/discovery-workflow/scripts/rog_outgoing.py <cmd>
 ```
 
 A2 commands: `parse-rfa`, `parse-proposed-rfa`, `audit-rfa`,
@@ -270,6 +274,9 @@ A3 commands: `parse-rog`, `parse-proposed-rog`, `audit-rog`,
 
 B1 commands: `parse-issue-brief`, `draft-outgoing-rfa`, `package-outgoing-rfa`,
 `validate-outgoing-rfa`, `selftest`.
+
+B2 commands: `parse-issue-brief`, `draft-outgoing-rog`, `package-outgoing-rog`,
+`validate-outgoing-rog`, `selftest`.
 
 ---
 
@@ -325,6 +332,7 @@ All exit 0. No `--skip-ocr-queue` on live.
 | A2 `rfa` / `audit_incoming_response` | Green (pytest + selftest) | **Open — not signed** | Not run |
 | A3 `rog` / `audit_incoming_response` | Green (pytest + selftest) | **Open — not signed** | Not run |
 | B1 `rfa` / `draft_outgoing_request` | Green (pytest + selftest) | **Open — not signed** | Not run |
+| B2 `rog` / `draft_outgoing_request` | Green (pytest + selftest) | **Open — not signed** | Not run |
 
 §9.5 is an **owner** gate. Engineering may mark §9.1–9.3 green; it must **not**
 check §9.5 boxes or run Allen/live matters until the owner writes approval for
@@ -344,6 +352,7 @@ that exact matter ID + request_type + mode.
 | Slice A2 implementation | `skills/legal/discovery-workflow/scripts/rfa_audit.py` |
 | Slice A3 implementation | `skills/legal/discovery-workflow/scripts/rog_audit.py` |
 | Slice B1 implementation | `skills/legal/discovery-workflow/scripts/rfa_outgoing.py` |
+| Slice B2 implementation | `skills/legal/discovery-workflow/scripts/rog_outgoing.py` |
 
 When this program SPEC and Slice A1 disagree on roadmap priority, **this file
 wins**. When they disagree on RFP-audit schema details already shipped, A1
@@ -353,11 +362,11 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-1. Keep A1–A3 + B1 synthetic cells green. **No live clients** without §9.5.
-2. Implement **B2** outgoing ROG, then **B3** outgoing RFP.
+1. Keep A1–A3 + B1 + B2 synthetic cells green. **No live clients** without §9.5.
+2. Implement **B3** outgoing RFP.
 3. Live dry-run per matter only after the relevant slice’s §9.5 sign-off.
 
-**Do not** use A1/A2/A3/B1 live without owner §9.5 for that matter × type × mode.
+**Do not** use A1/A2/A3/B1/B2 live without owner §9.5 for that matter × type × mode.
 
 ### A2 acceptance checklist (synthetic)
 
@@ -379,3 +388,10 @@ SPEC wins until a compatibility amend is explicit.
 - [x] Multi-fact AND-split; `outgoing_rfa_set.md` attorney-review package.
 - [x] `tests/skills/test_discovery_rfa_outgoing.py` + `selftest`.
 - [x] Live `validate-outgoing-rfa` does not skip OCR unless synthetic.
+
+### B2 acceptance checklist (synthetic)
+
+- [x] Dedicated `rog_outgoing.py`; issue tags required; refuses Admit / objection voice.
+- [x] Multi-topic AND-split; `outgoing_rog_set.md` attorney-review package.
+- [x] `tests/skills/test_discovery_rog_outgoing.py` + `selftest`.
+- [x] Live `validate-outgoing-rog` does not skip OCR unless synthetic.

@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
-description: "ROG/RFA audit plus outgoing RFA drafts."
-version: 0.3.0
+description: "ROG/RFA audit plus outgoing ROG/RFA drafts."
+version: 0.4.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -21,6 +21,7 @@ See `SPEC.md` for the full roadmap.
 - **A2** — audit proposed final **RFA** responses (`scripts/rfa_audit.py`)
 - **A3** — audit proposed final **ROG** answers (`scripts/rog_audit.py`)
 - **B1** — draft outgoing **RFAs** with issue tags (`scripts/rfa_outgoing.py`)
+- **B2** — draft outgoing **ROGs** with issue tags (`scripts/rog_outgoing.py`)
 
 **RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
 
@@ -101,10 +102,27 @@ python $orfa validate-outgoing-rfa $m
 Input: `01_discovery_outgoing/rfa_issue_brief.md` (tagged fact lines).
 Output: `02_outputs/outgoing_rfa_set.md` (attorney-review draft only).
 
+## Slice B2 Procedure (outgoing ROG draft)
+
+```powershell
+$orog = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rog_outgoing.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $orog parse-issue-brief $m
+python $orog draft-outgoing-rog $m
+python $orog package-outgoing-rog $m
+python $orog validate-outgoing-rog $m
+```
+
+Input: `01_discovery_outgoing/rog_issue_brief.md` (tagged interrogatory lines).
+Output: `02_outputs/outgoing_rog_set.md` (attorney-review draft only).
+Refuses RFA-style `Admit` language — use Slice B1 for admissions.
+
 ## Synthetic Self-Test
 
 ```powershell
 python $rfa selftest
 python $rog selftest
 python $orfa selftest
+python $orog selftest
 ```
