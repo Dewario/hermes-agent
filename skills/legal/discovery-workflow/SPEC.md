@@ -391,7 +391,8 @@ SPEC wins until a compatibility amend is explicit.
 Synthetic matrix for A1–B3 + **D1–D3** + **G1** is **complete**.
 
 1. Keep A1–B3 + D1–D3 + G1 synthetic cells green. **No live clients** without §9.5.
-2. A* response audits now carry baseline `rule_ids` (pack deepen).
+2. One-matter smoke: `discovery_workflow.py smoke` (seed under
+   `fixtures/smoke_matter/seed/`).
 3. **C*** / live dry-run require **owner §9.5** (`OWNER_LIVE_GATE.md`).
    Engineering never checks §9.5.
 

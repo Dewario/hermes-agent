@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.12.0
+version: 0.13.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -234,6 +234,19 @@ Outputs:
 - `01_discovery_outgoing/gap_suggested_{rfp,rog,rfa}_issue_brief.md`
 
 Edit suggested lines, then run B1–B3. Does **not** serve discovery.
+
+## Counsel-Pack Smoke (one synthetic matter)
+
+Seed: `fixtures/smoke_matter/seed/` (SYNTHETIC / NON-CLIENT only).
+
+```powershell
+$dw = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\discovery_workflow.py"
+python $dw smoke
+# persist workspace:
+python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
+```
+
+Runs D1–D3 + G1 + A2 + B1–B3 validate gates on one materialised matter.
 
 ## Synthetic Self-Test
 

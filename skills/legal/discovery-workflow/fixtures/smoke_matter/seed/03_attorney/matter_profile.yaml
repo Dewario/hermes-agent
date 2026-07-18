@@ -1,0 +1,11 @@
+# SYNTHETIC / NON-CLIENT / TEST ONLY
+matter_id: SYN-SMOKE-COUNSEL
+court: "U.S. District Court (synthetic smoke)"
+jurisdiction_pack: frcp_generic
+case_overlay: fela
+discovery_cutoff: null
+expert_cutoff: null
+limits_used:
+  rog: 0
+  rfp: null
+  rfa: 0

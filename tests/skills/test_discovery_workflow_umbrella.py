@@ -151,6 +151,18 @@ def test_dispatch_trial_gap(monkeypatch):
     assert captured == ["trial_gap.py"]
 
 
+def test_smoke_command_forwards(monkeypatch):
+    captured: list[list[str]] = []
+
+    def _fake_forward(path, argv):
+        captured.append([path.name, *argv])
+        return 0
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    assert dw.main(["smoke", "--", "--keep-temp"]) == 0
+    assert captured == [["smoke_counsel_pack.py", "--keep-temp"]]
+
+
 def test_skill_description_length():
     skill = (REPO / "skills" / "legal" / "discovery-workflow" / "SKILL.md").read_text(encoding="utf-8")
     for line in skill.splitlines():
