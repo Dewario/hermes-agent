@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.8.0
+version: 0.9.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -26,6 +26,8 @@ See `SPEC.md` for the full roadmap.
   (`scripts/rfp_outgoing.py`)
 - **D1** — audit defense-served **RFP** requests under jurisdiction packs
   (`scripts/rfp_request_audit.py`)
+- **D2** — audit defense-served **RFA** requests under jurisdiction packs
+  (`scripts/rfa_request_audit.py`)
 
 **RFP response audit (Slice A1):** use `legal-discovery-response`, not D1.
 
@@ -35,9 +37,9 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 
 **Umbrella (optional):** `scripts/discovery_workflow.py` dispatches by
 `--request-type` + `--mode` to the slice scripts below, or run
-`selftest-all` for the six-cell synthetic matrix.
+`selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1 implemented (synthetic-only). D2/D3/G1 still SPEC-only —
+**Counsel-pack:** D1 + D2 implemented (synthetic-only). D3/G1 still SPEC-only —
 see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
 
 ## Hard Rules
@@ -167,6 +169,26 @@ Input: `01_discovery_served/rfp_set.md`
 Output: `02_outputs/incoming_rfp_request_audit_report.md`  
 Does **not** draft objections (`objection_draft` is always null).
 
+## Slice D2 Procedure (incoming RFA request audit)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`
+(see `templates/matter_profile.template.yaml`).
+
+```powershell
+$d2 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rfa_request_audit.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $d2 parse-served-rfa $m
+python $d2 audit-incoming-rfa $m
+python $d2 package-incoming-rfa-audit $m
+python $d2 validate-incoming-rfa-audit $m
+```
+
+Input: `01_discovery_served/rfa_set.md`  
+Output: `02_outputs/incoming_rfa_request_audit_report.md`  
+Does **not** draft objections (`objection_draft` is always null).
+Refuses RFP/ROG-looking sources — use D1 or D3 respectively.
+
 ## Synthetic Self-Test
 
 ```powershell
@@ -179,4 +201,5 @@ python $orfa selftest
 python $orog selftest
 python $orfp selftest
 python $d1 selftest
+python $d2 selftest
 ```

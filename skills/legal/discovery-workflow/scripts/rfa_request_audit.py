@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Slice D1: audit defense-served RFPs under a pinned jurisdiction pack (synthetic-only).
+"""Slice D2: audit defense-served RFAs under a pinned jurisdiction pack (synthetic-only).
 
-Mode: audit_incoming_request / request_type: rfp.
+Mode: audit_incoming_request / request_type: rfa.
 Does not reuse response-audit or outgoing-draft parsers.
 Not live-ready; attorney review required. Live use needs SPEC §9.5 sign-off.
 """
@@ -28,19 +28,19 @@ CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
 LOAD_PACK_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "load_pack.py"
 
-REQUESTS_REL = Path("02_outputs") / "incoming_rfp_requests.jsonl"
-ITEMS_REL = Path("02_outputs") / "incoming_rfp_request_audit_items.jsonl"
-PACKAGE_REL = Path("02_outputs") / "incoming_rfp_request_audit_report.md"
-META_REL = Path("02_outputs") / "incoming_rfp_request_audit_meta.json"
-DEFAULT_SOURCE = Path("01_discovery_served") / "rfp_set.md"
+REQUESTS_REL = Path("02_outputs") / "incoming_rfa_requests.jsonl"
+ITEMS_REL = Path("02_outputs") / "incoming_rfa_request_audit_items.jsonl"
+PACKAGE_REL = Path("02_outputs") / "incoming_rfa_request_audit_report.md"
+META_REL = Path("02_outputs") / "incoming_rfa_request_audit_meta.json"
+DEFAULT_SOURCE = Path("01_discovery_served") / "rfa_set.md"
 PROFILE_REL = Path("03_attorney") / "matter_profile.yaml"
 
 SCHEMA_VERSION = 1
-REQUEST_TYPE = "rfp"
+REQUEST_TYPE = "rfa"
 MODE = "audit_incoming_request"
 
-RFP_HEADING_RE = re.compile(
-    r"^\s*(?:(?:Request\s+for\s+Production|RFP)\s*(?:No\.?|Number)?\s*)"
+RFA_HEADING_RE = re.compile(
+    r"^\s*(?:(?:Request\s+for\s+Admission|RFA)\s*(?:No\.?|Number)?\s*)"
     r"(?P<num>\d+)\s*[:.)-]?\s*(?P<rest>.*)$",
     re.IGNORECASE,
 )
@@ -50,26 +50,24 @@ ROG_ONLY_RE = re.compile(
     r"^(state|identify|describe|list|explain|set forth)\b",
     re.IGNORECASE,
 )
-PRODUCE_WORD_RE = re.compile(r"\b(produce|production|documents?|records?|esi)\b", re.IGNORECASE)
-OBJECTION_RE = re.compile(r"\b(object(?:s|ion|ed)?|privilege|work product)\b", re.IGNORECASE)
-VAGUE_RE = re.compile(
-    r"\b(any and all|all documents?(?:\s+concerning|\s+relating|\s+regarding)?|"
-    r"including but not limited to|each and every|whatsoever)\b",
+PRODUCE_WORD_RE = re.compile(r"\b(produce|production)\b", re.IGNORECASE)
+AND_SPLIT_RE = re.compile(r"\bAND\b")
+COMPOUND_ADMIT_RE = re.compile(r"\badmit\b.+\band\b.+\b(?:that|whether)\b", re.IGNORECASE)
+LEGAL_CONCLUSION_RE = re.compile(
+    r"\b(liable|negligen(?:ce|t)|breach(?:ed)?\s+(?:of\s+)?duty|proximate cause|"
+    r"as a matter of law|entitled to judgment)\b",
     re.IGNORECASE,
 )
-UNBOUNDED_TIME_RE = re.compile(
-    r"\b(from the beginning of time|at any time|ever|for all time|"
-    r"since the dawn|without time limitation)\b",
-    re.IGNORECASE,
-)
-YEAR_RE = re.compile(r"\b(19|20)\d{2}\b")
 PRIVILEGE_FISH_RE = re.compile(
     r"\b(communications?\s+with\s+(?:counsel|attorneys?)|attorney[- ]client|"
     r"work[- ]product|legal advice)\b",
     re.IGNORECASE,
 )
-ESI_RE = re.compile(r"\b(esi|electronically stored|email|e-mail|native format)\b", re.IGNORECASE)
-AND_SPLIT_RE = re.compile(r"\bAND\b")
+VAGUE_RE = re.compile(
+    r"\b(any and all|all facts|everything concerning|whatsoever|"
+    r"including but not limited to)\b",
+    re.IGNORECASE,
+)
 
 
 class UsageError(RuntimeError):
@@ -87,8 +85,8 @@ def _load_module(path: Path, name: str):
     return module
 
 
-cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rfp_req_audit")
-jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d1")
+cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rfa_req_audit")
+jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d2")
 
 
 def utcnow() -> str:
@@ -216,7 +214,7 @@ def _blocks_by_heading(text: str) -> list[tuple[str, str]]:
     buf: list[str] = []
     for raw in text.splitlines():
         line = raw.rstrip()
-        match = RFP_HEADING_RE.match(line)
+        match = RFA_HEADING_RE.match(line)
         if match:
             if current_num is not None:
                 blocks.append((current_num, " ".join(buf).strip()))
@@ -224,9 +222,8 @@ def _blocks_by_heading(text: str) -> list[tuple[str, str]]:
             rest = (match.group("rest") or "").strip()
             buf = [rest] if rest else []
             continue
-        if current_num is not None:
-            if line.strip():
-                buf.append(line.strip())
+        if current_num is not None and line.strip():
+            buf.append(line.strip())
     if current_num is not None:
         blocks.append((current_num, " ".join(buf).strip()))
     return blocks
@@ -241,33 +238,33 @@ def _numbered_blocks(text: str) -> list[tuple[str, str]]:
     return blocks
 
 
-def parse_served_rfp(text: str) -> list[dict[str, Any]]:
-    """Parse defense-served RFPs. Refuses RFA/ROG-looking sets."""
-    if re.search(r"Request\s+for\s+Admission", text, re.IGNORECASE) and not re.search(
-        r"Request\s+for\s+Production", text, re.IGNORECASE
+def parse_served_rfa(text: str) -> list[dict[str, Any]]:
+    """Parse defense-served RFAs. Refuses RFP/ROG-looking sets."""
+    if re.search(r"Request\s+for\s+Production", text, re.IGNORECASE) and not re.search(
+        r"Request\s+for\s+Admission", text, re.IGNORECASE
     ):
-        raise UsageError("source looks like RFA set; use D2 (rfa_request_audit)")
+        raise UsageError("source looks like RFP set; use D1 (rfp_request_audit)")
     if re.search(r"\bInterrogator(?:y|ies)\b", text, re.IGNORECASE) and not re.search(
-        r"Request\s+for\s+Production|\bRFP\b", text, re.IGNORECASE
+        r"Request\s+for\s+Admission|\bRFA\b", text, re.IGNORECASE
     ):
-        raise UsageError("source looks like ROG set; use D3 (not implemented) / refuse RFP auditor")
+        raise UsageError("source looks like ROG set; use D3 (not implemented) / refuse RFA auditor")
 
     blocks = _blocks_by_heading(text) or _numbered_blocks(text)
     if not blocks:
-        raise UsageError("zero RFP items parsed — expected 'Request for Production No. N:' headings")
+        raise UsageError("zero RFA items parsed — expected 'Request for Admission No. N:' headings")
 
     rows: list[dict[str, Any]] = []
     for num, body in blocks:
         body = " ".join(body.split()).strip()
         if not body:
-            raise UsageError(f"RFP No. {num}: empty body")
-        if ADMIT_RE.search(body) and not PRODUCE_WORD_RE.search(body):
+            raise UsageError(f"RFA No. {num}: empty body")
+        if PRODUCE_WORD_RE.search(body) and not ADMIT_RE.search(body):
             raise UsageError(
-                f"RFP No. {num}: RFA-style Admit language refused; this auditor is RFP-only"
+                f"RFA No. {num}: production-style language refused; this auditor is RFA-only"
             )
-        if ROG_ONLY_RE.match(body) and not PRODUCE_WORD_RE.search(body):
+        if ROG_ONLY_RE.match(body) and not ADMIT_RE.search(body):
             raise UsageError(
-                f"RFP No. {num}: interrogatory-style language refused; this auditor is RFP-only"
+                f"RFA No. {num}: interrogatory-style language refused; this auditor is RFA-only"
             )
         rows.append({
             "served_number": int(num),
@@ -313,65 +310,53 @@ def audit_request(
             severity = "warn"
             needs_attorney = True
 
+    # Compound / not separately stated (FRCP 36(a)(2))
+    and_parts = [p for p in AND_SPLIT_RE.split(text) if p.strip()]
+    if len(and_parts) >= 2 or COMPOUND_ADMIT_RE.search(text) or len(re.findall(r"\badmit\b", text, re.I)) > 1:
+        add(
+            "not_separately_stated",
+            ["FRCP-36-a-2", "FRCP-26-b-1"],
+            "Compound or multi-fact admission — FRCP 36 expects each matter separately stated.",
+            "warn",
+        )
     if VAGUE_RE.search(text):
         add(
-            "lacks_particularity",
-            ["FRCP-34-b-1", "FRCP-26-b-1"],
-            "Broad/vague production language may lack reasonable particularity.",
+            "vague_or_overbroad",
+            ["FRCP-36-a-1", "FRCP-26-b-1"],
+            "Vague/overbroad admission language may be improper under Rule 36 scope.",
             "warn",
         )
-    if UNBOUNDED_TIME_RE.search(text) or (
-        VAGUE_RE.search(text) and not YEAR_RE.search(text) and not re.search(
-            r"\b(on|before|after|between|from|through|during)\b", text, re.IGNORECASE
-        )
-    ):
+    if LEGAL_CONCLUSION_RE.search(text):
         add(
-            "unbounded_temporal_scope",
-            ["FRCP-26-b-1", "FRCP-26-b-2-C"],
-            "No clear temporal bound — proportionality / cumulative burden concern.",
-            "warn",
-        )
-    if AND_SPLIT_RE.search(text) and len(AND_SPLIT_RE.split(text)) >= 3:
-        add(
-            "compound_multi_category",
-            ["FRCP-34-b-1", "FRCP-26-b-2-C"],
-            "Multi-category compound request — consider severing for particularity.",
+            "legal_conclusion",
+            ["FRCP-36-a-1", "FRCP-26-b-1"],
+            "May call for a pure legal conclusion — attorney must decide answer/objection posture.",
             "warn",
         )
     if PRIVILEGE_FISH_RE.search(text):
         add(
             "privilege_boundary",
-            ["FRCP-26-b-1"],
+            ["FRCP-26-b-1", "FRCP-36-a-5"],
             "Language may reach privileged attorney communications — attorney must decide objection posture.",
             "fail_candidate",
         )
-    if ESI_RE.search(text) and not re.search(r"\b(form|native|pdf|tiff)\b", text, re.IGNORECASE):
-        add(
-            "esi_form_unspecified",
-            ["FRCP-34-b-1"],
-            "ESI referenced without specifying form of production.",
-            "info",
-        )
-        if severity == "info":
-            pass
 
     if not flags:
-        # Still attach scope rule as informational baseline
-        _ensure_rule(rule_ids, available_rules, "FRCP-34-a")
+        _ensure_rule(rule_ids, available_rules, "FRCP-36-a-1")
         _ensure_rule(rule_ids, available_rules, "FRCP-26-b-1")
-        notes.append("No automated particularity/privilege flags; attorney serve/response strategy still required.")
+        notes.append("No automated compound/privilege flags; attorney response strategy still required.")
 
     if not rule_ids:
         needs_attorney = True
         notes.append("No pack rule_ids resolved — needs_attorney_rule_confirm.")
 
-    item_id = f"IR-RFP-{index}"
+    item_id = f"IR-RFA-{index}"
     return {
         "item_id": item_id,
         "served_number": req.get("served_number"),
         "request_type": REQUEST_TYPE,
         "mode": MODE,
-        "source_request_label": f"Served production request {req.get('served_number')}",
+        "source_request_label": f"Served admission request {req.get('served_number')}",
         "text": text,
         "flags": sorted(set(flags)),
         "rule_ids": sorted(rule_ids),
@@ -384,14 +369,14 @@ def audit_request(
     }
 
 
-def cmd_parse_served_rfp(args: argparse.Namespace) -> int:
+def cmd_parse_served_rfa(args: argparse.Namespace) -> int:
     root = matter_root(args.matter_dir)
     source = contained(root, args.source or DEFAULT_SOURCE)
     if not source.is_file():
-        print(f"ERROR: served RFP source not found: {source}", file=sys.stderr)
+        print(f"ERROR: served RFA source not found: {source}", file=sys.stderr)
         return 2
     try:
-        rows = parse_served_rfp(read_text(source))
+        rows = parse_served_rfa(read_text(source))
     except UsageError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
@@ -411,11 +396,11 @@ def cmd_parse_served_rfp(args: argparse.Namespace) -> int:
         },
     )
     refresh_casegraph_index(root)
-    print(f"parsed {len(rows)} served RFPs -> {root / REQUESTS_REL}")
+    print(f"parsed {len(rows)} served RFAs -> {root / REQUESTS_REL}")
     return 0
 
 
-def cmd_audit_incoming_rfp(args: argparse.Namespace) -> int:
+def cmd_audit_incoming_rfa(args: argparse.Namespace) -> int:
     root = matter_root(args.matter_dir)
     try:
         profile = load_matter_profile(root)
@@ -445,7 +430,7 @@ def cmd_audit_incoming_rfp(args: argparse.Namespace) -> int:
     })
     write_json(output_path(root, META_REL), meta)
     refresh_casegraph_index(root)
-    print(f"audited {len(items)} incoming RFPs -> {root / ITEMS_REL}")
+    print(f"audited {len(items)} incoming RFAs -> {root / ITEMS_REL}")
     return 0
 
 
@@ -466,19 +451,15 @@ def validate_records(requests: list[dict[str, Any]], items: list[dict[str, Any]]
             errors.append(f"{iid}: must have rule_ids or needs_attorney_rule_confirm")
         if item.get("objection_draft") not in (None, ""):
             errors.append(f"{iid}: objection_draft must be null unless firm template opt-in")
-        if OBJECTION_RE.search(str(item.get("text") or "")):
-            # served request text may mention privilege topics; ok. Draft field must stay null.
-            pass
-        sev = item.get("severity")
-        if sev not in {"info", "warn", "fail_candidate"}:
+        if item.get("severity") not in {"info", "warn", "fail_candidate"}:
             errors.append(f"{iid}: invalid severity")
     return errors
 
 
 def _display_item_id(item_id: str) -> str:
-    match = re.fullmatch(r"IR-RFP-(\d+)", str(item_id))
+    match = re.fullmatch(r"IR-RFA-(\d+)", str(item_id))
     if match:
-        return f"Incoming production request {int(match.group(1))}"
+        return f"Incoming admission request {int(match.group(1))}"
     return str(item_id)
 
 
@@ -487,7 +468,7 @@ def build_package(root: Path, items: list[dict[str, Any]], meta: dict[str, Any])
     lines = [
         "<!-- synthetic / non-client / test only -->",
         "",
-        "# Incoming Production Request Audit - DRAFT FOR ATTORNEY REVIEW",
+        "# Incoming Admission Request Audit - DRAFT FOR ATTORNEY REVIEW",
         "",
         f"**Matter ID:** {matter_id}",
         f"**Request type:** {REQUEST_TYPE}",
@@ -537,10 +518,10 @@ def build_package(root: Path, items: list[dict[str, Any]], meta: dict[str, Any])
         "",
         "## Attorney checklist",
         "",
-        "- [ ] Particularity / proportionality flags reviewed against governing pack",
-        "- [ ] Privilege-boundary items decided by attorney (no tool-drafted objections)",
+        "- [ ] Compound / separately-stated flags reviewed against Rule 36",
+        "- [ ] Privilege-boundary and legal-conclusion items decided by attorney",
         "- [ ] No invented Bates or transcript locators in this package",
-        "- [ ] Gate commands for Slice D1 exit 0",
+        "- [ ] Gate commands for Slice D2 exit 0",
         "- [ ] Owner §9.5 sign-off before any live matter use",
         "",
     ])
@@ -562,7 +543,7 @@ def cmd_package(args: argparse.Namespace) -> int:
     path = output_path(root, PACKAGE_REL)
     path.write_text(build_package(root, items, meta), encoding="utf-8", newline="\n")
     refresh_casegraph_index(root)
-    print(f"wrote incoming RFP request audit package -> {path}")
+    print(f"wrote incoming RFA request audit package -> {path}")
     return 0
 
 
@@ -580,8 +561,8 @@ def cmd_validate(args: argparse.Namespace) -> int:
         errors.append(f"missing package: {package}")
     else:
         text = package.read_text(encoding="utf-8")
-        if re.search(r"\bRFP-0\d{2,}\b", text):
-            errors.append("package contains Bates-colliding RFP-00N tokens; use display labels")
+        if re.search(r"\bRFA-0\d{2,}\b", text):
+            errors.append("package contains Bates-colliding RFA-00N tokens; use display labels")
     try:
         profile = load_matter_profile(root)
         jp.load_pack(
@@ -607,7 +588,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
             sys.executable, str(LIVE_PREFLIGHT_SCRIPT),
             "--matter-dir", str(root),
         ]
-        # Package is rule analysis without Bates cites — omit --output
         if synthetic:
             preflight.append("--skip-ocr-queue")
         gates.append(preflight)
@@ -616,14 +596,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
         if code != 0:
             print(f"FAIL: gate exited {code}: {' '.join(command)}")
             return 1
-    print("PASS: incoming RFP request audit validation")
+    print("PASS: incoming RFA request audit validation")
     return 0
 
 
 def _write_profile(root: Path, matter_id: str) -> None:
     (root / "03_attorney").mkdir(parents=True, exist_ok=True)
     (root / PROFILE_REL).write_text(
-        "matter_id: {mid}\n"
+        f"matter_id: {matter_id}\n"
         "court: \"U.S. District Court (synthetic)\"\n"
         "jurisdiction_pack: frcp_generic\n"
         "case_overlay: fela\n"
@@ -632,7 +612,7 @@ def _write_profile(root: Path, matter_id: str) -> None:
         "limits_used:\n"
         "  rog: 0\n"
         "  rfp: null\n"
-        "  rfa: 0\n".format(mid=matter_id),
+        "  rfa: 0\n",
         encoding="utf-8",
     )
 
@@ -648,13 +628,13 @@ def _create_synthetic_matter(root: Path, matter_id: str, prefix: str) -> None:
     _write_profile(root, matter_id)
     (root / DEFAULT_SOURCE).write_text(
         "<!-- SYNTHETIC / NON-CLIENT / TEST ONLY -->\n\n"
-        "Request for Production No. 1: Produce all incident reports concerning the "
-        "June 1, 2024 ladder event, limited to January 1, 2023 through June 30, 2024.\n\n"
-        "Request for Production No. 2: Produce any and all documents whatsoever relating "
-        "to the incident from the beginning of time, including but not limited to emails, "
-        "ESI, and each and every communication with counsel.\n\n"
-        "Request for Production No. 3: Produce photographs of the ladder taken on or about "
-        "June 1, 2024.\n",
+        "Request for Admission No. 1: Admit that an incident report exists for the "
+        "June 1, 2024 ladder event.\n\n"
+        "Request for Admission No. 2: Admit that defendant was negligent AND that "
+        "defendant's negligence was the proximate cause of plaintiff's injuries AND "
+        "that plaintiff is entitled to judgment as a matter of law.\n\n"
+        "Request for Admission No. 3: Admit that counsel's legal advice to plaintiff "
+        "concerning settlement was unreasonable.\n",
         encoding="utf-8",
     )
     (root / "01_production" / "raw" / f"{prefix}-000010.md").write_text(
@@ -667,26 +647,26 @@ def _create_synthetic_matter(root: Path, matter_id: str, prefix: str) -> None:
 
 
 def cmd_selftest(_args: argparse.Namespace) -> int:
-    with tempfile.TemporaryDirectory(prefix="rfp-request-audit-selftest-") as tmp:
+    with tempfile.TemporaryDirectory(prefix="rfa-request-audit-selftest-") as tmp:
         root = Path(tmp)
         a = root / "SYNTHETIC_client_a"
         b = root / "SYNTHETIC_client_b"
-        _create_synthetic_matter(a, "SYN-IRFP-A", "THORN-PROD")
-        _create_synthetic_matter(b, "SYN-IRFP-B", "RIVER-PROD")
+        _create_synthetic_matter(a, "SYN-IRFA-A", "THORN-PROD")
+        _create_synthetic_matter(b, "SYN-IRFA-B", "RIVER-PROD")
         for matter in (a, b):
             for command in (
-                ["parse-served-rfp", str(matter)],
-                ["audit-incoming-rfp", str(matter)],
-                ["package-incoming-rfp-audit", str(matter)],
-                ["validate-incoming-rfp-audit", str(matter)],
+                ["parse-served-rfa", str(matter)],
+                ["audit-incoming-rfa", str(matter)],
+                ["package-incoming-rfa-audit", str(matter)],
+                ["validate-incoming-rfa-audit", str(matter)],
             ):
                 code = main(command)
                 if code != 0:
                     print(f"selftest failed for {matter.name}: {' '.join(command)}", file=sys.stderr)
                     return code
         a_items = read_jsonl(a / ITEMS_REL)
-        if not any("lacks_particularity" in (i.get("flags") or []) for i in a_items):
-            print("selftest failed: expected particularity flag on broad request", file=sys.stderr)
+        if not any("not_separately_stated" in (i.get("flags") or []) for i in a_items):
+            print("selftest failed: expected compound flag", file=sys.stderr)
             return 1
         if not any("privilege_boundary" in (i.get("flags") or []) for i in a_items):
             print("selftest failed: expected privilege_boundary flag", file=sys.stderr)
@@ -699,10 +679,10 @@ def cmd_selftest(_args: argparse.Namespace) -> int:
         if "RIVER-PROD" in a_pkg or "THORN-PROD" in b_pkg:
             print("selftest failed: cross-matter Bates leaked", file=sys.stderr)
             return 1
-        if "RFP-001" in a_pkg:
-            print("selftest failed: Bates-like RFP-001 in package", file=sys.stderr)
+        if "RFA-001" in a_pkg:
+            print("selftest failed: Bates-like RFA-001 in package", file=sys.stderr)
             return 1
-        print("PASS: rfp-request-audit selftest")
+        print("PASS: rfa-request-audit selftest")
         return 0
 
 
@@ -710,28 +690,28 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
 
-    p = sub.add_parser("parse-served-rfp", help="parse defense-served RFP set")
+    p = sub.add_parser("parse-served-rfa", help="parse defense-served RFA set")
     p.add_argument("matter_dir")
     p.add_argument("--source", type=Path)
-    p.set_defaults(fn=cmd_parse_served_rfp)
+    p.set_defaults(fn=cmd_parse_served_rfa)
 
-    p = sub.add_parser("audit-incoming-rfp", help="audit served RFPs against jurisdiction pack")
+    p = sub.add_parser("audit-incoming-rfa", help="audit served RFAs against jurisdiction pack")
     p.add_argument("matter_dir")
     p.add_argument("--allow-stub-pack", action="store_true")
-    p.set_defaults(fn=cmd_audit_incoming_rfp)
+    p.set_defaults(fn=cmd_audit_incoming_rfa)
 
-    p = sub.add_parser("package-incoming-rfp-audit", help="write audit report markdown")
+    p = sub.add_parser("package-incoming-rfa-audit", help="write audit report markdown")
     p.add_argument("matter_dir")
     p.set_defaults(fn=cmd_package)
 
-    p = sub.add_parser("validate-incoming-rfp-audit", help="run Slice D1 validators and gates")
+    p = sub.add_parser("validate-incoming-rfa-audit", help="run Slice D2 validators and gates")
     p.add_argument("matter_dir")
     p.add_argument("--skip-live-preflight", action="store_true")
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--allow-stub-pack", action="store_true")
     p.set_defaults(fn=cmd_validate)
 
-    p = sub.add_parser("selftest", help="offline synthetic D1 E2E")
+    p = sub.add_parser("selftest", help="offline synthetic D2 E2E")
     p.set_defaults(fn=cmd_selftest)
     return parser
 

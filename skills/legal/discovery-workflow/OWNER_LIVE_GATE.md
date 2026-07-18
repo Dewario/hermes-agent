@@ -38,11 +38,12 @@ matter_id:      ______________________________
 request_type:   [ ] rog   [ ] rfp   [ ] rfa      (choose exactly one)
 mode:           [ ] audit_incoming_response
                 [ ] draft_outgoing_request
+                [ ] audit_incoming_request
                 [ ] draft_response            (choose exactly one)
 tip_commit_sha: ______________________________   (git rev-parse HEAD, validated tip)
 slice:          ____   (A1 rfp-audit | A2 rfa-audit | A3 rog-audit |
                         B1 rfa-draft | B2 rog-draft | B3 rfp-draft |
-                        D1 rfp-request-audit)
+                        D1 rfp-request-audit | D2 rfa-request-audit)
 
 --- §9.1 Per-slice synthetic (engineering may confirm; owner verifies) ---
 [ ] Dedicated parser; refuses wrong request_type input.
