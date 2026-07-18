@@ -1,13 +1,13 @@
 ---
 name: legal-discovery-workflow
-description: "Audit RFA responses; RFP via sibling skill."
-version: 0.1.0
+description: "Audit ROG/RFA responses; RFP via sibling."
+version: 0.2.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [legal, discovery, audit, rfa, citations, plaintiff]
+    tags: [legal, discovery, audit, rfa, rog, citations, plaintiff]
     category: legal
     related_skills: [legal-casegraph, legal-discovery-response]
 ---
@@ -17,13 +17,14 @@ metadata:
 Program skill for multi-type discovery (`rog`|`rfp`|`rfa` × audit|draft).
 See `SPEC.md` for the full roadmap.
 
-**Implemented here (Slice A2):** audit proposed final **RFA** responses against
-one client's indexed matter record.
+**Implemented here:**
+- **A2** — audit proposed final **RFA** responses (`scripts/rfa_audit.py`)
+- **A3** — audit proposed final **ROG** answers (`scripts/rog_audit.py`)
 
-**RFP audit (Slice A1):** use `legal-discovery-response`, not this module.
+**RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
 
 This skill is **not ready for live use** until the relevant slice gates pass and
-the owner signs off for that matter × request_type × mode.
+the owner signs off for that matter × request_type × mode (§9.5).
 
 ## Hard Rules
 
@@ -59,8 +60,34 @@ Outputs:
 - `02_outputs/rfa_audit_items.jsonl`
 - `02_outputs/rfa_response_audit_report.md`
 
+## Slice A3 Procedure (ROG audit)
+
+```powershell
+$rog = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rog_audit.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $rog parse-rog $m
+python $rog parse-proposed-rog $m
+python $rog audit-rog $m
+python $rog package-rog-audit $m
+python $rog validate-rog-audit $m
+```
+
+Inputs:
+
+- `01_discovery_served/rog_set.md`
+- `01_discovery_proposed/proposed_rog_answers.md`
+
+Outputs:
+
+- `02_outputs/rog_requests.json`
+- `02_outputs/proposed_rog_propositions.jsonl`
+- `02_outputs/rog_audit_items.jsonl`
+- `02_outputs/rog_response_audit_report.md`
+
 ## Synthetic Self-Test
 
 ```powershell
 python $rfa selftest
+python $rog selftest
 ```
