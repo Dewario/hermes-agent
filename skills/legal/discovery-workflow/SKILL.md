@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.7.0
+version: 0.8.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -24,8 +24,10 @@ See `SPEC.md` for the full roadmap.
 - **B2** — draft outgoing **ROGs** with issue tags (`scripts/rog_outgoing.py`)
 - **B3** — draft outgoing **RFPs** with issue tags + production awareness
   (`scripts/rfp_outgoing.py`)
+- **D1** — audit defense-served **RFP** requests under jurisdiction packs
+  (`scripts/rfp_request_audit.py`)
 
-**RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
+**RFP response audit (Slice A1):** use `legal-discovery-response`, not D1.
 
 This skill is **not ready for live use** until the relevant slice gates pass and
 the owner signs off for that matter × request_type × mode (§9.5). Use
@@ -35,9 +37,8 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the six-cell synthetic matrix.
 
-**Counsel-pack expansion (SPEC only):** see `COUNSEL_PACK_SPEC.md` for
-defense-request audit (D1–D3), trial-gap (G1), and `jurisdiction/` packs.
-Not implemented yet beyond pack data + `jurisdiction/load_pack.py`.
+**Counsel-pack:** D1 implemented (synthetic-only). D2/D3/G1 still SPEC-only —
+see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
 
 ## Hard Rules
 
@@ -147,6 +148,25 @@ Output: `02_outputs/outgoing_rfp_set.md` (attorney-review draft only).
 Flags keyword overlaps against this matter's casegraph index. Refuses Admit
 and interrogatory-only stems.
 
+## Slice D1 Procedure (incoming RFP request audit)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`
+(see `templates/matter_profile.template.yaml`).
+
+```powershell
+$d1 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rfp_request_audit.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $d1 parse-served-rfp $m
+python $d1 audit-incoming-rfp $m
+python $d1 package-incoming-rfp-audit $m
+python $d1 validate-incoming-rfp-audit $m
+```
+
+Input: `01_discovery_served/rfp_set.md`  
+Output: `02_outputs/incoming_rfp_request_audit_report.md`  
+Does **not** draft objections (`objection_draft` is always null).
+
 ## Synthetic Self-Test
 
 ```powershell
@@ -158,4 +178,5 @@ python $rog selftest
 python $orfa selftest
 python $orog selftest
 python $orfp selftest
+python $d1 selftest
 ```

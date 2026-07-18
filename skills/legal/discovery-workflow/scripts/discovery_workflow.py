@@ -27,6 +27,7 @@ DISPATCH: dict[tuple[str, str], Path] = {
     ("rfa", "draft_outgoing_request"): WORKFLOW_SCRIPTS / "rfa_outgoing.py",
     ("rog", "draft_outgoing_request"): WORKFLOW_SCRIPTS / "rog_outgoing.py",
     ("rfp", "draft_outgoing_request"): WORKFLOW_SCRIPTS / "rfp_outgoing.py",
+    ("rfp", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rfp_request_audit.py",
 }
 
 SLICE_SELFTESTS: list[tuple[str, Path]] = [
@@ -36,6 +37,7 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
     ("B1 rfa/draft", WORKFLOW_SCRIPTS / "rfa_outgoing.py"),
     ("B2 rog/draft", WORKFLOW_SCRIPTS / "rog_outgoing.py"),
     ("B3 rfp/draft", WORKFLOW_SCRIPTS / "rfp_outgoing.py"),
+    ("D1 rfp/request-audit", WORKFLOW_SCRIPTS / "rfp_request_audit.py"),
 ]
 
 # Commands that do not take a matter_dir positional
@@ -62,8 +64,16 @@ def resolve_slice(request_type: str, mode: str) -> Path:
     key = (request_type.lower(), mode.lower())
     if mode.lower() == "draft_response":
         raise SystemExit(
-            "ERROR: mode 'draft_response' is not implemented (SPEC C* deferred). "
-            "Use audit_incoming_response or draft_outgoing_request."
+            "ERROR: mode 'draft_response' is not implemented (SPEC C* deferred)."
+        )
+    if mode.lower() == "trial_gap_assessment":
+        raise SystemExit(
+            "ERROR: mode 'trial_gap_assessment' is not implemented (SPEC G1 deferred)."
+        )
+    if mode.lower() == "audit_incoming_request" and request_type.lower() != "rfp":
+        raise SystemExit(
+            "ERROR: audit_incoming_request is implemented for rfp only (Slice D1). "
+            "D2/D3 (rfa/rog) are not implemented yet."
         )
     path = DISPATCH.get(key)
     if path is None:
@@ -93,7 +103,7 @@ def cmd_selftest_all() -> int:
     if failed:
         print(f"FAIL: selftest-all ({failed} slice(s) failed)", file=sys.stderr)
         return 1
-    print("PASS: discovery-workflow selftest-all (6/6)")
+    print(f"PASS: discovery-workflow selftest-all ({len(SLICE_SELFTESTS)}/{len(SLICE_SELFTESTS)})")
     return 0
 
 
@@ -114,7 +124,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--request-type", choices=("rog", "rfp", "rfa"))
     parser.add_argument(
         "--mode",
-        choices=("audit_incoming_response", "draft_outgoing_request", "draft_response"),
+        choices=(
+            "audit_incoming_response",
+            "draft_outgoing_request",
+            "audit_incoming_request",
+            "trial_gap_assessment",
+            "draft_response",
+        ),
     )
     parser.add_argument(
         "command",

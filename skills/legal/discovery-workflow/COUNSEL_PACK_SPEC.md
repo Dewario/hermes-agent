@@ -1,8 +1,9 @@
 # Plaintiff Discovery Counsel Pack — Expansion SPEC
 
-**Status:** SPEC only — **not implemented**. Synthetic A1–B3 remain the only
-green cells. **Not ready for live use.**
-**Date:** 2026-07-17  
+**Status:** Expansion SPEC active. **D1** (RFP `audit_incoming_request`)
+implemented synthetic-only. D2/D3/G1 not implemented. **Not ready for live use.**
+**Date:** 2026-07-17 (amended: D1 landed)  
+
 **Parent program:** `SPEC.md` (A1–B3 details win there until merged)  
 **This file wins** on counsel-pack roadmap, new modes, and jurisdiction axis.
 
@@ -165,9 +166,10 @@ Jurisdiction unit tests: load `frcp_generic`+`fela`; refuse `ca_ccp` without
 Same as parent SPEC §9.1–9.3 + pack pinning + rule_id discipline.  
 §9.5 remains **owner-only**.
 
-### D1 acceptance checklist (not started)
+### D1 acceptance checklist (synthetic)
 
-- [ ] Dedicated RFP incoming-request auditor; refuses response-audit parsers
-- [ ] Loads `frcp_generic` (+ optional overlay); stub packs blocked on live
-- [ ] Template + synthetic fixture + pytest/selftest
-- [ ] Umbrella dispatch for `audit_incoming_request`
+- [x] Dedicated `rfp_request_audit.py`; refuses RFA/ROG-looking sources
+- [x] Loads `frcp_generic` (+ optional `fela`); stub packs blocked without flag
+- [x] Template + fixture + `test_discovery_rfp_request_audit.py` + `selftest`
+- [x] Umbrella dispatch for `rfp` / `audit_incoming_request`
+- [x] Live validate does not skip OCR unless synthetic; `objection_draft` always null

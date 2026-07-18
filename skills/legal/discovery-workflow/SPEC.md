@@ -2,11 +2,10 @@
 
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
-draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
-expansion (**D1–D3**, **G1**, jurisdiction packs) is SPEC’d in
-`COUNSEL_PACK_SPEC.md` — **not implemented** beyond pack data + loader.
-**Not ready for live use** (owner §9.5 still open per matter × type × mode).
-**Date:** 2026-07-17 (amended: counsel-pack SPEC + jurisdiction packs landed)
+draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack expansion: jurisdiction packs + **D1** RFP
+`audit_incoming_request` (synthetic-only). D2/D3/G1 still planned — see
+`COUNSEL_PACK_SPEC.md`. **Not ready for live use** (owner §9.5 still open).
+**Date:** 2026-07-17 (amended: Slice D1 incoming RFP request audit landed)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -30,13 +29,14 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses (A1) | Audit **defense-served requests** (D1–D3) |
+| Audit proposed final **RFP** responses (A1) | Audit defense-served **RFA/ROG** requests (D2/D3) |
 | Audit proposed final **RFA** responses (A2) | `trial_gap_assessment` (G1) |
 | Audit proposed final **ROG** answers (A3) | `draft_response` modes (C*) |
 | Draft outgoing **RFAs** with issue tags (B1) | Mixed discovery-set workflow |
 | Draft outgoing **ROGs** with issue tags (B2) | Live use without §9.5 |
 | Draft outgoing **RFPs** with issue tags + production awareness (B3) | Full counsel-pack “ready” marketing |
-| Jurisdiction pack **data** + loader (`jurisdiction/`) | D1 checker consuming packs |
+| Jurisdiction packs + loader | |
+| Audit defense-served **RFP** requests (D1) | |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
 
@@ -387,12 +387,10 @@ Synthetic matrix for A1–B3 is **complete**. Counsel-pack expansion is
 specified (`COUNSEL_PACK_SPEC.md`, `COUNSEL_PACK_ASSESSMENT.md`,
 `jurisdiction/`) but **not implemented** past the pack loader.
 
-1. **Implement D1** — `audit_incoming_request` for RFP using `frcp_generic`
-   (+ optional `fela` overlay). See `COUNSEL_PACK_SPEC.md`.
-2. Then D2/D3 → G1 trial-gap orchestrator → deepen A\* with `rule_ids`.
-3. **Owner §9.5** still required before any live dry-run of existing or new
-   modes (`OWNER_LIVE_GATE.md`). Engineering never checks §9.5.
-4. Keep A1–A3 + B1–B3 synthetic cells green. **No live clients** without §9.5.
+1. Keep A1–B3 + **D1** synthetic cells green. **No live clients** without §9.5.
+2. **Implement D2/D3** then **G1** (`COUNSEL_PACK_SPEC.md`).
+3. **Owner §9.5** still required before any live dry-run (`OWNER_LIVE_GATE.md`).
+   Engineering never checks §9.5.
 
 **Do not** use A1/A2/A3/B1/B2/B3 live without owner §9.5 for that matter × type × mode.
 

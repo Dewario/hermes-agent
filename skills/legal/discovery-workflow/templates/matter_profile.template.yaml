@@ -1,0 +1,13 @@
+# Copy to <matter>/03_attorney/matter_profile.yaml (outside the repo).
+# Required for audit_incoming_request / trial_gap_assessment slices.
+
+matter_id: REPLACE_ME
+court: "U.S. District Court — REPLACE"
+jurisdiction_pack: frcp_generic   # active packs only for live (not ca_ccp stub)
+case_overlay: fela                # optional; must match base_pack
+discovery_cutoff: null            # ISO date or null
+expert_cutoff: null
+limits_used:
+  rog: 0
+  rfp: null
+  rfa: 0

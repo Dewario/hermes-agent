@@ -147,15 +147,16 @@ in one review context.
 | 4 | B3 | `rfp` draft_outgoing_request | `discovery-workflow/scripts/rfp_outgoing.py` |
 | 5 | A2 | `rfa` audit_incoming_response | `discovery-workflow/scripts/rfa_audit.py` |
 | 6 | B1 | `rfa` draft_outgoing_request | `discovery-workflow/scripts/rfa_outgoing.py` |
+| 7 | D1 | `rfp` audit_incoming_request | `discovery-workflow/scripts/rfp_request_audit.py` |
 
 Optional umbrella (thin dispatcher — same slices):
 `discovery-workflow/scripts/discovery_workflow.py --request-type … --mode … <cmd>`
 or `… selftest-all`. Per-slice scripts above remain the canonical entry points.
 
-Counsel-pack expansion (defense-request audit, trial-gap, jurisdiction packs)
-is SPEC’d under `discovery-workflow/COUNSEL_PACK_SPEC.md` — **not live** and
-**not implemented** past jurisdiction pack data/loader. Do not treat it as a
-live dry-run path.
+Counsel-pack: **D1** incoming RFP request audit exists synthetic-only
+(`discovery-workflow/scripts/rfp_request_audit.py`) and needs its own §9.5
+before any live dry-run. D2/D3/G1 remain SPEC-only
+(`discovery-workflow/COUNSEL_PACK_SPEC.md`).
 
 **Live dry-run for a single cell (only after owner §9.5 for that cell).** Produce
 the slice output with its script, then run gates **without** `--skip-ocr-queue`
