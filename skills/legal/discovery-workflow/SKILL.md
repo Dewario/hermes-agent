@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
-description: "Audit ROG/RFA responses; RFP via sibling."
-version: 0.2.0
+description: "ROG/RFA audit plus outgoing RFA drafts."
+version: 0.3.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -20,6 +20,7 @@ See `SPEC.md` for the full roadmap.
 **Implemented here:**
 - **A2** — audit proposed final **RFA** responses (`scripts/rfa_audit.py`)
 - **A3** — audit proposed final **ROG** answers (`scripts/rog_audit.py`)
+- **B1** — draft outgoing **RFAs** with issue tags (`scripts/rfa_outgoing.py`)
 
 **RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
 
@@ -85,9 +86,25 @@ Outputs:
 - `02_outputs/rog_audit_items.jsonl`
 - `02_outputs/rog_response_audit_report.md`
 
+## Slice B1 Procedure (outgoing RFA draft)
+
+```powershell
+$orfa = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rfa_outgoing.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $orfa parse-issue-brief $m
+python $orfa draft-outgoing-rfa $m
+python $orfa package-outgoing-rfa $m
+python $orfa validate-outgoing-rfa $m
+```
+
+Input: `01_discovery_outgoing/rfa_issue_brief.md` (tagged fact lines).
+Output: `02_outputs/outgoing_rfa_set.md` (attorney-review draft only).
+
 ## Synthetic Self-Test
 
 ```powershell
 python $rfa selftest
 python $rog selftest
+python $orfa selftest
 ```
