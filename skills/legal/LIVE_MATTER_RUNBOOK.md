@@ -130,8 +130,8 @@ For medical-record timelines after review, use `skills/legal/medical-chronology/
 Program roadmap: `skills/legal/discovery-workflow/SPEC.md` (`rog`|`rfp`|`rfa`
 × audit|draft). Implemented synthetic-only today: **A1** RFP audit,
 **A2** RFA audit, **A3** ROG audit, **B1** outgoing RFA draft
-(`rfa_outgoing.py`), **B2** outgoing ROG draft (`rog_outgoing.py`). Do **not**
-use Hermes for Allen or any live matter’s discovery audit/draft until the
-relevant slice’s §9.1–9.3 are green **and** the owner signs §9.5 for **that
-matter × request_type × mode**. Never combine two clients’ records in one
-review context. Outgoing RFP drafts (B3) are not implemented yet.
+(`rfa_outgoing.py`), **B2** outgoing ROG draft (`rog_outgoing.py`), **B3**
+outgoing RFP draft (`rfp_outgoing.py`). All six §7 synthetic cells exist;
+live use still requires owner §9.5 per matter × request_type × mode. Do **not**
+use Hermes for Allen or any live matter’s discovery audit/draft until that
+sign-off. Never combine two clients’ records in one review context.

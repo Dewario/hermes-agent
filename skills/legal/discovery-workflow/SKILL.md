@@ -1,13 +1,13 @@
 ---
 name: legal-discovery-workflow
-description: "ROG/RFA audit plus outgoing ROG/RFA drafts."
-version: 0.4.0
+description: "Audit and draft ROG/RFP/RFA discovery sets."
+version: 0.5.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
 metadata:
   hermes:
-    tags: [legal, discovery, audit, rfa, rog, citations, plaintiff]
+    tags: [legal, discovery, audit, rfa, rog, rfp, citations, plaintiff]
     category: legal
     related_skills: [legal-casegraph, legal-discovery-response]
 ---
@@ -22,6 +22,8 @@ See `SPEC.md` for the full roadmap.
 - **A3** — audit proposed final **ROG** answers (`scripts/rog_audit.py`)
 - **B1** — draft outgoing **RFAs** with issue tags (`scripts/rfa_outgoing.py`)
 - **B2** — draft outgoing **ROGs** with issue tags (`scripts/rog_outgoing.py`)
+- **B3** — draft outgoing **RFPs** with issue tags + production awareness
+  (`scripts/rfp_outgoing.py`)
 
 **RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
 
@@ -31,7 +33,7 @@ the owner signs off for that matter × request_type × mode (§9.5).
 ## Hard Rules
 
 - One matter per session and per command.
-- Do not stretch RFA parsers onto RFPs or interrogatories.
+- Do not stretch parsers across request types.
 - Do not invent Bates or page:line cites.
 - Objection language is attorney-controlled (flag only; no final strategy).
 - Live validation enforces full OCR preflight; `.synthetic` may skip OCR for
@@ -118,6 +120,24 @@ Input: `01_discovery_outgoing/rog_issue_brief.md` (tagged interrogatory lines).
 Output: `02_outputs/outgoing_rog_set.md` (attorney-review draft only).
 Refuses RFA-style `Admit` language — use Slice B1 for admissions.
 
+## Slice B3 Procedure (outgoing RFP draft)
+
+```powershell
+$orfp = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rfp_outgoing.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $orfp parse-issue-brief $m
+python $orfp draft-outgoing-rfp $m
+python $orfp package-outgoing-rfp $m
+python $orfp validate-outgoing-rfp $m
+```
+
+Input: `01_discovery_outgoing/rfp_issue_brief.md` (tagged Produce lines;
+optional `| Already: none|gap|Bates`).
+Output: `02_outputs/outgoing_rfp_set.md` (attorney-review draft only).
+Flags keyword overlaps against this matter's casegraph index. Refuses Admit
+and interrogatory-only stems.
+
 ## Synthetic Self-Test
 
 ```powershell
@@ -125,4 +145,5 @@ python $rfa selftest
 python $rog selftest
 python $orfa selftest
 python $orog selftest
+python $orfp selftest
 ```
