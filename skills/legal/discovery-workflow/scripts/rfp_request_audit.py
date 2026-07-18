@@ -305,7 +305,9 @@ def audit_request(
         for rid in rules:
             if _ensure_rule(rule_ids, available_rules, rid) is None:
                 needs_attorney = True
-                notes.append(f"Rule {rid} not in pinned pack — needs_attorney_rule_confirm.")
+                notes.append(
+                    f"rule_id {rid} not in pinned pack — needs_attorney_rule_confirm."
+                )
         if sev == "fail_candidate":
             severity = "fail_candidate"
             needs_attorney = True
@@ -316,7 +318,7 @@ def audit_request(
     if VAGUE_RE.search(text):
         add(
             "lacks_particularity",
-            ["FRCP-34-b-1", "FRCP-26-b-1"],
+            ["FRCP-34-b-1", "CCP-2031-030", "FRCP-26-b-1", "CCP-2017-010"],
             "Broad/vague production language may lack reasonable particularity.",
             "warn",
         )
@@ -327,28 +329,28 @@ def audit_request(
     ):
         add(
             "unbounded_temporal_scope",
-            ["FRCP-26-b-1", "FRCP-26-b-2-C"],
+            ["FRCP-26-b-1", "FRCP-26-b-2-C", "CCP-2019-030", "CCP-2017-010"],
             "No clear temporal bound — proportionality / cumulative burden concern.",
             "warn",
         )
     if AND_SPLIT_RE.search(text) and len(AND_SPLIT_RE.split(text)) >= 3:
         add(
             "compound_multi_category",
-            ["FRCP-34-b-1", "FRCP-26-b-2-C"],
+            ["FRCP-34-b-1", "CCP-2031-030", "FRCP-26-b-2-C", "CCP-2019-030"],
             "Multi-category compound request — consider severing for particularity.",
             "warn",
         )
     if PRIVILEGE_FISH_RE.search(text):
         add(
             "privilege_boundary",
-            ["FRCP-26-b-1"],
+            ["FRCP-26-b-1", "CCP-2017-010"],
             "Language may reach privileged attorney communications — attorney must decide objection posture.",
             "fail_candidate",
         )
     if ESI_RE.search(text) and not re.search(r"\b(form|native|pdf|tiff)\b", text, re.IGNORECASE):
         add(
             "esi_form_unspecified",
-            ["FRCP-34-b-1"],
+            ["FRCP-34-b-1", "CCP-2031-030"],
             "ESI referenced without specifying form of production.",
             "info",
         )
@@ -357,8 +359,8 @@ def audit_request(
 
     if not flags:
         # Still attach scope rule as informational baseline
-        _ensure_rule(rule_ids, available_rules, "FRCP-34-a")
-        _ensure_rule(rule_ids, available_rules, "FRCP-26-b-1")
+        for rid in ("FRCP-34-a", "CCP-2031-030", "FRCP-26-b-1", "CCP-2017-010"):
+            _ensure_rule(rule_ids, available_rules, rid)
         notes.append("No automated particularity/privilege flags; attorney serve/response strategy still required.")
 
     if not rule_ids:

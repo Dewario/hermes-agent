@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.13.0
+version: 0.14.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -32,6 +32,8 @@ See `SPEC.md` for the full roadmap.
   (`scripts/rog_request_audit.py`)
 - **G1** — trial gap assessment → suggested B1–B3 issue-brief lines
   (`scripts/trial_gap.py`)
+- **C1–C3** — draft responses to served RFP/RFA/ROG from attorney answer briefs
+  (`scripts/*_response_draft.py`)
 
 **RFP response audit (Slice A1):** use `legal-discovery-response`, not D1.
 
@@ -43,8 +45,9 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1–D3 + G1 implemented (synthetic-only). C* / live still
-blocked on owner §9.5 — see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
+**Counsel-pack:** D1–D3 + G1 + C1–C3 implemented (synthetic-only). Jurisdiction
+packs: `frcp_generic`, `fela`, `ca_ccp`. Live client use still needs owner
+§9.5 outside the repo — see `OWNER_LIVE_GATE.md`.
 
 ## Hard Rules
 
@@ -247,6 +250,14 @@ python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
 ```
 
 Runs D1–D3 + G1 + A2 + B1–B3 validate gates on one materialised matter.
+
+Live-shaped rehearsal (synthetic matter ID under `C:\\Matters\\`, no
+`--skip-ocr-queue`; gate file written outside the repo):
+
+```powershell
+$live = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\live_dry_run_rehearsal.py"
+python $live
+```
 
 ## Synthetic Self-Test
 

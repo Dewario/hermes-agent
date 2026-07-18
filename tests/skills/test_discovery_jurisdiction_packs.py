@@ -33,24 +33,20 @@ def test_load_frcp_with_fela_overlay():
     assert any(r["id"] == "FELA-THEME-RAIL-DOCS" for r in rfp_rules)
 
 
-def test_stub_pack_refused_by_default():
-    try:
-        jp.load_pack("ca_ccp")
-        raise AssertionError("expected PackError")
-    except jp.PackError as exc:
-        assert "stub" in str(exc).lower()
-
-
-def test_stub_pack_allowed_explicitly():
-    loaded = jp.load_pack("ca_ccp", allow_stub=True)
-    assert loaded["base"]["status"] == "stub"
-    assert loaded["rule_ids"]
+def test_ca_ccp_active_loads():
+    loaded = jp.load_pack("ca_ccp")
+    assert loaded["base"]["status"] == "active"
+    assert "CCP-2030-030" in loaded["rule_ids"]
+    assert "CCP-2031-030" in loaded["rule_ids"]
+    assert "CCP-2033-060" in loaded["rule_ids"]
+    rog_rules = jp.rules_for_type(loaded, "rog")
+    assert any(r["id"] == "CCP-2030-030" for r in rog_rules)
 
 
 def test_overlay_base_mismatch_fails():
     # fela requires frcp_generic
     try:
-        jp.load_pack("ca_ccp", overlay_id="fela", allow_stub=True)
+        jp.load_pack("ca_ccp", overlay_id="fela")
         raise AssertionError("expected PackError")
     except jp.PackError as exc:
         assert "base_pack" in str(exc)
@@ -58,3 +54,4 @@ def test_overlay_base_mismatch_fails():
 
 def test_cli_lists_rules():
     assert jp.main(["frcp_generic", "--overlay", "fela", "--request-type", "rfa"]) == 0
+    assert jp.main(["ca_ccp", "--request-type", "rfp"]) == 0

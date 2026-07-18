@@ -34,6 +34,9 @@ DISPATCH: dict[tuple[str, str], Path] = {
     ("rfp", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
     ("rfa", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
     ("rog", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
+    ("rfp", "draft_response"): WORKFLOW_SCRIPTS / "rfp_response_draft.py",
+    ("rfa", "draft_response"): WORKFLOW_SCRIPTS / "rfa_response_draft.py",
+    ("rog", "draft_response"): WORKFLOW_SCRIPTS / "rog_response_draft.py",
 }
 
 SLICE_SELFTESTS: list[tuple[str, Path]] = [
@@ -47,6 +50,9 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
     ("D2 rfa/request-audit", WORKFLOW_SCRIPTS / "rfa_request_audit.py"),
     ("D3 rog/request-audit", WORKFLOW_SCRIPTS / "rog_request_audit.py"),
     ("G1 trial-gap", WORKFLOW_SCRIPTS / "trial_gap.py"),
+    ("C1 rfp/draft-response", WORKFLOW_SCRIPTS / "rfp_response_draft.py"),
+    ("C2 rfa/draft-response", WORKFLOW_SCRIPTS / "rfa_response_draft.py"),
+    ("C3 rog/draft-response", WORKFLOW_SCRIPTS / "rog_response_draft.py"),
 ]
 
 # Commands that do not take a matter_dir positional
@@ -72,10 +78,6 @@ def _load_main(path: Path) -> Callable[[list[str] | None], int]:
 
 def resolve_slice(request_type: str, mode: str) -> Path:
     key = (request_type.lower(), mode.lower())
-    if mode.lower() == "draft_response":
-        raise SystemExit(
-            "ERROR: mode 'draft_response' is not implemented (SPEC C* deferred)."
-        )
     if mode.lower() == "audit_incoming_request" and request_type.lower() not in {
         "rfp", "rfa", "rog",
     }:

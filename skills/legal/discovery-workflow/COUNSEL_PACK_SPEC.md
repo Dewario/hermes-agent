@@ -1,8 +1,9 @@
 # Plaintiff Discovery Counsel Pack — Expansion SPEC
 
-**Status:** Expansion SPEC active. **D1–D3** + **G1** implemented
-synthetic-only. C* / live not opened. **Not ready for live use.**
-**Date:** 2026-07-17 (amended: G1 landed)  
+**Status:** Expansion SPEC active. **D1–D3** + **G1** + **C1–C3** implemented
+synthetic-only. `ca_ccp` pack active. Real-client live use still needs owner
+§9.5 outside the repo. **Not ready for marketing as live-ready.**
+**Date:** 2026-07-18 (amended: C* + ca_ccp + live rehearsal)  
 
 **Parent program:** `SPEC.md` (A1–B3 details win there until merged)  
 **This file wins** on counsel-pack roadmap, new modes, and jurisdiction axis.

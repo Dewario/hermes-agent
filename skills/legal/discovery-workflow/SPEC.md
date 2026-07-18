@@ -3,10 +3,10 @@
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
 draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
-expansion: jurisdiction packs + **D1–D3** + **G1** trial gap
-(synthetic-only). C* still deferred — see `COUNSEL_PACK_SPEC.md`.
-**Not ready for live use** (owner §9.5 still open).
-**Date:** 2026-07-17 (amended: Slice G1 trial_gap_assessment landed)
+expansion: jurisdiction packs (`frcp_generic`, `fela`, `ca_ccp`) + **D1–D3** +
+**G1** + **C1–C3** `draft_response` (synthetic-only). See `COUNSEL_PACK_SPEC.md`.
+**Not ready for live client use** (owner §9.5 still required per real matter).
+**Date:** 2026-07-18 (amended: C* + active `ca_ccp` + live rehearsal script)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -30,17 +30,18 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses (A1) | `draft_response` modes (C*) |
-| Audit proposed final **RFA** responses (A2) | Live use without §9.5 |
-| Audit proposed final **ROG** answers (A3) | Full counsel-pack “ready” marketing |
-| Draft outgoing **RFAs** with issue tags (B1) | Mixed discovery-set workflow |
+| Audit proposed final **RFP** responses (A1) | Live client use without §9.5 |
+| Audit proposed final **RFA** responses (A2) | Full counsel-pack “ready” marketing |
+| Audit proposed final **ROG** answers (A3) | Mixed discovery-set workflow |
+| Draft outgoing **RFAs** with issue tags (B1) | |
 | Draft outgoing **ROGs** with issue tags (B2) | |
 | Draft outgoing **RFPs** with issue tags + production awareness (B3) | |
-| Jurisdiction packs + loader | |
+| Jurisdiction packs + loader (`ca_ccp` active) | |
 | Audit defense-served **RFP** requests (D1) | |
 | Audit defense-served **RFA** requests (D2) | |
 | Audit defense-served **ROG** requests (D3) | |
 | Trial gap assessment → brief lines (G1) | |
+| Draft responses from attorney answer briefs (C1–C3) | |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
 
@@ -57,7 +58,7 @@ Every invocation declares exactly one value on each axis:
 | Axis | Values | Meaning |
 |------|--------|---------|
 | `request_type` | `rog` \| `rfp` \| `rfa` | Interrogatory / request for production / request for admission |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1–D3) \| `trial_gap_assessment` (G1) \| `draft_response` (later) | What the tool does |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1–D3) \| `trial_gap_assessment` (G1) \| `draft_response` (C1–C3) | What the tool does |
 
 Definitions:
 
@@ -71,8 +72,9 @@ Definitions:
   `COUNSEL_PACK_SPEC.md`).
 - **`trial_gap_assessment`** — Recommend additional plaintiff discovery before
   trial; feeds B1–B3 issue briefs (G1).
-- **`draft_response`** — Draft responses to served requests (deferred until
-  corresponding audit slice is synthetic-green and owner opens the slice).
+- **`draft_response`** — Draft responses to served requests from an attorney
+  answer brief (C1 RFP / C2 RFA / C3 ROG). Does not invent admissions;
+  `objection_draft` stays null unless attorney opt-in.
 
 CLI / skill entry points MUST take `--request-type` and `--mode` (or
 type-specific subcommands that fix both). Parsers, schemas, templates, and
@@ -217,11 +219,12 @@ Do not open a later slice’s live gate before earlier synthetic matrices pass.
 | **B1** | `rfa` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rfa_outgoing.py` |
 | **B2** | `rog` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rog_outgoing.py` |
 | **B3** | `rfp` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rfp_outgoing.py` |
-| **C*** | `rog`\|`rfp`\|`rfa` | `draft_response` | Only after matching audit slice is intentional for live |
+| **C1** | `rfp` | `draft_response` | Implemented (synthetic-only) in `scripts/rfp_response_draft.py` |
+| **C2** | `rfa` | `draft_response` | Implemented (synthetic-only) in `scripts/rfa_response_draft.py` |
+| **C3** | `rog` | `draft_response` | Implemented (synthetic-only) in `scripts/rog_response_draft.py` |
 
-\* `draft_response` remains deferred relative to outgoing requests unless the
-owner reorders in writing. Default priority for the full program: **audit
-coverage first (A2 → A3), then outgoing drafting (B1 → B3).**
+C* drafts are attorney-brief-driven packages only — never serve-ready without
+human edit. Live client use still needs owner §9.5 per matter × type × mode.
 
 Mixed discovery-set workflow (one CLI run over a combined rog+rfp+rfa binder)
 is out of scope until A2+A3+A1 are each green on synthetic fixtures. Until
@@ -388,15 +391,17 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-Synthetic matrix for A1–B3 + **D1–D3** + **G1** is **complete**.
+Synthetic matrix for A1–B3 + **D1–D3** + **G1** + **C1–C3** is **complete**.
+`ca_ccp` pack is **active**. Live-shaped rehearsal (synthetic matter ID only)
+lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
+§9.5 gates stay outside the repo.
 
-1. Keep A1–B3 + D1–D3 + G1 synthetic cells green. **No live clients** without §9.5.
-2. One-matter smoke: `discovery_workflow.py smoke` (seed under
-   `fixtures/smoke_matter/seed/`).
-3. **C*** / live dry-run require **owner §9.5** (`OWNER_LIVE_GATE.md`).
-   Engineering never checks §9.5.
+1. Keep A1–B3 + D1–D3 + G1 + C1–C3 synthetic cells green. **No real clients** without §9.5.
+2. One-matter smoke: `discovery_workflow.py smoke` (includes C2).
+3. Real-client live dry-run still requires **owner §9.5** (`OWNER_LIVE_GATE.md`).
+   Engineering never forges owner approval for a real client matter.
 
-**Do not** use A1/A2/A3/B1/B2/B3 live without owner §9.5 for that matter × type × mode.
+**Do not** use any slice on a real client without owner §9.5 for that matter × type × mode.
 
 ### A2 acceptance checklist (synthetic)
 

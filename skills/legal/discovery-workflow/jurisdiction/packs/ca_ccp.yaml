@@ -1,37 +1,84 @@
 pack_id: ca_ccp
-version: 0
-status: stub
-title: "California Code of Civil Procedure — discovery (STUB — not for live)"
+version: 1
+status: active
+title: "California Code of Civil Procedure — civil discovery (generic state pack)"
 jurisdiction_kind: state
 overlays_allowed: []
 rules:
-  # TODO ids only — flesh out before status: active
-  - id: CCP-2016-020-TODO
-    citation: "Cal. Code Civ. Proc. § 2016.020 (TODO)"
-    summary: "Stub — definitions / scope placeholders."
+  - id: CCP-2017-010
+    citation: "Cal. Code Civ. Proc. § 2017.010"
+    summary: "Discovery may obtain any nonprivileged matter relevant to the subject matter, if reasonably calculated to lead to admissible evidence."
     applies_to: [all]
-    check_hints: [stub, needs_attorney_rule_confirm]
+    check_hints: [scope, relevance, privilege, overbreadth]
 
-  - id: CCP-2030-TODO
-    citation: "Cal. Code Civ. Proc. § 2030.010 et seq. (TODO)"
-    summary: "Stub — interrogatories (numerical limits, form, timing)."
+  - id: CCP-2019-010
+    citation: "Cal. Code Civ. Proc. § 2019.010"
+    summary: "Permitted discovery methods include interrogatories, inspection demands, and requests for admission."
+    applies_to: [all]
+    check_hints: [methods, sequence, timing]
+
+  - id: CCP-2019-030
+    citation: "Cal. Code Civ. Proc. § 2019.030"
+    summary: "Court may restrict discovery that is unreasonably cumulative, duplicative, or unduly burdensome/expensive relative to the case."
+    applies_to: [all]
+    check_hints: [proportionality, cumulative, burden]
+
+  - id: CCP-2030-030
+    citation: "Cal. Code Civ. Proc. § 2030.030"
+    summary: "Unless stipulated or ordered, a party may propound 35 specially prepared interrogatories and 35 official-form interrogatories."
     applies_to: [rog]
-    check_hints: [stub, numerical_limit, interrogatory]
+    check_hints: [numerical_limit, interrogatory, discrete_subparts]
 
-  - id: CCP-2031-TODO
-    citation: "Cal. Code Civ. Proc. § 2031.010 et seq. (TODO)"
-    summary: "Stub — inspection / production demands."
+  - id: CCP-2030-060
+    citation: "Cal. Code Civ. Proc. § 2030.060"
+    summary: "Interrogatories must be full and complete in themselves; no preface/instruction that is not approved; subparts counted toward limits when discrete."
+    applies_to: [rog]
+    check_hints: [form, discrete_subparts, contention_interrogatory]
+
+  - id: CCP-2030-210
+    citation: "Cal. Code Civ. Proc. § 2030.210"
+    summary: "Answers and objections — each response must be as complete and straightforward as possible; objections stated with specificity."
+    applies_to: [rog]
+    check_hints: [objection_specificity, verification, waiver_risk]
+
+  - id: CCP-2031-030
+    citation: "Cal. Code Civ. Proc. § 2031.030"
+    summary: "Inspection demands must designate documents with reasonable particularity and may specify form of ESI production."
     applies_to: [rfp]
-    check_hints: [stub, production, particularity]
+    check_hints: [particularity, overbreadth, esi_form, production]
 
-  - id: CCP-2033-TODO
-    citation: "Cal. Code Civ. Proc. § 2033.010 et seq. (TODO)"
-    summary: "Stub — requests for admission."
+  - id: CCP-2031-210
+    citation: "Cal. Code Civ. Proc. § 2031.210"
+    summary: "Responses to inspection demands — statement of compliance, representation of inability, or objection; withholding must be identified."
+    applies_to: [rfp]
+    check_hints: [withholding_statement, objection_specificity, production_manner]
+
+  - id: CCP-2031-280
+    citation: "Cal. Code Civ. Proc. § 2031.280"
+    summary: "Documents produced must be identified with the specific request to which they respond, or produced as kept in ordinary course."
+    applies_to: [rfp]
+    check_hints: [production_manner, labeling]
+
+  - id: CCP-2033-030
+    citation: "Cal. Code Civ. Proc. § 2033.030"
+    summary: "Unless stipulated or ordered, a party may propound 35 requests for admission that do not relate to genuineness of documents (plus genuineness RFAs as authorized)."
     applies_to: [rfa]
-    check_hints: [stub, admission]
+    check_hints: [numerical_limit, admission]
 
-  - id: CCP-2019-TODO
-    citation: "Cal. Code Civ. Proc. § 2019.010 et seq. (TODO)"
-    summary: "Stub — discovery methods / sequence."
-    applies_to: [all]
-    check_hints: [stub, timing]
+  - id: CCP-2033-060
+    citation: "Cal. Code Civ. Proc. § 2033.060"
+    summary: "Each request for admission must be full and complete in itself and separately set forth; no compound/conjunctive abuse."
+    applies_to: [rfa]
+    check_hints: [separately_stated, compound, form]
+
+  - id: CCP-2033-210
+    citation: "Cal. Code Civ. Proc. § 2033.210"
+    summary: "Answers to RFAs — admit, deny, or detail inability after reasonable inquiry; objections with specificity."
+    applies_to: [rfa]
+    check_hints: [admission_answer, lack_information, objection_specificity]
+
+  - id: CCP-2033-220
+    citation: "Cal. Code Civ. Proc. § 2033.220"
+    summary: "Each answer must fairly meet the substance of the request; qualified admissions permitted when good faith requires."
+    applies_to: [rfa]
+    check_hints: [qualify, fair_meet, admission_answer]

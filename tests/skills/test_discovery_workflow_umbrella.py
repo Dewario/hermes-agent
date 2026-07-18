@@ -31,12 +31,10 @@ def test_resolve_known_slices():
     assert dw.resolve_slice("rfp", "audit_incoming_response").name == "discovery_response.py"
 
 
-def test_draft_response_rejected():
-    try:
-        dw.resolve_slice("rfa", "draft_response")
-        raise AssertionError("expected SystemExit")
-    except SystemExit as exc:
-        assert "draft_response" in str(exc)
+def test_draft_response_resolves():
+    assert dw.resolve_slice("rfa", "draft_response").name == "rfa_response_draft.py"
+    assert dw.resolve_slice("rfp", "draft_response").name == "rfp_response_draft.py"
+    assert dw.resolve_slice("rog", "draft_response").name == "rog_response_draft.py"
 
 
 def test_unknown_pair_rejected():

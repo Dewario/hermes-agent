@@ -364,7 +364,9 @@ def audit_request(
         for rid in rules:
             if _ensure_rule(rule_ids, available_rules, rid) is None:
                 needs_attorney = True
-                notes.append(f"Rule {rid} not in pinned pack — needs_attorney_rule_confirm.")
+                notes.append(
+                    f"rule_id {rid} not in pinned pack — needs_attorney_rule_confirm."
+                )
         if sev == "fail_candidate":
             severity = "fail_candidate"
             needs_attorney = True
@@ -375,14 +377,14 @@ def audit_request(
     if discrete >= 2:
         add(
             "discrete_subparts",
-            ["FRCP-33-a-1", "FRCP-26-b-1"],
+            ["FRCP-33-a-1", "CCP-2030-030", "FRCP-26-b-1", "CCP-2017-010"],
             f"Interrogatory has {discrete} discrete subparts — each counts toward the Rule 33 limit.",
             "warn",
         )
     if VAGUE_RE.search(text):
         add(
             "vague_or_overbroad",
-            ["FRCP-33-a-2", "FRCP-26-b-1"],
+            ["FRCP-33-a-2", "CCP-2030-060", "FRCP-26-b-1", "CCP-2017-010"],
             "Vague/overbroad interrogatory language may exceed Rule 26(b) scope.",
             "warn",
         )
@@ -391,32 +393,33 @@ def audit_request(
     ):
         add(
             "contention_interrogatory",
-            ["FRCP-33-a-2", "FRCP-26-b-1"],
+            ["FRCP-33-a-2", "CCP-2030-060", "FRCP-26-b-1", "CCP-2017-010"],
             "Contention / all-facts interrogatory — timing and scope are attorney-controlled under Rule 33(a)(2).",
             "warn",
         )
     if PRIVILEGE_FISH_RE.search(text):
         add(
             "privilege_boundary",
-            ["FRCP-26-b-1", "FRCP-33-b"],
+            ["FRCP-26-b-1", "FRCP-33-b", "CCP-2017-010", "CCP-2030-210"],
             "Language may reach privileged attorney communications — attorney must decide objection posture.",
             "fail_candidate",
         )
 
+    limit = 35 if "CCP-2030-030" in available_rules else DEFAULT_ROG_LIMIT
     projected = rog_used + set_discrete_total
-    if projected > DEFAULT_ROG_LIMIT:
+    if projected > limit:
         add(
             "exceeds_numerical_limit",
-            ["FRCP-33-a-1"],
+            ["FRCP-33-a-1", "CCP-2030-030"],
             f"Projected interrogatory count (used {rog_used} + this set {set_discrete_total} "
-            f"= {projected}) exceeds default Rule 33 limit of {DEFAULT_ROG_LIMIT} "
+            f"= {projected}) exceeds default limit of {limit} "
             "(absent stipulation/order).",
             "fail_candidate",
         )
 
     if not flags:
-        _ensure_rule(rule_ids, available_rules, "FRCP-33-a-1")
-        _ensure_rule(rule_ids, available_rules, "FRCP-26-b-1")
+        for rid in ("FRCP-33-a-1", "CCP-2030-030", "FRCP-26-b-1", "CCP-2017-010"):
+            _ensure_rule(rule_ids, available_rules, rid)
         notes.append("No automated subpart/privilege flags; attorney response strategy still required.")
 
     if not rule_ids:

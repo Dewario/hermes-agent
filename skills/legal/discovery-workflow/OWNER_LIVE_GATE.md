@@ -45,7 +45,9 @@ tip_commit_sha: ______________________________   (git rev-parse HEAD, validated 
 slice:          ____   (A1 rfp-audit | A2 rfa-audit | A3 rog-audit |
                         B1 rfa-draft | B2 rog-draft | B3 rfp-draft |
                         D1 rfp-request-audit | D2 rfa-request-audit |
-                        D3 rog-request-audit | G1 trial-gap)
+                        D3 rog-request-audit | G1 trial-gap |
+                        C1 rfp-response-draft | C2 rfa-response-draft |
+                        C3 rog-response-draft)
 
 --- §9.1 Per-slice synthetic (engineering may confirm; owner verifies) ---
 [ ] Dedicated parser; refuses wrong request_type input.
@@ -95,5 +97,8 @@ date:            ______________________________
   the live run.
 - **No live results in the repo.** This template ships blank. Do not commit a
   filled copy, real matter IDs, or dry-run output into `hermes-agent/`.
-- **Current status:** as of the SPEC §9.5 table, all six slices are
-  synthetic-green with **§9.5 Open — not signed**. No live dry-run has been run.
+- **Current status:** A1–B3 + D1–D3 + G1 + C1–C3 are synthetic-green.
+  **§9.5 Open — not signed** for any real client matter. A synthetic
+  live-shaped rehearsal (`scripts/live_dry_run_rehearsal.py` →
+  `C:\Matters\SYN-SMOKE-LIVE-REHEARSAL`) may write a gate file **outside**
+  this repo; that is not authorization for Allen or any real client.

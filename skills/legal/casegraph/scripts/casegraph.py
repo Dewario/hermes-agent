@@ -43,7 +43,10 @@ OCR_QUEUE_FILENAME = "needs_ocr.json"
 _OCR_NEEDED_STATUSES = frozenset({"none", "partial", "unsupported"})
 
 # File types the indexer attempts text extraction for.
-_TEXT_EXTS = {".txt", ".md", ".csv", ".log", ".json", ".yaml", ".yml", ".html", ".htm"}
+_TEXT_EXTS = {
+    ".txt", ".md", ".csv", ".log", ".json", ".jsonl",
+    ".yaml", ".yml", ".html", ".htm",
+}
 _PDF_EXTS = {".pdf"}
 _DOCX_EXTS = {".docx"}
 _EML_EXTS = {".eml"}
