@@ -30,6 +30,10 @@ DISPATCH: dict[tuple[str, str], Path] = {
     ("rfp", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rfp_request_audit.py",
     ("rfa", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rfa_request_audit.py",
     ("rog", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rog_request_audit.py",
+    # G1 is multi-type; any request_type routes to the same orchestrator.
+    ("rfp", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
+    ("rfa", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
+    ("rog", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
 }
 
 SLICE_SELFTESTS: list[tuple[str, Path]] = [
@@ -42,6 +46,7 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
     ("D1 rfp/request-audit", WORKFLOW_SCRIPTS / "rfp_request_audit.py"),
     ("D2 rfa/request-audit", WORKFLOW_SCRIPTS / "rfa_request_audit.py"),
     ("D3 rog/request-audit", WORKFLOW_SCRIPTS / "rog_request_audit.py"),
+    ("G1 trial-gap", WORKFLOW_SCRIPTS / "trial_gap.py"),
 ]
 
 # Commands that do not take a matter_dir positional
@@ -70,10 +75,6 @@ def resolve_slice(request_type: str, mode: str) -> Path:
         raise SystemExit(
             "ERROR: mode 'draft_response' is not implemented (SPEC C* deferred)."
         )
-    if mode.lower() == "trial_gap_assessment":
-        raise SystemExit(
-            "ERROR: mode 'trial_gap_assessment' is not implemented (SPEC G1 deferred)."
-        )
     if mode.lower() == "audit_incoming_request" and request_type.lower() not in {
         "rfp", "rfa", "rog",
     }:
@@ -81,6 +82,8 @@ def resolve_slice(request_type: str, mode: str) -> Path:
             "ERROR: audit_incoming_request is implemented for rfp (D1), rfa (D2), "
             "and rog (D3) only."
         )
+    if mode.lower() == "trial_gap_assessment":
+        return WORKFLOW_SCRIPTS / "trial_gap.py"
     path = DISPATCH.get(key)
     if path is None:
         known = ", ".join(f"{t}/{m}" for t, m in sorted(DISPATCH))
@@ -158,15 +161,26 @@ def main(argv: list[str] | None = None) -> int:
     if command in {"selftest-all", "matrix"}:
         return cmd_selftest_all()
 
-    if not args.request_type or not args.mode:
+    if not args.mode:
         print(
-            "ERROR: --request-type and --mode are required (except selftest-all).",
+            "ERROR: --mode is required (except selftest-all).",
+            file=sys.stderr,
+        )
+        return 2
+    # G1 is multi-type; request_type optional (defaults to rfp for dispatch keying).
+    request_type = args.request_type
+    if args.mode == "trial_gap_assessment" and not request_type:
+        request_type = "rfp"
+    if not request_type:
+        print(
+            "ERROR: --request-type and --mode are required (except selftest-all; "
+            "trial_gap_assessment may omit --request-type).",
             file=sys.stderr,
         )
         return 2
 
     try:
-        path = resolve_slice(args.request_type, args.mode)
+        path = resolve_slice(request_type, args.mode)
     except SystemExit as exc:
         print(str(exc), file=sys.stderr)
         return 2

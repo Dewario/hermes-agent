@@ -3,10 +3,10 @@
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
 draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
-expansion: jurisdiction packs + **D1–D3**
-`audit_incoming_request` (synthetic-only). G1 still planned — see
-`COUNSEL_PACK_SPEC.md`. **Not ready for live use** (owner §9.5 still open).
-**Date:** 2026-07-17 (amended: Slice D3 incoming ROG request audit landed)
+expansion: jurisdiction packs + **D1–D3** + **G1** trial gap
+(synthetic-only). C* still deferred — see `COUNSEL_PACK_SPEC.md`.
+**Not ready for live use** (owner §9.5 still open).
+**Date:** 2026-07-17 (amended: Slice G1 trial_gap_assessment landed)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -30,16 +30,17 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses (A1) | `trial_gap_assessment` (G1) |
-| Audit proposed final **RFA** responses (A2) | `draft_response` modes (C*) |
-| Audit proposed final **ROG** answers (A3) | Mixed discovery-set workflow |
-| Draft outgoing **RFAs** with issue tags (B1) | Live use without §9.5 |
-| Draft outgoing **ROGs** with issue tags (B2) | Full counsel-pack “ready” marketing |
+| Audit proposed final **RFP** responses (A1) | `draft_response` modes (C*) |
+| Audit proposed final **RFA** responses (A2) | Live use without §9.5 |
+| Audit proposed final **ROG** answers (A3) | Full counsel-pack “ready” marketing |
+| Draft outgoing **RFAs** with issue tags (B1) | Mixed discovery-set workflow |
+| Draft outgoing **ROGs** with issue tags (B2) | |
 | Draft outgoing **RFPs** with issue tags + production awareness (B3) | |
 | Jurisdiction packs + loader | |
 | Audit defense-served **RFP** requests (D1) | |
 | Audit defense-served **RFA** requests (D2) | |
 | Audit defense-served **ROG** requests (D3) | |
+| Trial gap assessment → brief lines (G1) | |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
 
@@ -56,7 +57,7 @@ Every invocation declares exactly one value on each axis:
 | Axis | Values | Meaning |
 |------|--------|---------|
 | `request_type` | `rog` \| `rfp` \| `rfa` | Interrogatory / request for production / request for admission |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1–D3) \| `trial_gap_assessment` (planned) \| `draft_response` (later) | What the tool does |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1–D3) \| `trial_gap_assessment` (G1) \| `draft_response` (later) | What the tool does |
 
 Definitions:
 
@@ -69,7 +70,7 @@ Definitions:
   pinned jurisdiction pack (D1 RFP + D2 RFA + D3 ROG — see
   `COUNSEL_PACK_SPEC.md`).
 - **`trial_gap_assessment`** — Recommend additional plaintiff discovery before
-  trial; feeds B1–B3 issue briefs (planned — G1).
+  trial; feeds B1–B3 issue briefs (G1).
 - **`draft_response`** — Draft responses to served requests (deferred until
   corresponding audit slice is synthetic-green and owner opens the slice).
 
@@ -387,12 +388,11 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-Synthetic matrix for A1–B3 + **D1–D3** is **complete**. Counsel-pack G1
-(`trial_gap_assessment`) remains planned.
+Synthetic matrix for A1–B3 + **D1–D3** + **G1** is **complete**.
 
-1. Keep A1–B3 + **D1–D3** synthetic cells green. **No live clients** without §9.5.
-2. **Implement G1** (`COUNSEL_PACK_SPEC.md`).
-3. **Owner §9.5** still required before any live dry-run (`OWNER_LIVE_GATE.md`).
+1. Keep A1–B3 + D1–D3 + G1 synthetic cells green. **No live clients** without §9.5.
+2. Optional: deepen A* audits with `rule_ids` (`COUNSEL_PACK_SPEC.md`).
+3. **C*** / live dry-run require **owner §9.5** (`OWNER_LIVE_GATE.md`).
    Engineering never checks §9.5.
 
 **Do not** use A1/A2/A3/B1/B2/B3 live without owner §9.5 for that matter × type × mode.

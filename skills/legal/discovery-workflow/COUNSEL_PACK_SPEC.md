@@ -1,9 +1,8 @@
 # Plaintiff Discovery Counsel Pack — Expansion SPEC
 
-**Status:** Expansion SPEC active. **D1–D3** (`audit_incoming_request` for
-rfp/rfa/rog) implemented synthetic-only. G1 not implemented.
-**Not ready for live use.**
-**Date:** 2026-07-17 (amended: D3 landed)  
+**Status:** Expansion SPEC active. **D1–D3** + **G1** implemented
+synthetic-only. C* / live not opened. **Not ready for live use.**
+**Date:** 2026-07-17 (amended: G1 landed)  
 
 **Parent program:** `SPEC.md` (A1–B3 details win there until merged)  
 **This file wins** on counsel-pack roadmap, new modes, and jurisdiction axis.
@@ -190,3 +189,12 @@ Same as parent SPEC §9.1–9.3 + pack pinning + rule_id discipline.
 - [x] Template + fixture + `test_discovery_rog_request_audit.py` + `selftest`
 - [x] Umbrella dispatch for `rog` / `audit_incoming_request`
 - [x] Live validate does not skip OCR unless synthetic; `objection_draft` always null
+
+### G1 acceptance checklist (synthetic)
+
+- [x] Dedicated `trial_gap.py`; multi-type recommendations with pack `rule_ids`
+- [x] Exports B1–B3-shaped brief lines; skips `already_covered` by default
+- [x] Cutoff-null demotes `must_before_cutoff` → `defer_to_attorney`
+- [x] Template + fixture + `test_discovery_trial_gap.py` + `selftest`
+- [x] Umbrella dispatch for `trial_gap_assessment` (request_type optional)
+- [x] No Bates-like `RFP/ROG/RFA-00N` in package/exports; live OCR not skipped unless synthetic

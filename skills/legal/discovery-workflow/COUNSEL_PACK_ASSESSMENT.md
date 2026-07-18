@@ -53,7 +53,7 @@ Bridge: review/intake → structured `trial_gap_item` / issue-brief lines → B1
 | **D1** RFP `audit_incoming_request` | M | loader, fixtures — done |
 | **D2** RFA `audit_incoming_request` | M | D1 patterns — done |
 | **D3** ROG `audit_incoming_request` | M | D1/D2 patterns — done |
-| G1 trial_gap_assessment | L | D1 + A\* outputs + B\* brief format |
+| **G1** trial_gap_assessment | L | themes + packs + B\* brief format — done |
 | A\* rule_id deepening | S–M | packs |
 | Umbrella mode wiring | S | each slice |
 

@@ -85,6 +85,7 @@ def test_selftest_all_runs_all_slices(monkeypatch):
     assert any("rfp_request_audit.py" in c for c in calls)
     assert any("rfa_request_audit.py" in c for c in calls)
     assert any("rog_request_audit.py" in c for c in calls)
+    assert any("trial_gap.py" in c for c in calls)
 
 
 def test_dispatch_incoming_request_rfp(monkeypatch):
@@ -133,6 +134,21 @@ def test_dispatch_incoming_request_rog(monkeypatch):
         "selftest",
     ]) == 0
     assert captured == ["rog_request_audit.py"]
+
+
+def test_dispatch_trial_gap(monkeypatch):
+    captured: list[str] = []
+
+    def _fake_forward(path, argv):
+        captured.append(path.name)
+        return 0
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    assert dw.main([
+        "--mode", "trial_gap_assessment",
+        "selftest",
+    ]) == 0
+    assert captured == ["trial_gap.py"]
 
 
 def test_skill_description_length():

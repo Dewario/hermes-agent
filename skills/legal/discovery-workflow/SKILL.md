@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.10.0
+version: 0.11.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -30,6 +30,8 @@ See `SPEC.md` for the full roadmap.
   (`scripts/rfa_request_audit.py`)
 - **D3** — audit defense-served **ROG** requests under jurisdiction packs
   (`scripts/rog_request_audit.py`)
+- **G1** — trial gap assessment → suggested B1–B3 issue-brief lines
+  (`scripts/trial_gap.py`)
 
 **RFP response audit (Slice A1):** use `legal-discovery-response`, not D1.
 
@@ -41,8 +43,8 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1–D3 implemented (synthetic-only). G1 still SPEC-only —
-see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
+**Counsel-pack:** D1–D3 + G1 implemented (synthetic-only). C* / live still
+blocked on owner §9.5 — see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
 
 ## Hard Rules
 
@@ -211,6 +213,28 @@ Output: `02_outputs/incoming_rog_request_audit_report.md`
 Does **not** draft objections (`objection_draft` is always null).
 Counts discrete subparts toward Rule 33; refuses RFP/RFA-looking sources.
 
+## Slice G1 Procedure (trial gap assessment)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`.
+Attorney-authored themes: `01_discovery_outgoing/gap_themes.md`.
+
+```powershell
+$g1 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\trial_gap.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $g1 parse-gap-themes $m
+python $g1 assess-trial-gaps $m
+python $g1 export-issue-briefs $m
+python $g1 package-trial-gap $m
+python $g1 validate-trial-gap $m
+```
+
+Outputs:
+- `02_outputs/trial_gap_report.md`
+- `01_discovery_outgoing/gap_suggested_{rfp,rog,rfa}_issue_brief.md`
+
+Edit suggested lines, then run B1–B3. Does **not** serve discovery.
+
 ## Synthetic Self-Test
 
 ```powershell
@@ -225,4 +249,5 @@ python $orfp selftest
 python $d1 selftest
 python $d2 selftest
 python $d3 selftest
+python $g1 selftest
 ```
