@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.9.0
+version: 0.10.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -28,6 +28,8 @@ See `SPEC.md` for the full roadmap.
   (`scripts/rfp_request_audit.py`)
 - **D2** — audit defense-served **RFA** requests under jurisdiction packs
   (`scripts/rfa_request_audit.py`)
+- **D3** — audit defense-served **ROG** requests under jurisdiction packs
+  (`scripts/rog_request_audit.py`)
 
 **RFP response audit (Slice A1):** use `legal-discovery-response`, not D1.
 
@@ -39,7 +41,7 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1 + D2 implemented (synthetic-only). D3/G1 still SPEC-only —
+**Counsel-pack:** D1–D3 implemented (synthetic-only). G1 still SPEC-only —
 see `COUNSEL_PACK_SPEC.md` and `jurisdiction/`.
 
 ## Hard Rules
@@ -189,6 +191,26 @@ Output: `02_outputs/incoming_rfa_request_audit_report.md`
 Does **not** draft objections (`objection_draft` is always null).
 Refuses RFP/ROG-looking sources — use D1 or D3 respectively.
 
+## Slice D3 Procedure (incoming ROG request audit)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`
+(see `templates/matter_profile.template.yaml`).
+
+```powershell
+$d3 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\rog_request_audit.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $d3 parse-served-rog $m
+python $d3 audit-incoming-rog $m
+python $d3 package-incoming-rog-audit $m
+python $d3 validate-incoming-rog-audit $m
+```
+
+Input: `01_discovery_served/rog_set.md`  
+Output: `02_outputs/incoming_rog_request_audit_report.md`  
+Does **not** draft objections (`objection_draft` is always null).
+Counts discrete subparts toward Rule 33; refuses RFP/RFA-looking sources.
+
 ## Synthetic Self-Test
 
 ```powershell
@@ -202,4 +224,5 @@ python $orog selftest
 python $orfp selftest
 python $d1 selftest
 python $d2 selftest
+python $d3 selftest
 ```

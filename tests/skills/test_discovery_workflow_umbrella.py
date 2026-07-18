@@ -84,6 +84,7 @@ def test_selftest_all_runs_all_slices(monkeypatch):
     assert all(c.endswith(":selftest") for c in calls)
     assert any("rfp_request_audit.py" in c for c in calls)
     assert any("rfa_request_audit.py" in c for c in calls)
+    assert any("rog_request_audit.py" in c for c in calls)
 
 
 def test_dispatch_incoming_request_rfp(monkeypatch):
@@ -116,6 +117,22 @@ def test_dispatch_incoming_request_rfa(monkeypatch):
         "selftest",
     ]) == 0
     assert captured == ["rfa_request_audit.py"]
+
+
+def test_dispatch_incoming_request_rog(monkeypatch):
+    captured: list[str] = []
+
+    def _fake_forward(path, argv):
+        captured.append(path.name)
+        return 0
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    assert dw.main([
+        "--request-type", "rog",
+        "--mode", "audit_incoming_request",
+        "selftest",
+    ]) == 0
+    assert captured == ["rog_request_audit.py"]
 
 
 def test_skill_description_length():

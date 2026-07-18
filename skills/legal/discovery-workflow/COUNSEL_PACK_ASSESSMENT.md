@@ -52,7 +52,7 @@ Bridge: review/intake → structured `trial_gap_item` / issue-brief lines → B1
 | Matter profile template + scaffold hook | S | schema |
 | **D1** RFP `audit_incoming_request` | M | loader, fixtures — done |
 | **D2** RFA `audit_incoming_request` | M | D1 patterns — done |
-| D3 ROG | M | D1/D2 patterns |
+| **D3** ROG `audit_incoming_request` | M | D1/D2 patterns — done |
 | G1 trial_gap_assessment | L | D1 + A\* outputs + B\* brief format |
 | A\* rule_id deepening | S–M | packs |
 | Umbrella mode wiring | S | each slice |
@@ -61,19 +61,19 @@ Bridge: review/intake → structured `trial_gap_item` / issue-brief lines → B1
 
 - Offline pytest only; unique Windows `--basetemp`
 - Pack schema tests (active vs stub)
-- D1 refuses ROG/RFA-looking sources; D2 refuses RFP/ROG-looking sources
+- D1/D2/D3 refuse wrong-type sources; each has dedicated parser
 - Isolation selftest two synthetic matters
 - No client files under repo
 
 ## 8. Open questions for owner
 
 1. Default pack for first live matter: `frcp_generic`+`fela`, or wait for `ca_ccp`?
-2. First D1/D2 dry-run court / district (for future local pack — not required for FRCP)?
+2. First D* dry-run court / district (for future local pack — not required for FRCP)?
 
 ## Top 5 risks
 
 1. **Jurisdictional hallucination** if checkers don’t enforce `rule_ids`
 2. **Stub pack leakage** into live preflight
 3. **Cache breaks** from mid-session pack swaps
-4. **Scope creep** into auto-objections / C* before D3/G1 green
+4. **Scope creep** into auto-objections / C* before G1 green
 5. **Prose duplication** with discovery-review instead of a schema bridge

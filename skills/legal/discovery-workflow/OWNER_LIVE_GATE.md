@@ -43,7 +43,8 @@ mode:           [ ] audit_incoming_response
 tip_commit_sha: ______________________________   (git rev-parse HEAD, validated tip)
 slice:          ____   (A1 rfp-audit | A2 rfa-audit | A3 rog-audit |
                         B1 rfa-draft | B2 rog-draft | B3 rfp-draft |
-                        D1 rfp-request-audit | D2 rfa-request-audit)
+                        D1 rfp-request-audit | D2 rfa-request-audit |
+                        D3 rog-request-audit)
 
 --- §9.1 Per-slice synthetic (engineering may confirm; owner verifies) ---
 [ ] Dedicated parser; refuses wrong request_type input.

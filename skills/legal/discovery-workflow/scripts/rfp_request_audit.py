@@ -250,7 +250,7 @@ def parse_served_rfp(text: str) -> list[dict[str, Any]]:
     if re.search(r"\bInterrogator(?:y|ies)\b", text, re.IGNORECASE) and not re.search(
         r"Request\s+for\s+Production|\bRFP\b", text, re.IGNORECASE
     ):
-        raise UsageError("source looks like ROG set; use D3 (not implemented) / refuse RFP auditor")
+        raise UsageError("source looks like ROG set; use D3 (rog_request_audit)")
 
     blocks = _blocks_by_heading(text) or _numbered_blocks(text)
     if not blocks:

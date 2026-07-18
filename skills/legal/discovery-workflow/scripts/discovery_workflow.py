@@ -29,6 +29,7 @@ DISPATCH: dict[tuple[str, str], Path] = {
     ("rfp", "draft_outgoing_request"): WORKFLOW_SCRIPTS / "rfp_outgoing.py",
     ("rfp", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rfp_request_audit.py",
     ("rfa", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rfa_request_audit.py",
+    ("rog", "audit_incoming_request"): WORKFLOW_SCRIPTS / "rog_request_audit.py",
 }
 
 SLICE_SELFTESTS: list[tuple[str, Path]] = [
@@ -40,6 +41,7 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
     ("B3 rfp/draft", WORKFLOW_SCRIPTS / "rfp_outgoing.py"),
     ("D1 rfp/request-audit", WORKFLOW_SCRIPTS / "rfp_request_audit.py"),
     ("D2 rfa/request-audit", WORKFLOW_SCRIPTS / "rfa_request_audit.py"),
+    ("D3 rog/request-audit", WORKFLOW_SCRIPTS / "rog_request_audit.py"),
 ]
 
 # Commands that do not take a matter_dir positional
@@ -72,10 +74,12 @@ def resolve_slice(request_type: str, mode: str) -> Path:
         raise SystemExit(
             "ERROR: mode 'trial_gap_assessment' is not implemented (SPEC G1 deferred)."
         )
-    if mode.lower() == "audit_incoming_request" and request_type.lower() not in {"rfp", "rfa"}:
+    if mode.lower() == "audit_incoming_request" and request_type.lower() not in {
+        "rfp", "rfa", "rog",
+    }:
         raise SystemExit(
-            "ERROR: audit_incoming_request is implemented for rfp (D1) and rfa (D2) only. "
-            "D3 (rog) is not implemented yet."
+            "ERROR: audit_incoming_request is implemented for rfp (D1), rfa (D2), "
+            "and rog (D3) only."
         )
     path = DISPATCH.get(key)
     if path is None:
