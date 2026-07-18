@@ -118,7 +118,19 @@ def _load_casegraph():
     return module
 
 
+def _load_response_rules():
+    sys.dont_write_bytecode = True
+    path = SCRIPT_PATH.parent / "response_audit_rules.py"
+    spec = importlib.util.spec_from_file_location("response_audit_rules_rfa", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 cg = _load_casegraph()
+rar = _load_response_rules()
 
 
 def utcnow() -> str:
@@ -533,7 +545,7 @@ def _audit_row(
     notes: str,
 ) -> dict[str, Any]:
     classification = response["classification"]
-    return {
+    row = {
         "item_id": response["item_id"],
         "response_id": response["response_id"],
         "request_text": request_text,
@@ -549,6 +561,7 @@ def _audit_row(
         "request_type": REQUEST_TYPE,
         "mode": MODE,
     }
+    return rar.attach_rule_ids(row, request_type=REQUEST_TYPE)
 
 
 def audit_rfa_response(

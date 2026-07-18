@@ -111,6 +111,7 @@ def test_classifications_and_audit_statuses(tmp_path):
 
     audits = _read_jsonl(matter / "02_outputs" / "rfa_audit_items.jsonl")
     by_id = {row["response_id"]: row for row in audits}
+    assert all(row.get("rule_ids") for row in audits)
     assert by_id["RFA-001-R01"]["status"] == "supported"
     assert by_id["RFA-001-R01"]["record_cites"]
     assert by_id["RFA-002-R01"]["status"] == "supported"

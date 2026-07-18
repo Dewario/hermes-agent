@@ -104,6 +104,7 @@ def test_audit_flags_unsourced_liability(tmp_path):
         assert rog.main([command, str(matter)]) == 0
     rows = _read_jsonl(matter / "02_outputs" / "rog_audit_items.jsonl")
     by_id = {row["proposition_id"]: row for row in rows}
+    assert all(row.get("rule_ids") for row in rows)
     # Chronology / medical / wage should find support in fixtures.
     chronology = [r for r in rows if r["kind"] == "chronology_assertion"]
     assert chronology and chronology[0]["status"] == "supported"

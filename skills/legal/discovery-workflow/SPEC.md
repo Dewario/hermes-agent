@@ -391,7 +391,7 @@ SPEC wins until a compatibility amend is explicit.
 Synthetic matrix for A1–B3 + **D1–D3** + **G1** is **complete**.
 
 1. Keep A1–B3 + D1–D3 + G1 synthetic cells green. **No live clients** without §9.5.
-2. Optional: deepen A* audits with `rule_ids` (`COUNSEL_PACK_SPEC.md`).
+2. A* response audits now carry baseline `rule_ids` (pack deepen).
 3. **C*** / live dry-run require **owner §9.5** (`OWNER_LIVE_GATE.md`).
    Engineering never checks §9.5.
 

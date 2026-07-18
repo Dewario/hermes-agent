@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.11.0
+version: 0.12.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]

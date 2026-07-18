@@ -102,7 +102,19 @@ def _load_casegraph():
     return module
 
 
+def _load_response_rules():
+    sys.dont_write_bytecode = True
+    path = LEGAL_ROOT / "discovery-workflow" / "scripts" / "response_audit_rules.py"
+    spec = importlib.util.spec_from_file_location("response_audit_rules_rfp", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 cg = _load_casegraph()
+rar = _load_response_rules()
 
 
 def utcnow() -> str:
@@ -540,7 +552,7 @@ def _audit_row(
     conflict_cites: list[dict[str, Any]],
     notes: str,
 ) -> dict[str, Any]:
-    return {
+    row = {
         "item_id": proposition["item_id"],
         "proposition_id": proposition["proposition_id"],
         "proposition_text": proposition["text"],
@@ -549,7 +561,11 @@ def _audit_row(
         "conflict_cites": conflict_cites,
         "notes": notes,
         "attorney_review_required": status != "supported",
+        "request_type": "rfp",
+        "mode": "audit_incoming_response",
+        "kind": proposition.get("kind"),
     }
+    return rar.attach_rule_ids(row, request_type="rfp")
 
 
 def cmd_audit_existing(args: argparse.Namespace) -> int:

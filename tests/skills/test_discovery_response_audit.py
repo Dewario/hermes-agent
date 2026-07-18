@@ -100,6 +100,7 @@ def test_phase_a_audit_outputs_supported_conflict_and_transcript_cite(tmp_path):
 
     rows = _read_jsonl(matter / "02_outputs" / "response_audit_items.jsonl")
     by_id = {row["proposition_id"]: row for row in rows}
+    assert all(row.get("rule_ids") for row in rows)
     assert by_id["RFP-001-P01"]["status"] == "supported"
     assert by_id["RFP-001-P01"]["record_cites"][0]["type"] == "bates"
     assert by_id["RFP-002-P01"]["status"] == "conflicts_with_record"

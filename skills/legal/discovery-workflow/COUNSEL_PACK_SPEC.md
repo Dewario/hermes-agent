@@ -80,7 +80,7 @@ Scaffold may create a blank template later; D1 refuses live without pack id.
 | **D2** | `audit_incoming_request` | `rfa` | After D1 green |
 | **D3** | `audit_incoming_request` | `rog` | After D2 green |
 | **G1** | `trial_gap_assessment` | (multi recommend) | After D1 + A\* available |
-| A\* deepen | `audit_incoming_response` | per type | Add `rule_ids[]` to audit items |
+| A\* deepen | `audit_incoming_response` | per type | Add `rule_ids[]` to audit items — done (baselines) |
 | C\* | `draft_response` | per type | Only after matching audit intentional for live |
 
 Do not open G1 live before D1 synthetic-green. B1–B3 remain the **draft**
