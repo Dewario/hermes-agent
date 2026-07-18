@@ -56,8 +56,11 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
 ]
 
 # Commands that do not take a matter_dir positional
-_NO_MATTER_COMMANDS = frozenset({"selftest", "selftest-all", "smoke", "help"})
+_NO_MATTER_COMMANDS = frozenset({
+    "selftest", "selftest-all", "smoke", "prepare", "ladder", "help",
+})
 SMOKE_SCRIPT = WORKFLOW_SCRIPTS / "smoke_counsel_pack.py"
+PREPARE_SCRIPT = WORKFLOW_SCRIPTS / "prepare_synthetic_ladder.py"
 
 
 def _load_main(path: Path) -> Callable[[list[str] | None], int]:
@@ -132,6 +135,8 @@ def build_parser() -> argparse.ArgumentParser:
             "  discovery_workflow.py selftest-all\n"
             "  discovery_workflow.py smoke\n"
             "  discovery_workflow.py smoke -- --matter-dir C:\\Temp\\SYN-SMOKE-COUNSEL\n"
+            "  discovery_workflow.py prepare\n"
+            "  discovery_workflow.py prepare -- --levels L2,L3 --keep\n"
         ),
     )
     parser.add_argument("--matter-dir", type=Path, help="matter directory (injected if omitted from subcommand)")
@@ -168,6 +173,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if command == "smoke":
         return forward(SMOKE_SCRIPT, list(forwarded))
+
+    if command in {"prepare", "ladder"}:
+        return forward(PREPARE_SCRIPT, list(forwarded))
 
     if not args.mode:
         print(

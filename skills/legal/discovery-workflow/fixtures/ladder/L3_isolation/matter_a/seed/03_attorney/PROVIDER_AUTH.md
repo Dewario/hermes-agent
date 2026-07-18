@@ -1,0 +1,2 @@
+- Attorney initials: JD  Date: 2026-07-18
+- Scope: SYN-LADDER-ISO-A only

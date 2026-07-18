@@ -1,0 +1,11 @@
+# SYNTHETIC / NON-CLIENT / TEST ONLY — L2 stress (ca_ccp)
+matter_id: SYN-LADDER-STRESS
+court: "Superior Court of California (synthetic stress)"
+jurisdiction_pack: ca_ccp
+case_overlay: null
+discovery_cutoff: "2026-12-01"
+expert_cutoff: null
+limits_used:
+  rog: 12
+  rfp: null
+  rfa: 8

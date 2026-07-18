@@ -161,6 +161,20 @@ def test_smoke_command_forwards(monkeypatch):
     assert captured == [["smoke_counsel_pack.py", "--keep-temp"]]
 
 
+def test_prepare_command_forwards(monkeypatch):
+    captured: list[list[str]] = []
+
+    def _fake_forward(path, argv):
+        captured.append([path.name, *argv])
+        return 0
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    assert dw.main(["prepare", "--", "--levels", "L3", "--keep"]) == 0
+    assert captured == [["prepare_synthetic_ladder.py", "--levels", "L3", "--keep"]]
+    assert dw.main(["ladder", "--", "--levels", "L1"]) == 0
+    assert captured[-1] == ["prepare_synthetic_ladder.py", "--levels", "L1"]
+
+
 def test_skill_description_length():
     skill = (REPO / "skills" / "legal" / "discovery-workflow" / "SKILL.md").read_text(encoding="utf-8")
     for line in skill.splitlines():

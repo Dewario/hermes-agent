@@ -236,7 +236,7 @@ def parse_answer_brief(text: str) -> list[dict[str, Any]]:
             raise UsageError(f"brief line {lineno}: empty narrative")
         if cls == "object_only" and not re.search(r"ATTORNEY", body, re.I):
             # Force attorney placeholder discipline
-            body = f"[ATTORNEY OBJECTION LANGUAGE REQUIRED] {body}"
+            body = f"[attorney: insert objection language] {body}"
         rows.append({
             "served_number": int(match.group("num")),
             "classification": cls,

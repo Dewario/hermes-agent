@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.14.0
+version: 0.15.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -249,7 +249,18 @@ python $dw smoke
 python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
 ```
 
-Runs D1–D3 + G1 + A2 + B1–B3 validate gates on one materialised matter.
+Runs D1–D3 + G1 + A2 + B1–B3 + C2 validate gates on one materialised matter.
+
+## Synthetic preparation ladder (no live files)
+
+Graduated offline prep before any real matter: L1 smoke → L2 `ca_ccp` stress
+→ L3 isolation pair. Seeds under `fixtures/ladder/`. Default workspace is TEMP.
+
+```powershell
+$dw = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\discovery_workflow.py"
+python $dw prepare
+python $dw prepare -- --levels L2,L3 --keep
+```
 
 Live-shaped rehearsal (synthetic matter ID under `C:\\Matters\\`, no
 `--skip-ocr-queue`; gate file written outside the repo):

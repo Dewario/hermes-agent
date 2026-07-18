@@ -1,0 +1,11 @@
+# SYNTHETIC / NON-CLIENT / TEST ONLY — L3 ISO-B
+matter_id: SYN-LADDER-ISO-B
+court: synthetic
+jurisdiction_pack: frcp_generic
+case_overlay: fela
+discovery_cutoff: null
+expert_cutoff: null
+limits_used:
+  rog: 0
+  rfp: null
+  rfa: 0
