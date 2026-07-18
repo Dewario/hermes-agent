@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.5.0
+version: 0.6.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -28,7 +28,12 @@ See `SPEC.md` for the full roadmap.
 **RFP audit (Slice A1):** use `legal-discovery-response`, not these modules.
 
 This skill is **not ready for live use** until the relevant slice gates pass and
-the owner signs off for that matter × request_type × mode (§9.5).
+the owner signs off for that matter × request_type × mode (§9.5). Use
+`OWNER_LIVE_GATE.md` for that approval (owner only).
+
+**Umbrella (optional):** `scripts/discovery_workflow.py` dispatches by
+`--request-type` + `--mode` to the slice scripts below, or run
+`selftest-all` for the six-cell synthetic matrix.
 
 ## Hard Rules
 
@@ -141,6 +146,9 @@ and interrogatory-only stems.
 ## Synthetic Self-Test
 
 ```powershell
+$dw = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\discovery_workflow.py"
+python $dw selftest-all
+# or per slice:
 python $rfa selftest
 python $rog selftest
 python $orfa selftest

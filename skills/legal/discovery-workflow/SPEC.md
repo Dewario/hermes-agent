@@ -238,9 +238,10 @@ cell to be green plus full OCR + `casegraph status` + `verify-cites` +
 
 ---
 
-## 8. CLI sketch (umbrella — not implemented yet)
+## 8. CLI (umbrella — implemented)
 
-Preferred long-term surface:
+Preferred surface (`scripts/discovery_workflow.py` dispatches to dedicated
+slice modules; it does not reimplement parsers):
 
 ```
 python skills/legal/discovery-workflow/scripts/discovery_workflow.py \
@@ -248,9 +249,11 @@ python skills/legal/discovery-workflow/scripts/discovery_workflow.py \
   --request-type rfa \
   --mode audit_incoming_response \
   <parse|audit|package|validate|selftest|...>
+
+python skills/legal/discovery-workflow/scripts/discovery_workflow.py selftest-all
 ```
 
-Until the umbrella lands:
+Per-slice CLIs remain supported:
 
 ```
 # Slice A1 — RFP audit
@@ -373,10 +376,17 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-1. Keep A1–A3 + B1–B3 synthetic cells green. **No live clients** without §9.5.
-2. Owner §9.5 per matter × slice before any live dry-run.
-3. Optional later: umbrella CLI + mixed discovery-set workflow; `draft_response`
-   (C*) only after matching audit slice is intentional for live.
+Synthetic matrix is **complete** — all six §7 cells (A1–A3 + B1–B3) are green
+on synthetic fixtures. The remaining gate is the **owner §9.5 sign-off**; no
+live dry-run has been run.
+
+1. **Owner gate next.** Owner signs §9.5 per matter × request_type × mode using
+   the template in `OWNER_LIVE_GATE.md` before any live dry-run. Engineering
+   confirms §9.1–9.3 only; it never checks §9.5.
+2. Keep A1–A3 + B1–B3 synthetic cells green. **No live clients** without §9.5.
+3. Optional later: mixed discovery-set workflow; `draft_response` (C*) only
+   after matching audit slice is intentional for live. Umbrella CLI (§8) is
+   implemented as a thin dispatcher over per-slice scripts.
 
 **Do not** use A1/A2/A3/B1/B2/B3 live without owner §9.5 for that matter × type × mode.
 

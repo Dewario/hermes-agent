@@ -128,10 +128,43 @@ For medical-record timelines after review, use `skills/legal/medical-chronology/
 ## 8. Discovery workflows — not ready for live use
 
 Program roadmap: `skills/legal/discovery-workflow/SPEC.md` (`rog`|`rfp`|`rfa`
-× audit|draft). Implemented synthetic-only today: **A1** RFP audit,
-**A2** RFA audit, **A3** ROG audit, **B1** outgoing RFA draft
-(`rfa_outgoing.py`), **B2** outgoing ROG draft (`rog_outgoing.py`), **B3**
-outgoing RFP draft (`rfp_outgoing.py`). All six §7 synthetic cells exist;
-live use still requires owner §9.5 per matter × request_type × mode. Do **not**
-use Hermes for Allen or any live matter’s discovery audit/draft until that
-sign-off. Never combine two clients’ records in one review context.
+× audit|draft). All six §7 synthetic cells are implemented and green
+(synthetic-only). **Live use requires the owner to sign §9.5 per matter ×
+request_type × mode** using the copy-paste template in
+[`discovery-workflow/OWNER_LIVE_GATE.md`](discovery-workflow/OWNER_LIVE_GATE.md).
+Engineering may confirm §9.1–9.3; it must **never** check a §9.5 box or run a
+live/Allen matter. Do **not** use Hermes for Allen or any live matter's
+discovery audit/draft until that sign-off. Never combine two clients' records
+in one review context.
+
+**Six synthetic cells → script per cell:**
+
+| Cell | Slice | request_type × mode | Script to run |
+|------|-------|---------------------|---------------|
+| 1 | A3 | `rog` audit_incoming_response | `discovery-workflow/scripts/rog_audit.py` |
+| 2 | B2 | `rog` draft_outgoing_request | `discovery-workflow/scripts/rog_outgoing.py` |
+| 3 | A1 | `rfp` audit_incoming_response | `discovery-response/scripts/discovery_response.py` |
+| 4 | B3 | `rfp` draft_outgoing_request | `discovery-workflow/scripts/rfp_outgoing.py` |
+| 5 | A2 | `rfa` audit_incoming_response | `discovery-workflow/scripts/rfa_audit.py` |
+| 6 | B1 | `rfa` draft_outgoing_request | `discovery-workflow/scripts/rfa_outgoing.py` |
+
+Optional umbrella (thin dispatcher — same slices):
+`discovery-workflow/scripts/discovery_workflow.py --request-type … --mode … <cmd>`
+or `… selftest-all`. Per-slice scripts above remain the canonical entry points.
+
+**Live dry-run for a single cell (only after owner §9.5 for that cell).** Produce
+the slice output with its script, then run gates **without** `--skip-ocr-queue`
+(SPEC §9.2):
+
+```
+casegraph status <matter_dir>
+casegraph verify-cites <matter_dir> <output.md>   # add --allow-empty for outgoing drafts
+casegraph check-isolation <matter_dir> <output.md> --strict
+# Audit slices (A1–A3):
+python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> --output <output.md>
+# Outgoing drafts (B1–B3): omit --output (packages intentionally cite no Bates)
+python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir>
+```
+
+All must exit 0, and `casegraph export-ocr-queue <matter_dir>` must be empty
+(OCR fully run — no skip on live). No live dry-run has been run yet.
