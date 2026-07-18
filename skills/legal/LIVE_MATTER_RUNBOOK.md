@@ -152,6 +152,11 @@ Optional umbrella (thin dispatcher — same slices):
 `discovery-workflow/scripts/discovery_workflow.py --request-type … --mode … <cmd>`
 or `… selftest-all`. Per-slice scripts above remain the canonical entry points.
 
+Counsel-pack expansion (defense-request audit, trial-gap, jurisdiction packs)
+is SPEC’d under `discovery-workflow/COUNSEL_PACK_SPEC.md` — **not live** and
+**not implemented** past jurisdiction pack data/loader. Do not treat it as a
+live dry-run path.
+
 **Live dry-run for a single cell (only after owner §9.5 for that cell).** Produce
 the slice output with its script, then run gates **without** `--skip-ocr-queue`
 (SPEC §9.2):

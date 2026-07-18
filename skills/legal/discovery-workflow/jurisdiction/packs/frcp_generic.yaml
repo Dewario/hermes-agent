@@ -1,0 +1,96 @@
+pack_id: frcp_generic
+version: 1
+status: active
+title: "Federal Rules of Civil Procedure (generic federal practice)"
+jurisdiction_kind: federal
+overlays_allowed: [fela]
+rules:
+  - id: FRCP-26-b-1
+    citation: "Fed. R. Civ. P. 26(b)(1)"
+    summary: "Scope of discovery — nonprivileged, relevant, proportional to needs of the case."
+    applies_to: [all]
+    check_hints: [scope, proportionality, relevance, privilege_boundary]
+
+  - id: FRCP-26-b-2-C
+    citation: "Fed. R. Civ. P. 26(b)(2)(C)"
+    summary: "Court may limit discovery that is unreasonably cumulative, obtainable elsewhere, or outside proportional bounds."
+    applies_to: [all]
+    check_hints: [cumulative, unduly_burdensome, proportionality_limit]
+
+  - id: FRCP-26-e
+    citation: "Fed. R. Civ. P. 26(e)"
+    summary: "Duty to supplement incomplete or incorrect disclosures and discovery responses."
+    applies_to: [all]
+    check_hints: [supplementation, incomplete_response, correct_prior_response]
+
+  - id: FRCP-33-a-1
+    citation: "Fed. R. Civ. P. 33(a)(1)"
+    summary: "Unless otherwise stipulated or ordered, a party may serve no more than 25 written interrogatories including discrete subparts."
+    applies_to: [rog]
+    check_hints: [numerical_limit, interrogatory, discrete_subparts]
+
+  - id: FRCP-33-a-2
+    citation: "Fed. R. Civ. P. 33(a)(2)"
+    summary: "Interrogatories may relate to any matter under Rule 26(b); opinion/contention interrogatories may be deferred until designated time."
+    applies_to: [rog]
+    check_hints: [contention_interrogatory, timing]
+
+  - id: FRCP-33-b
+    citation: "Fed. R. Civ. P. 33(b)"
+    summary: "Answers and objections — objections must be stated with specificity; ground not stated may be waived."
+    applies_to: [rog]
+    check_hints: [objection_specificity, waiver_risk, verification]
+
+  - id: FRCP-34-a
+    citation: "Fed. R. Civ. P. 34(a)"
+    summary: "A party may serve a request to produce documents, ESI, or tangible things, or to permit entry onto land."
+    applies_to: [rfp]
+    check_hints: [production, esi, tangible_things]
+
+  - id: FRCP-34-b-1
+    citation: "Fed. R. Civ. P. 34(b)(1)"
+    summary: "Requests must describe items with reasonable particularity and may specify form of ESI."
+    applies_to: [rfp]
+    check_hints: [particularity, overbreadth, esi_form]
+
+  - id: FRCP-34-b-2
+    citation: "Fed. R. Civ. P. 34(b)(2)"
+    summary: "Responses and objections — must state whether materials are withheld on objection; produce in ordinary course or as kept."
+    applies_to: [rfp]
+    check_hints: [withholding_statement, production_manner, objection_specificity]
+
+  - id: FRCP-36-a-1
+    citation: "Fed. R. Civ. P. 36(a)(1)"
+    summary: "A party may serve requests for admission of truth of matters or genuineness of documents."
+    applies_to: [rfa]
+    check_hints: [admission, genuineness, authenticity]
+
+  - id: FRCP-36-a-2
+    citation: "Fed. R. Civ. P. 36(a)(2)"
+    summary: "Each matter must be separately stated."
+    applies_to: [rfa]
+    check_hints: [separately_stated, compound_request]
+
+  - id: FRCP-36-a-4
+    citation: "Fed. R. Civ. P. 36(a)(4)"
+    summary: "Answer must admit, specifically deny, or state in detail why neither; qualify when good faith requires."
+    applies_to: [rfa]
+    check_hints: [admit_deny_qualify, lack_of_information, good_faith]
+
+  - id: FRCP-36-a-5
+    citation: "Fed. R. Civ. P. 36(a)(5)"
+    summary: "Objections — must state grounds; if only part objectionable, answer the remainder."
+    applies_to: [rfa]
+    check_hints: [partial_objection, objection_grounds]
+
+  - id: FRCP-26-f
+    citation: "Fed. R. Civ. P. 26(f)"
+    summary: "Discovery conference / planning — timing of formal discovery often tied to scheduling order."
+    applies_to: [all]
+    check_hints: [timing, scheduling_order, premature_discovery]
+
+  - id: FRCP-cutoff-placeholder
+    citation: "Scheduling order / local rules (matter-specific)"
+    summary: "Fact/expert discovery cutoffs are matter-specific; pack cannot invent dates — read matter profile."
+    applies_to: [all]
+    check_hints: [discovery_cutoff, expert_cutoff, needs_matter_profile]

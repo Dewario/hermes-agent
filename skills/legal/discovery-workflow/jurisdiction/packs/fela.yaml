@@ -1,0 +1,37 @@
+pack_id: fela
+version: 1
+status: active
+overlay: true
+base_pack: frcp_generic
+title: "FELA / railroad plaintiff overlay (on FRCP)"
+jurisdiction_kind: federal
+rules:
+  - id: FELA-THEME-NOTICE
+    citation: "FELA practice overlay — notice / prior incident themes (attorney confirms elements)"
+    summary: "Flag requests or gaps touching actual/constructive notice, prior similar incidents, complaint logs, and inspection history."
+    applies_to: [all]
+    check_hints: [notice, prior_incident, inspection, complaint_log, issue_tag:notice]
+
+  - id: FELA-THEME-DUTY
+    citation: "FELA practice overlay — employer duty / safe place to work themes"
+    summary: "Flag liability themes around duty to provide safe workplace, tools, training, and supervision."
+    applies_to: [all]
+    check_hints: [liability, safe_place, training, supervision, issue_tag:liability]
+
+  - id: FELA-THEME-RAIL-DOCS
+    citation: "FELA practice overlay — railroad operational records"
+    summary: "Common custodial targets: track/bridge inspection reports, job briefings, HOS records, event recorder / camera data, injury reports, claim files."
+    applies_to: [rfp, rog]
+    check_hints: [railroad_records, inspection_report, event_recorder, claim_file, hos]
+
+  - id: FELA-THEME-MEDICAL-WAGE
+    citation: "FELA practice overlay — medical and wage-loss proof"
+    summary: "Ensure medical records, provider identities, work restrictions, and wage/earnings proof are covered before trial."
+    applies_to: [all]
+    check_hints: [medical, wage_loss, work_restriction, issue_tag:medical, issue_tag:wage_loss]
+
+  - id: FELA-STATUTE-REFS
+    citation: "45 U.S.C. § 51 et seq. (FELA) — substantive overlay only"
+    summary: "Substantive FELA references for issue tagging; not a substitute for FRCP discovery procedure."
+    applies_to: [all]
+    check_hints: [fela_substantive, needs_attorney_rule_confirm]

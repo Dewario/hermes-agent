@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.6.0
+version: 0.7.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -34,6 +34,10 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 **Umbrella (optional):** `scripts/discovery_workflow.py` dispatches by
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the six-cell synthetic matrix.
+
+**Counsel-pack expansion (SPEC only):** see `COUNSEL_PACK_SPEC.md` for
+defense-request audit (D1–D3), trial-gap (G1), and `jurisdiction/` packs.
+Not implemented yet beyond pack data + `jurisdiction/load_pack.py`.
 
 ## Hard Rules
 

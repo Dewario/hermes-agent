@@ -1,0 +1,37 @@
+pack_id: ca_ccp
+version: 0
+status: stub
+title: "California Code of Civil Procedure — discovery (STUB — not for live)"
+jurisdiction_kind: state
+overlays_allowed: []
+rules:
+  # TODO ids only — flesh out before status: active
+  - id: CCP-2016-020-TODO
+    citation: "Cal. Code Civ. Proc. § 2016.020 (TODO)"
+    summary: "Stub — definitions / scope placeholders."
+    applies_to: [all]
+    check_hints: [stub, needs_attorney_rule_confirm]
+
+  - id: CCP-2030-TODO
+    citation: "Cal. Code Civ. Proc. § 2030.010 et seq. (TODO)"
+    summary: "Stub — interrogatories (numerical limits, form, timing)."
+    applies_to: [rog]
+    check_hints: [stub, numerical_limit, interrogatory]
+
+  - id: CCP-2031-TODO
+    citation: "Cal. Code Civ. Proc. § 2031.010 et seq. (TODO)"
+    summary: "Stub — inspection / production demands."
+    applies_to: [rfp]
+    check_hints: [stub, production, particularity]
+
+  - id: CCP-2033-TODO
+    citation: "Cal. Code Civ. Proc. § 2033.010 et seq. (TODO)"
+    summary: "Stub — requests for admission."
+    applies_to: [rfa]
+    check_hints: [stub, admission]
+
+  - id: CCP-2019-TODO
+    citation: "Cal. Code Civ. Proc. § 2019.010 et seq. (TODO)"
+    summary: "Stub — discovery methods / sequence."
+    applies_to: [all]
+    check_hints: [stub, timing]

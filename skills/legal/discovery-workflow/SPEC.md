@@ -2,9 +2,11 @@
 
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
-draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). **Not ready
-for live use** (owner §9.5 still open per matter × type × mode).
-**Date:** 2026-07-17 (amended: Slice B3 outgoing RFP draft landed)
+draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
+expansion (**D1–D3**, **G1**, jurisdiction packs) is SPEC’d in
+`COUNSEL_PACK_SPEC.md` — **not implemented** beyond pack data + loader.
+**Not ready for live use** (owner §9.5 still open per matter × type × mode).
+**Date:** 2026-07-17 (amended: counsel-pack SPEC + jurisdiction packs landed)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -28,12 +30,13 @@ repo).
 
 | Covered now | Not covered |
 |-------------|-------------|
-| Audit proposed final **RFP** responses (A1) | Mixed discovery-set workflow |
-| Audit proposed final **RFA** responses (A2) | `draft_response` modes |
-| Audit proposed final **ROG** answers (A3) | Live use without §9.5 |
-| Draft outgoing **RFAs** with issue tags (B1) | Full six-cell “ready” marketing |
-| Draft outgoing **ROGs** with issue tags (B2) | |
-| Draft outgoing **RFPs** with issue tags + production awareness (B3) | |
+| Audit proposed final **RFP** responses (A1) | Audit **defense-served requests** (D1–D3) |
+| Audit proposed final **RFA** responses (A2) | `trial_gap_assessment` (G1) |
+| Audit proposed final **ROG** answers (A3) | `draft_response` modes (C*) |
+| Draft outgoing **RFAs** with issue tags (B1) | Mixed discovery-set workflow |
+| Draft outgoing **ROGs** with issue tags (B2) | Live use without §9.5 |
+| Draft outgoing **RFPs** with issue tags + production awareness (B3) | Full counsel-pack “ready” marketing |
+| Jurisdiction pack **data** + loader (`jurisdiction/`) | D1 checker consuming packs |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
 
@@ -50,7 +53,7 @@ Every invocation declares exactly one value on each axis:
 | Axis | Values | Meaning |
 |------|--------|---------|
 | `request_type` | `rog` \| `rfp` \| `rfa` | Interrogatory / request for production / request for admission |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `draft_response` (later) | What the tool does |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (planned) \| `trial_gap_assessment` (planned) \| `draft_response` (later) | What the tool does |
 
 Definitions:
 
@@ -59,6 +62,10 @@ Definitions:
 - **`draft_outgoing_request`** — Draft **outgoing** discovery requests this
   party will propound, tied to case issues / jury themes. Materially different
   from audit (issue model required).
+- **`audit_incoming_request`** — Grade **defense-served** requests under a
+  pinned jurisdiction pack (planned — see `COUNSEL_PACK_SPEC.md` D1–D3).
+- **`trial_gap_assessment`** — Recommend additional plaintiff discovery before
+  trial; feeds B1–B3 issue briefs (planned — G1).
 - **`draft_response`** — Draft responses to served requests (deferred until
   corresponding audit slice is synthetic-green and owner opens the slice).
 
@@ -376,17 +383,16 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-Synthetic matrix is **complete** — all six §7 cells (A1–A3 + B1–B3) are green
-on synthetic fixtures. The remaining gate is the **owner §9.5 sign-off**; no
-live dry-run has been run.
+Synthetic matrix for A1–B3 is **complete**. Counsel-pack expansion is
+specified (`COUNSEL_PACK_SPEC.md`, `COUNSEL_PACK_ASSESSMENT.md`,
+`jurisdiction/`) but **not implemented** past the pack loader.
 
-1. **Owner gate next.** Owner signs §9.5 per matter × request_type × mode using
-   the template in `OWNER_LIVE_GATE.md` before any live dry-run. Engineering
-   confirms §9.1–9.3 only; it never checks §9.5.
-2. Keep A1–A3 + B1–B3 synthetic cells green. **No live clients** without §9.5.
-3. Optional later: mixed discovery-set workflow; `draft_response` (C*) only
-   after matching audit slice is intentional for live. Umbrella CLI (§8) is
-   implemented as a thin dispatcher over per-slice scripts.
+1. **Implement D1** — `audit_incoming_request` for RFP using `frcp_generic`
+   (+ optional `fela` overlay). See `COUNSEL_PACK_SPEC.md`.
+2. Then D2/D3 → G1 trial-gap orchestrator → deepen A\* with `rule_ids`.
+3. **Owner §9.5** still required before any live dry-run of existing or new
+   modes (`OWNER_LIVE_GATE.md`). Engineering never checks §9.5.
+4. Keep A1–A3 + B1–B3 synthetic cells green. **No live clients** without §9.5.
 
 **Do not** use A1/A2/A3/B1/B2/B3 live without owner §9.5 for that matter × type × mode.
 
