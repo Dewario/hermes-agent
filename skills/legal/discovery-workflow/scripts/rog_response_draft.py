@@ -570,12 +570,12 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--source", type=Path)
     p.set_defaults(fn=cmd_parse_brief)
 
-    p = sub.add_parser("draft-rog-answers", help="draft responses from brief")
+    p = sub.add_parser("draft-rog-answers", help="draft answers from attorney brief")
     p.add_argument("matter_dir")
     p.add_argument("--allow-stub-pack", action="store_true")
     p.set_defaults(fn=cmd_draft)
 
-    p = sub.add_parser("package-rog-response-draft", help="write draft responses markdown")
+    p = sub.add_parser("package-rog-response-draft", help="write draft answers markdown")
     p.add_argument("matter_dir")
     p.set_defaults(fn=cmd_package)
 

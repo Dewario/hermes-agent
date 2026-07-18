@@ -32,7 +32,7 @@ Umbrella: `scripts/discovery_workflow.py` (+ `selftest-all`).
 | Audit **defense-served requests** (overbreadth, limits, rule cites) | **~70% offline** — D1–D3 (RFP/RFA/ROG); deepen with local packs |
 | Audit **plaintiff proposed responses** | **~80% offline** — A1–A3; deepen with rule cites; live needs §9.5 |
 | **Trial-gap / additional discovery** before trial | **~70% offline** — G1 themes → brief exports; attorney edit before B* |
-| **Jurisdiction / rule packs** | **Loader + frcp_generic/fela** — used by D1–D3; ca_ccp stub |
+| **Jurisdiction / rule packs** | **Loader + frcp_generic/fela + active ca_ccp** — used by D*/G1/C* |
 | `draft_response` (C*) | **~70% offline** — C1–C3 answer-brief drafts; attorney edit before serve |
 
 ## Shared enums to reuse (do not fork)

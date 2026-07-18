@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Counsel-pack synthetic smoke: one matter × D1–D3 + G1 + A2 + B1–B3 + C2.
+"""Counsel-pack synthetic smoke: one matter × D1–D3 + G1 + A2 + B1–B3 + C1–C3.
 
 Materializes fixtures/smoke_matter/seed into a temp (or --matter-dir) workspace,
 indexes casegraph, and runs validate gates. Synthetic-only — not §9.5 live.
@@ -50,7 +50,9 @@ a2 = _load_main(WORKFLOW_SCRIPTS / "rfa_audit.py", "smoke_a2")
 b1 = _load_main(WORKFLOW_SCRIPTS / "rfa_outgoing.py", "smoke_b1")
 b2 = _load_main(WORKFLOW_SCRIPTS / "rog_outgoing.py", "smoke_b2")
 b3 = _load_main(WORKFLOW_SCRIPTS / "rfp_outgoing.py", "smoke_b3")
+c1 = _load_main(WORKFLOW_SCRIPTS / "rfp_response_draft.py", "smoke_c1")
 c2 = _load_main(WORKFLOW_SCRIPTS / "rfa_response_draft.py", "smoke_c2")
+c3 = _load_main(WORKFLOW_SCRIPTS / "rog_response_draft.py", "smoke_c3")
 
 
 STEPS: list[tuple[str, Callable[[list[str] | None], int], list[str]]] = [
@@ -92,11 +94,25 @@ STEPS: list[tuple[str, Callable[[list[str] | None], int], list[str]]] = [
     ("B3 draft", b3, ["draft-outgoing-rfp"]),
     ("B3 package", b3, ["package-outgoing-rfp"]),
     ("B3 validate", b3, ["validate-outgoing-rfp"]),
-    ("C2 parse served", c2, ["parse-served-rfa"]),
+    ("C1 parse served", c1, ["parse-served-rfp"]),
+    ("C1 parse brief", c1, ["parse-answer-brief"]),
+    ("C1 draft", c1, ["draft-rfp-responses"]),
+    ("C1 package", c1, ["package-rfp-response-draft"]),
+    ("C1 validate", c1, ["validate-rfp-response-draft"]),
+    (
+        "C2 parse served",
+        c2,
+        ["parse-served-rfa", "--source", "01_discovery_served/rfa_set_for_response_audit.md"],
+    ),
     ("C2 parse brief", c2, ["parse-answer-brief"]),
     ("C2 draft", c2, ["draft-rfa-responses"]),
     ("C2 package", c2, ["package-rfa-response-draft"]),
     ("C2 validate", c2, ["validate-rfa-response-draft"]),
+    ("C3 parse served", c3, ["parse-served-rog"]),
+    ("C3 parse brief", c3, ["parse-answer-brief"]),
+    ("C3 draft", c3, ["draft-rog-answers"]),
+    ("C3 package", c3, ["package-rog-response-draft"]),
+    ("C3 validate", c3, ["validate-rog-response-draft"]),
 ]
 
 
@@ -109,7 +125,9 @@ REQUIRED_SEED = [
     "01_discovery_served/rog_set.md",
     "01_discovery_served/rfa_set_for_response_audit.md",
     "01_discovery_proposed/proposed_rfa_responses.md",
+    "01_discovery_proposed/rfp_answer_brief.md",
     "01_discovery_proposed/rfa_answer_brief.md",
+    "01_discovery_proposed/rog_answer_brief.md",
     "01_discovery_outgoing/gap_themes.md",
     "01_discovery_outgoing/rfp_issue_brief.md",
     "01_discovery_outgoing/rog_issue_brief.md",
@@ -182,7 +200,9 @@ def run_smoke(matter: Path) -> int:
         "02_outputs/outgoing_rfa_set.md",
         "02_outputs/outgoing_rog_set.md",
         "02_outputs/outgoing_rfp_set.md",
+        "02_outputs/draft_rfp_responses.md",
         "02_outputs/draft_rfa_responses.md",
+        "02_outputs/draft_rog_answers.md",
         "01_discovery_outgoing/gap_suggested_rfp_issue_brief.md",
     ]
     for rel in expected:

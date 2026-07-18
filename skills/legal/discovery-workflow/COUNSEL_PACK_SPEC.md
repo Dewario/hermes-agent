@@ -32,7 +32,7 @@ A jurisdictionally disciplined plaintiff discovery counsel loop:
 | Axis | Values |
 |------|--------|
 | `request_type` | `rog` \| `rfp` \| `rfa` (N/A for pure G1 orchestrator runs that emit multi-type recommendations) |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` \| `trial_gap_assessment` \| `draft_response` (later) |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` \| `trial_gap_assessment` \| `draft_response` (C1–C3) |
 | `jurisdiction_pack` | Required for D\* and G1 (e.g. `frcp_generic`). Stub packs fail live. |
 | `case_overlay` | Optional (e.g. `fela`). Must declare `base_pack`. |
 
@@ -47,7 +47,7 @@ do not swap mid-session (prompt-cache).
 - Serve-ready objection drafting / auto-serve packages
 - Mixed multi-matter or mixed-type binder CLI
 - New Hermes **core** model tools (skill + scripts only)
-- `draft_response` (C*) before D\* synthetic-green and owner intentional use
+- Live client use of any slice without owner §9.5
 - Replacing attorney judgment on trial strategy
 
 ---
@@ -146,8 +146,8 @@ Avoid Bates-like `RFP-001` in packages — use `IR-*` / `TG-*` / existing
 | 9 | D3 rog request audit | pytest + selftest |
 | 10 | G1 trial gap | pytest + selftest; exports brief lines without foreign Bates |
 
-Jurisdiction unit tests: load `frcp_generic`+`fela`; refuse `ca_ccp` without
-`--allow-stub-pack`; refuse unknown `rule_id` references in fixtures.
+Jurisdiction unit tests: load `frcp_generic`+`fela` and active `ca_ccp`;
+refuse unknown `rule_id` references; refuse overlay/base mismatches.
 
 ---
 

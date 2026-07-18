@@ -267,6 +267,21 @@ def _tokens(text: str) -> set[str]:
     }
 
 
+_BRIEF_META_SPLIT_RE = re.compile(
+    r"\s*\|\s*(?:Jury|Already|prefer|priority)\s*:",
+    re.IGNORECASE,
+)
+
+
+def _brief_body_for_coverage(body: str) -> str:
+    """Strip `| Jury:` / `| Already:` / prefer/priority suffixes before tokenizing.
+
+    Those metadata tails share short tokens with gap themes (e.g. "prior notice")
+    and falsely mark themes already_covered.
+    """
+    return _BRIEF_META_SPLIT_RE.split(body, maxsplit=1)[0].strip()
+
+
 def _load_existing_brief_coverage(root: Path) -> list[dict[str, Any]]:
     covered: list[dict[str, Any]] = []
     for rel in EXISTING_BRIEFS:
@@ -283,7 +298,7 @@ def _load_existing_brief_coverage(root: Path) -> list[dict[str, Any]]:
                 continue
             covered.append({
                 "tags": set(tags),
-                "tokens": _tokens(match.group("body")),
+                "tokens": _tokens(_brief_body_for_coverage(match.group("body"))),
                 "relpath": rel.as_posix(),
             })
     return covered
@@ -327,13 +342,13 @@ def _rule_ids_for_theme(
     rules: list[dict[str, Any]],
 ) -> list[str]:
     selected: set[str] = set()
-    # Procedural baselines by recommended type
+    # Procedural baselines by recommended type (FRCP + CCP alternatives)
     baselines = {
-        "rfp": ["FRCP-34-a", "FRCP-26-b-1"],
-        "rog": ["FRCP-33-a-1", "FRCP-26-b-1"],
-        "rfa": ["FRCP-36-a-1", "FRCP-26-b-1"],
+        "rfp": ["FRCP-34-a", "CCP-2031-030", "FRCP-26-b-1", "CCP-2017-010"],
+        "rog": ["FRCP-33-a-1", "CCP-2030-030", "FRCP-26-b-1", "CCP-2017-010"],
+        "rfa": ["FRCP-36-a-1", "CCP-2033-030", "FRCP-26-b-1", "CCP-2017-010"],
     }
-    for rid in baselines.get(prefer, ["FRCP-26-b-1"]):
+    for rid in baselines.get(prefer, ["FRCP-26-b-1", "CCP-2017-010"]):
         if rid in available:
             selected.add(rid)
     tag_set = set(tags)
@@ -362,8 +377,11 @@ def _rule_ids_for_theme(
                 selected.add(rid)
             if "liability" in tag_set and "RAIL" in rid:
                 selected.add(rid)
-    if not selected and "FRCP-26-b-1" in available:
-        selected.add("FRCP-26-b-1")
+    if not selected:
+        for fallback in ("FRCP-26-b-1", "CCP-2017-010"):
+            if fallback in available:
+                selected.add(fallback)
+                break
     return sorted(selected)
 
 

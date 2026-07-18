@@ -15,6 +15,7 @@ import importlib.util
 import json
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -194,7 +195,11 @@ def level1_baseline(workspace: Path) -> dict[str, Any]:
         "path": str(matter),
         "ok": code == 0,
         "exit": code,
-        "notes": "Full counsel-pack smoke including C2",
+        "notes": (
+            "Full counsel-pack smoke including C1–C3"
+            if code == 0
+            else f"smoke exited {code}"
+        ),
     }
 
 
@@ -277,6 +282,22 @@ def level2_stress(workspace: Path) -> dict[str, Any]:
                 {"not_separately_stated", "privilege_boundary", "legal_conclusion"},
             )
         )
+        # G1 must still emit at least one open RFP suggestion (notice theme).
+        gap_rfp = matter / "01_discovery_outgoing" / "gap_suggested_rfp_issue_brief.md"
+        if not gap_rfp.is_file() or "prior notice" not in gap_rfp.read_text(encoding="utf-8").lower():
+            expectations.append("G1 export missing open RFP notice suggestion")
+        # ca_ccp baselines should populate rule_ids on gap items
+        gap_items = matter / "02_outputs" / "trial_gap_items.jsonl"
+        if gap_items.is_file():
+            empty_rules = 0
+            for line in gap_items.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                row = json.loads(line)
+                if not row.get("rule_ids"):
+                    empty_rules += 1
+            if empty_rules:
+                expectations.append(f"G1 items with empty rule_ids under ca_ccp: {empty_rules}")
         # OCR-cleared TEMP rehearsal (keeps .synthetic; no skip on export)
         synth = matter / ".synthetic"
         synth_text = synth.read_text(encoding="utf-8") if synth.is_file() else ""
@@ -299,8 +320,6 @@ def level2_stress(workspace: Path) -> dict[str, Any]:
         gate_results = []
         for cmd in gates:
             print("+", " ".join(cmd))
-            # import subprocess locally to keep top imports light
-            import subprocess
             code = subprocess.run(cmd, text=True, check=False).returncode
             gate_results.append({"cmd": cmd[-1] if cmd else "?", "exit": code, "ok": code == 0})
             if code != 0:
@@ -361,7 +380,6 @@ def level3_isolation(workspace: Path) -> dict[str, Any]:
         if "Alpha yard" in pkg_b:
             errors.append("ISO-B package contains Alpha yard facts")
         # strict isolation gate each way
-        import subprocess
         for matter, pkg in (
             (a, a / "02_outputs" / "incoming_rfp_request_audit_report.md"),
             (b, b / "02_outputs" / "incoming_rfp_request_audit_report.md"),
@@ -457,6 +475,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="allow C:\\Matters\\SYN-* rehearsal paths only",
     )
+    p.add_argument(
+        "--fail-fast",
+        action="store_true",
+        help="stop after the first failing level (still writes report)",
+    )
     return p
 
 
@@ -478,15 +501,23 @@ def main(argv: list[str] | None = None) -> int:
 
     results: list[dict[str, Any]] = []
     try:
+        runners: list[tuple[str, Callable[[Path], dict[str, Any]]]] = []
         if "L1" in levels_wanted:
-            results.append(level1_baseline(workspace))
+            runners.append(("L1", level1_baseline))
         if "L2" in levels_wanted:
-            results.append(level2_stress(workspace))
+            runners.append(("L2", level2_stress))
         if "L3" in levels_wanted:
-            results.append(level3_isolation(workspace))
-        if not results:
+            runners.append(("L3", level3_isolation))
+        if not runners:
             print("ERROR: no levels selected", file=sys.stderr)
             return 2
+
+        for _label, runner in runners:
+            row = runner(workspace)
+            results.append(row)
+            if args.fail_fast and not row.get("ok"):
+                print(f"FAIL-FAST: stopping after {row.get('level')}", file=sys.stderr)
+                break
 
         report = args.report
         if report is None:

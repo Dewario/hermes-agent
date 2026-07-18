@@ -249,7 +249,7 @@ python $dw smoke
 python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
 ```
 
-Runs D1–D3 + G1 + A2 + B1–B3 + C2 validate gates on one materialised matter.
+Runs D1–D3 + G1 + A2 + B1–B3 + C1–C3 validate gates on one materialised matter.
 
 ## Synthetic preparation ladder (no live files)
 

@@ -108,6 +108,25 @@ def test_export_skips_covered(tmp_path):
     assert "medical" in rog or "treatment" in rog or "earnings" in rog
 
 
+def test_jury_suffix_does_not_false_cover_notice(tmp_path):
+    """'| Jury: prior notice' on an unrelated brief must not cover the notice theme."""
+    matter = _matter(tmp_path)
+    (matter / "01_discovery_outgoing" / "rfa_issue_brief.md").write_text(
+        "- [authenticity] Admit that the photograph is authentic. | Jury: prior notice\n",
+        encoding="utf-8",
+    )
+    assert mod.main(["parse-gap-themes", str(matter)]) == 0
+    assert mod.main(["assess-trial-gaps", str(matter)]) == 0
+    items = _read_jsonl(matter / "02_outputs" / "trial_gap_items.jsonl")
+    notice = next(i for i in items if "notice" in i["issue_tags"])
+    assert notice["already_covered"] is False, notice.get("notes")
+    assert mod.main(["export-issue-briefs", str(matter)]) == 0
+    rfp = (matter / "01_discovery_outgoing" / "gap_suggested_rfp_issue_brief.md").read_text(
+        encoding="utf-8"
+    )
+    assert "prior notice" in rfp
+
+
 def test_rejects_missing_profile(tmp_path):
     matter = _matter(tmp_path)
     (matter / "03_attorney" / "matter_profile.yaml").unlink()
