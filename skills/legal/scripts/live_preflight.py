@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import os
 import subprocess
@@ -14,6 +15,14 @@ from pathlib import Path
 SCRIPTS_DIR = Path(__file__).resolve().parent
 CASEGRAPH_SCRIPT = SCRIPTS_DIR.parent / "casegraph" / "scripts" / "casegraph.py"
 PROVIDER_AUTH_SCRIPT = SCRIPTS_DIR / "check_provider_auth.py"
+
+_ms_spec = importlib.util.spec_from_file_location(
+    "matter_safety_preflight", SCRIPTS_DIR / "matter_safety.py"
+)
+assert _ms_spec and _ms_spec.loader
+_ms = importlib.util.module_from_spec(_ms_spec)
+sys.modules["matter_safety_preflight"] = _ms
+_ms_spec.loader.exec_module(_ms)
 
 
 class CommandResult:
@@ -65,6 +74,21 @@ def run_preflight(
     if not root.is_dir():
         _record(results, "matter directory", "FAIL", f"not found: {root}")
         return 2, results
+
+    try:
+        _ms.refuse_skip_ocr_if_live(root, skip_ocr_queue=skip_ocr_queue)
+    except SystemExit as exc:
+        _record(results, "OCR skip policy", "FAIL", str(exc))
+        return 1, results
+
+    gate_ok, gate_detail = _ms.require_owner_live_gate_if_live(root)
+    if not gate_ok:
+        _record(results, "owner §9.5 live gate", "FAIL", gate_detail)
+        return 1, results
+    if _ms.is_live_matter_path(root) and not _ms.is_syn_matter_id(_ms.resolve_matter_id(root)):
+        _record(results, "owner §9.5 live gate", "PASS", gate_detail)
+    else:
+        _record(results, "owner §9.5 live gate", "SKIP", gate_detail)
 
     auth_command = [sys.executable, str(PROVIDER_AUTH_SCRIPT), str(root), "--force"]
     if not _run_required(results, "provider authorization", auth_command):

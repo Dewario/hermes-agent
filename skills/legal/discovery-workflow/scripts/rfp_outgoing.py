@@ -25,6 +25,7 @@ SCRIPT_PATH = Path(__file__).resolve()
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 
 TARGETS_REL = Path("02_outputs") / "outgoing_rfp_targets.jsonl"
 ITEMS_REL = Path("02_outputs") / "outgoing_rfp_items.jsonl"
@@ -93,6 +94,18 @@ def _load_casegraph():
 
 
 cg = _load_casegraph()
+
+def _load_matter_safety():
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("matter_safety_rfp_outgoing", MATTER_SAFETY)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load matter_safety: {MATTER_SAFETY}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_ms = _load_matter_safety()
 
 
 def utcnow() -> str:
@@ -644,17 +657,13 @@ def cmd_validate_outgoing_rfp(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "verify-cites", str(root), str(package), "--allow-empty"],
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(package), "--strict"],
     ]
-    if not args.skip_live_preflight:
-        # Outgoing drafts may mention this-matter Bates only as production notes.
-        # Do not pass --output to live_preflight (vacuous/cite coupling).
-        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
-        preflight = [
-            sys.executable, str(LIVE_PREFLIGHT_SCRIPT),
-            "--matter-dir", str(root),
-        ]
-        if synthetic:
-            preflight.append("--skip-ocr-queue")
-        gates.append(preflight)
+    _ms.append_live_preflight_gate(
+        gates,
+        root,
+        live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
+        skip_live_preflight=bool(args.skip_live_preflight),
+        synthetic_flag=bool(getattr(args, 'synthetic', False)),
+    )
     for command in gates:
         code = run_command(command)
         if code != 0:

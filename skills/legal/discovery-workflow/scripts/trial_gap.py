@@ -25,6 +25,7 @@ WORKFLOW_ROOT = SCRIPT_PATH.parents[1]
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 LOAD_PACK_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "load_pack.py"
 
 THEMES_REL = Path("01_discovery_outgoing") / "gap_themes.md"
@@ -91,6 +92,7 @@ def _load_module(path: Path, name: str):
 
 
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_trial_gap")
+_ms = _load_module(MATTER_SAFETY, "matter_safety_trial_gap")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_g1")
 
 
@@ -746,15 +748,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "verify-cites", str(root), str(package), "--allow-empty"],
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(package), "--strict"],
     ]
-    if not args.skip_live_preflight:
-        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
-        preflight = [
-            sys.executable, str(LIVE_PREFLIGHT_SCRIPT),
-            "--matter-dir", str(root),
-        ]
-        if synthetic:
-            preflight.append("--skip-ocr-queue")
-        gates.append(preflight)
+    _ms.append_live_preflight_gate(
+        gates,
+        root,
+        live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
+        skip_live_preflight=bool(args.skip_live_preflight),
+        synthetic_flag=bool(getattr(args, 'synthetic', False)),
+    )
     for command in gates:
         code = run_command(command)
         if code != 0:

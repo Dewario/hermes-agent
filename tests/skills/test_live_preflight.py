@@ -119,3 +119,18 @@ def test_preflight_skip_ocr_queue_and_emit_json(tmp_path, monkeypatch, capsys):
     ]) == 0
     assert not any("export-ocr-queue" in command for command in commands)
     assert '"status": "PASS"' in capsys.readouterr().out
+
+
+def test_preflight_refuses_skip_ocr_on_live_non_syn(tmp_path, monkeypatch, capsys):
+    matter = tmp_path / "REAL-CLIENT-01"
+    matter.mkdir()
+    _complete_auth(matter)
+    monkeypatch.setattr(preflight._ms, "is_live_matter_path", lambda _p: True)
+    monkeypatch.setattr(preflight._ms, "is_syn_matter_id", lambda _m: False)
+
+    assert preflight.main([
+        "--matter-dir", str(matter), "--skip-ocr-queue",
+    ]) == 1
+    out = capsys.readouterr().out
+    assert "FAIL" in out
+    assert "OCR skip" in out or "skip-ocr" in out.lower()

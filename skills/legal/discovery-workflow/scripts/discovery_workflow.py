@@ -202,13 +202,23 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     slice_argv = [command, *forwarded]
-    if (
-        command not in _NO_MATTER_COMMANDS
-        and args.matter_dir is not None
-        and (not forwarded or not Path(str(forwarded[0])).exists())
-    ):
-        # Inject matter_dir as first positional after the subcommand.
-        slice_argv = [command, str(args.matter_dir.expanduser()), *forwarded]
+    if command not in _NO_MATTER_COMMANDS and args.matter_dir is not None:
+        injected = args.matter_dir.expanduser().resolve()
+        positional: Path | None = None
+        if forwarded:
+            candidate = Path(str(forwarded[0])).expanduser()
+            if candidate.exists():
+                positional = candidate.resolve()
+        if positional is not None and positional != injected:
+            print(
+                f"ERROR: conflicting matter dirs: positional={positional} "
+                f"--matter-dir={injected}",
+                file=sys.stderr,
+            )
+            return 2
+        if positional is None:
+            # Inject matter_dir as first positional after the subcommand.
+            slice_argv = [command, str(injected), *forwarded]
 
     if command == "selftest":
         slice_argv = ["selftest"]

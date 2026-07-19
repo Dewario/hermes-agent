@@ -3,7 +3,7 @@
 
 matter_id: REPLACE_ME
 court: "U.S. District Court — REPLACE"
-jurisdiction_pack: frcp_generic   # active packs only for live (not ca_ccp stub)
+jurisdiction_pack: frcp_generic   # active: frcp_generic | ca_ccp (+ optional fela overlay); live still needs §9.5
 case_overlay: fela                # optional; must match base_pack
 discovery_cutoff: null            # ISO date or null
 expert_cutoff: null

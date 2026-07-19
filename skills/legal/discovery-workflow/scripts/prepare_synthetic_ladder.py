@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
-import re
 import shutil
 import subprocess
 import sys
@@ -35,13 +34,7 @@ L3A_SEED = LADDER / "L3_isolation" / "matter_a" / "seed"
 L3B_SEED = LADDER / "L3_isolation" / "matter_b" / "seed"
 CASEGRAPH = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT = LEGAL_ROOT / "scripts" / "live_preflight.py"
-
-LIVE_ID_BLOCKLIST = re.compile(
-    r"(?:^|[/\\_\s-])(allen|client[\s_-]?[ab]|prod-client|live-client)"
-    r"(?:[/\\_\s-]|$)",
-    re.IGNORECASE,
-)
-SYN_ID_RE = re.compile(r"^SYN-[A-Z0-9][A-Z0-9_-]*$", re.IGNORECASE)
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 
 
 def _load_main(path: Path, name: str) -> Callable[[list[str] | None], int]:
@@ -56,6 +49,23 @@ def _load_main(path: Path, name: str) -> Callable[[list[str] | None], int]:
     if not callable(main):
         raise RuntimeError(f"{path} has no callable main()")
     return main  # type: ignore[return-value]
+
+
+def _load_module(path: Path, name: str):
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_ms = _load_module(MATTER_SAFETY, "matter_safety_ladder")
+LIVE_ID_BLOCKLIST = _ms.LIVE_ID_BLOCKLIST
+SYN_ID_RE = _ms.SYN_ID_RE
+refuse_live_path = _ms.refuse_live_path
 
 
 cg_main = _load_main(CASEGRAPH, "ladder_cg")
@@ -77,31 +87,15 @@ def utcnow() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def refuse_live_path(path: Path, *, allow_matters_synth: bool) -> None:
-    text = str(path.resolve())
-    if LIVE_ID_BLOCKLIST.search(text):
-        raise SystemExit(f"ERROR: refused live-looking path: {path}")
-    lowered = text.lower().replace("/", "\\")
-    if "\\matters\\" in lowered:
-        if not allow_matters_synth:
-            raise SystemExit(
-                "ERROR: C:\\Matters\\ paths refused by default for preparation. "
-                "Use TEMP, or pass --allow-matters-synth only for SYN-* rehearsal dirs."
-            )
-        name = path.name
-        if not SYN_ID_RE.match(name):
-            raise SystemExit(
-                f"ERROR: Matters path must be SYN-* matter id, got {name!r}"
-            )
-
-
 def materialize(seed: Path, dest: Path, matter_id: str) -> Path:
     if not seed.is_dir():
         raise SystemExit(f"ERROR: missing seed: {seed}")
-    if not SYN_ID_RE.match(matter_id):
+    if not _ms.is_syn_matter_id(matter_id):
         raise SystemExit(f"ERROR: matter_id must be SYN-*: {matter_id}")
-    if LIVE_ID_BLOCKLIST.search(matter_id):
-        raise SystemExit(f"ERROR: refused live-looking matter_id: {matter_id}")
+    dest = dest.expanduser().resolve()
+    _ms.refuse_destructive_matter_dir(
+        dest, expected_matter_id=matter_id, allow_matters_synth=True,
+    )
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(seed, dest)

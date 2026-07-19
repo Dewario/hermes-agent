@@ -44,3 +44,15 @@ def test_smoke_persists_to_matter_dir(tmp_path):
     assert mod.main(["--matter-dir", str(matter)]) == 0
     assert (matter / "02_outputs" / "trial_gap_report.md").is_file()
     assert (matter / "02_outputs" / "outgoing_rfp_set.md").is_file()
+
+
+def test_smoke_refuses_rmtree_of_non_syn_matter_dir(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    matter.mkdir()
+    (matter / "keep_me.txt").write_text("do not delete\n", encoding="utf-8")
+    try:
+        mod.materialize_matter(matter)
+        raise AssertionError("expected SystemExit")
+    except SystemExit as exc:
+        assert "SYN" in str(exc) or "refuse" in str(exc).lower()
+    assert (matter / "keep_me.txt").is_file()

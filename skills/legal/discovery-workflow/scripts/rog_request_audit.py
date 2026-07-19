@@ -26,6 +26,7 @@ WORKFLOW_ROOT = SCRIPT_PATH.parents[1]
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 LOAD_PACK_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "load_pack.py"
 
 REQUESTS_REL = Path("02_outputs") / "incoming_rog_requests.jsonl"
@@ -88,6 +89,7 @@ def _load_module(path: Path, name: str):
 
 
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rog_req_audit")
+_ms = _load_module(MATTER_SAFETY, "matter_safety_rog_request_audit")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d3")
 
 
@@ -322,7 +324,8 @@ def parse_served_rog(text: str) -> list[dict[str, Any]]:
                 )
         flat_text = " ".join(t for _, t in subparts)
         labeled = [{"label": lab, "text": txt} for lab, txt in subparts if lab is not None]
-        discrete = len(subparts) if any(lab is not None for lab, _ in subparts) else 1
+        # Stem/preamble before (a)/(b) is not a discrete interrogatory subpart.
+        discrete = len(labeled) if labeled else 1
         rows.append({
             "served_number": int(num),
             "text": flat_text,
@@ -679,15 +682,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "verify-cites", str(root), str(package), "--allow-empty"],
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(package), "--strict"],
     ]
-    if not args.skip_live_preflight:
-        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
-        preflight = [
-            sys.executable, str(LIVE_PREFLIGHT_SCRIPT),
-            "--matter-dir", str(root),
-        ]
-        if synthetic:
-            preflight.append("--skip-ocr-queue")
-        gates.append(preflight)
+    _ms.append_live_preflight_gate(
+        gates,
+        root,
+        live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
+        skip_live_preflight=bool(args.skip_live_preflight),
+        synthetic_flag=bool(getattr(args, 'synthetic', False)),
+    )
     for command in gates:
         code = run_command(command)
         if code != 0:

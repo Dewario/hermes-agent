@@ -86,6 +86,22 @@ def test_parse_and_audit_flags(tmp_path):
     assert all(i.get("objection_draft") is None for i in items)
 
 
+def test_stem_before_labeled_subparts_not_overcounted(tmp_path):
+    """Preamble/stem before (a)/(b) must not inflate discrete_subpart_count."""
+    matter = _matter(tmp_path)
+    (matter / "01_discovery_served" / "rog_set.md").write_text(
+        "Interrogatory No. 1: Regarding the ladder incident:\n"
+        "(a) Identify medical treatment received after the injury.\n"
+        "(b) State whether plaintiff claims wage loss.\n",
+        encoding="utf-8",
+    )
+    assert mod.main(["parse-served-rog", str(matter)]) == 0
+    rows = _read_jsonl(matter / "02_outputs" / "incoming_rog_requests.jsonl")
+    assert len(rows) == 1
+    assert rows[0]["discrete_subpart_count"] == 2
+    assert len(rows[0]["subparts"]) == 2
+
+
 def test_rejects_rfa_looking_source(tmp_path):
     matter = _matter(tmp_path)
     (matter / "01_discovery_served" / "rog_set.md").write_text(

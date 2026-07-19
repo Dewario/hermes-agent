@@ -17,6 +17,7 @@ Exit codes: 0 = ok / exempt; 1 = missing or incomplete; 2 = usage error.
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import re
 import sys
@@ -24,6 +25,13 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 PROVIDER_AUTH_REL = Path("03_attorney") / "PROVIDER_AUTH.md"
+
+_MS_PATH = Path(__file__).resolve().parent / "matter_safety.py"
+_ms_spec = importlib.util.spec_from_file_location("matter_safety_auth", _MS_PATH)
+assert _ms_spec and _ms_spec.loader
+_ms = importlib.util.module_from_spec(_ms_spec)
+sys.modules["matter_safety_auth"] = _ms
+_ms_spec.loader.exec_module(_ms)
 
 # "- Attorney initials: JD  Date: 2026-07-12" — reject template underscores.
 _ATTORNEY_INITIALS_LINE = re.compile(
@@ -109,10 +117,22 @@ def should_enforce(matter_dir: Path, *, force: bool = False,
 
 
 def is_exempt(matter_dir: Path, *, allow_unsigned: bool = False) -> bool:
+    """Synthetic exemption.
+
+    Fixture/example trees are always exempt. A planted ``.synthetic`` / SYNTHETIC
+    banner on a live ``Matters`` path is exempt only when the matter_id is a
+    real ``SYN-*`` id (not Allen/live-looking). Scratch TEMP dirs with a banner
+    remain exempt for offline tests.
+    """
     if allow_unsigned:
         return True
-    return (is_synthetic_matter_path(matter_dir)
-            or matter_has_synthetic_banner(matter_dir))
+    if is_synthetic_matter_path(matter_dir):
+        return True
+    if not matter_has_synthetic_banner(matter_dir):
+        return False
+    if is_live_matter_path(matter_dir):
+        return _ms.is_syn_matter_id(_ms.resolve_matter_id(matter_dir))
+    return True
 
 
 def attorney_initials_complete(text: str) -> bool:

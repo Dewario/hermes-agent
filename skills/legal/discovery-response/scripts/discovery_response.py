@@ -30,6 +30,7 @@ LEGAL_ROOT = SCRIPT_PATH.parents[2]
 REPO_ROOT = SCRIPT_PATH.parents[4]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 
 REQUESTS_REL = Path("02_outputs") / "discovery_requests.json"
 PROPOSITIONS_REL = Path("02_outputs") / "proposed_propositions.jsonl"
@@ -114,6 +115,18 @@ def _load_response_rules():
 
 
 cg = _load_casegraph()
+
+def _load_matter_safety():
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location("matter_safety_discovery_response", MATTER_SAFETY)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load matter_safety: {MATTER_SAFETY}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+_ms = _load_matter_safety()
 rar = _load_response_rules()
 
 
@@ -774,21 +787,13 @@ def cmd_validate_audit(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "verify-cites", str(root), str(report), "--allow-empty"],
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(report), "--strict"],
     ]
-    if not args.skip_live_preflight:
-        # Live readiness enforces the OCR queue. Synthetic smoke (`.synthetic`
-        # marker or --synthetic) may skip OCR; that path is not live-ready.
-        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
-        preflight = [
-            sys.executable,
-            str(LIVE_PREFLIGHT_SCRIPT),
-            "--matter-dir",
-            str(root),
-            "--output",
-            str(report),
-        ]
-        if synthetic:
-            preflight.append("--skip-ocr-queue")
-        gates.append(preflight)
+    _ms.append_live_preflight_gate(
+        gates,
+        root,
+        live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
+        skip_live_preflight=bool(args.skip_live_preflight),
+        synthetic_flag=bool(getattr(args, 'synthetic', False)),
+    )
     for command in gates:
         code = run_command(command)
         if code != 0:

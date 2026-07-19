@@ -22,6 +22,7 @@ WORKFLOW_ROOT = SCRIPT_PATH.parents[1]
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
 SEED_DIR = WORKFLOW_ROOT / "fixtures" / "smoke_matter" / "seed"
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 
 MATTER_ID = "SYN-SMOKE-COUNSEL"
 BATES_PREFIX = "SMOKE-PROD"
@@ -39,6 +40,20 @@ def _load_main(path: Path, name: str) -> Callable[[list[str] | None], int]:
     if not callable(main):
         raise RuntimeError(f"{path} has no callable main()")
     return main  # type: ignore[return-value]
+
+
+def _load_module(path: Path, name: str):
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+_ms = _load_module(MATTER_SAFETY, "matter_safety_smoke")
 
 
 cg_main = _load_main(CASEGRAPH_SCRIPT, "smoke_casegraph")
@@ -144,9 +159,15 @@ def materialize_matter(dest: Path) -> Path:
     missing = [rel for rel in REQUIRED_SEED if not (SEED_DIR / rel).is_file()]
     if missing:
         raise SystemExit(f"ERROR: smoke seed incomplete: {', '.join(missing)}")
+    dest = dest.expanduser().resolve()
+    _ms.refuse_destructive_matter_dir(
+        dest, expected_matter_id=MATTER_ID, allow_matters_synth=True,
+    )
     if dest.exists():
         shutil.rmtree(dest)
     shutil.copytree(SEED_DIR, dest)
+    if not (dest / ".synthetic").is_file():
+        raise SystemExit(f"ERROR: smoke seed missing .synthetic marker: {SEED_DIR}")
     return dest.resolve()
 
 

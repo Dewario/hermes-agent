@@ -66,7 +66,27 @@ def test_dispatch_injects_matter_dir(tmp_path, monkeypatch):
         "parse-rfa",
     ])
     assert code == 0
-    assert captured == [["rfa_audit.py", "parse-rfa", str(matter.expanduser())]]
+    assert captured == [["rfa_audit.py", "parse-rfa", str(matter.expanduser().resolve())]]
+
+
+def test_dispatch_refuses_conflicting_matter_dirs(tmp_path, monkeypatch):
+    a = tmp_path / "a"
+    b = tmp_path / "b"
+    a.mkdir()
+    b.mkdir()
+
+    def _fake_forward(path, argv):
+        raise AssertionError("must not forward on conflict")
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    code = dw.main([
+        "--matter-dir", str(a),
+        "--request-type", "rfa",
+        "--mode", "audit_incoming_response",
+        "parse-rfa",
+        str(b),
+    ])
+    assert code == 2
 
 
 def test_selftest_all_runs_all_slices(monkeypatch):

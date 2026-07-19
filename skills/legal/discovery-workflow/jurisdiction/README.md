@@ -18,7 +18,7 @@ Machine-readable discovery **rule packs** for the counsel-pack expansion
 |---------|--------|------|
 | `frcp_generic` | active | Default federal discovery rules (26/33/34/36/e) |
 | `fela` | active | FELA/railroad theme checks on top of FRCP (`fela.yaml`) |
-| `ca_ccp` | stub | California CCP placeholders — not for live |
+| `ca_ccp` | active | California CCP baselines for D*/G1/C* (synthetic-green; live still needs §9.5) |
 
 ## Checker contract
 

@@ -109,10 +109,11 @@ def test_export_skips_covered(tmp_path):
 
 
 def test_jury_suffix_does_not_false_cover_notice(tmp_path):
-    """'| Jury: prior notice' on an unrelated brief must not cover the notice theme."""
+    """Same-tag brief whose only 'prior notice' tokens live in | Jury: must not cover."""
     matter = _matter(tmp_path)
-    (matter / "01_discovery_outgoing" / "rfa_issue_brief.md").write_text(
-        "- [authenticity] Admit that the photograph is authentic. | Jury: prior notice\n",
+    (matter / "01_discovery_outgoing" / "rfp_issue_brief.md").write_text(
+        "- [notice] Produce the safety-manual excerpt for the ladder. "
+        "| Jury: prior notice of ladder defect\n",
         encoding="utf-8",
     )
     assert mod.main(["parse-gap-themes", str(matter)]) == 0

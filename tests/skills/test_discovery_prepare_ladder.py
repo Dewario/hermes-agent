@@ -42,6 +42,15 @@ def test_refuse_matters_non_synth():
         assert "SYN" in str(exc)
 
 
+def test_refuse_syn_allencase_matter_id():
+    mod = _load()
+    try:
+        mod.refuse_live_path(Path(r"C:\Matters\SYN-ALLENCASE"), allow_matters_synth=True)
+        raise AssertionError("expected SystemExit")
+    except SystemExit as exc:
+        assert "refused" in str(exc).lower() or "allen" in str(exc).lower()
+
+
 def test_l3_isolation_level(tmp_path):
     mod = _load()
     result = mod.level3_isolation(tmp_path)

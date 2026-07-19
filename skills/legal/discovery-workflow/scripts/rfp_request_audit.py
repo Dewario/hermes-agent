@@ -26,6 +26,7 @@ WORKFLOW_ROOT = SCRIPT_PATH.parents[1]
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
+MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
 LOAD_PACK_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "load_pack.py"
 
 REQUESTS_REL = Path("02_outputs") / "incoming_rfp_requests.jsonl"
@@ -69,7 +70,7 @@ PRIVILEGE_FISH_RE = re.compile(
     re.IGNORECASE,
 )
 ESI_RE = re.compile(r"\b(esi|electronically stored|email|e-mail|native format)\b", re.IGNORECASE)
-AND_SPLIT_RE = re.compile(r"\bAND\b")
+AND_SPLIT_RE = re.compile(r"\bAND\b", re.IGNORECASE)
 
 
 class UsageError(RuntimeError):
@@ -88,6 +89,7 @@ def _load_module(path: Path, name: str):
 
 
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rfp_req_audit")
+_ms = _load_module(MATTER_SAFETY, "matter_safety_rfp_request_audit")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d1")
 
 
@@ -603,16 +605,13 @@ def cmd_validate(args: argparse.Namespace) -> int:
         [sys.executable, str(CASEGRAPH_SCRIPT), "verify-cites", str(root), str(package), "--allow-empty"],
         [sys.executable, str(CASEGRAPH_SCRIPT), "check-isolation", str(root), str(package), "--strict"],
     ]
-    if not args.skip_live_preflight:
-        synthetic = bool(args.synthetic) or (root / ".synthetic").is_file()
-        preflight = [
-            sys.executable, str(LIVE_PREFLIGHT_SCRIPT),
-            "--matter-dir", str(root),
-        ]
-        # Package is rule analysis without Bates cites — omit --output
-        if synthetic:
-            preflight.append("--skip-ocr-queue")
-        gates.append(preflight)
+    _ms.append_live_preflight_gate(
+        gates,
+        root,
+        live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
+        skip_live_preflight=bool(args.skip_live_preflight),
+        synthetic_flag=bool(getattr(args, 'synthetic', False)),
+    )
     for command in gates:
         code = run_command(command)
         if code != 0:

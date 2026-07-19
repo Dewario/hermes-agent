@@ -23,7 +23,7 @@ belongs in the matter dir / `config` bridge later if needed — not `.env`.
 | Risk | Mitigation |
 |------|------------|
 | Model invents “local rule” | Require `rule_ids` from loaded pack or `needs_attorney_rule_confirm` |
-| Stub `ca_ccp` used live | `status: stub` → live validate FAIL |
+| Active `ca_ccp` treated as live-ready | Pack active for synthetic; live still needs owner §9.5 + preflight |
 | Overlay without base | Loader requires `base_pack` match |
 | Auto-objection sounds serve-ready | `objection_draft` null by default; attorney-controlled |
 
@@ -67,13 +67,13 @@ Bridge: review/intake → structured `trial_gap_item` / issue-brief lines → B1
 
 ## 8. Open questions for owner
 
-1. Default pack for first live matter: `frcp_generic`+`fela`, or wait for `ca_ccp`?
+1. Default pack for first live matter: `frcp_generic`+`fela`, or `ca_ccp` once owner §9.5 is filled?
 2. First D* dry-run court / district (for future local pack — not required for FRCP)?
 
 ## Top 5 risks
 
 1. **Jurisdictional hallucination** if checkers don’t enforce `rule_ids`
-2. **Stub pack leakage** into live preflight
+2. **Pack readiness conflated with owner §9.5** (active ≠ live-authorized)
 3. **Cache breaks** from mid-session pack swaps
 4. **Scope creep** into auto-objections / C* before G1 green
 5. **Prose duplication** with discovery-review instead of a schema bridge

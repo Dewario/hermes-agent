@@ -115,6 +115,22 @@ def test_gate_allow_unsigned_and_synthetic_banner(tmp_path, monkeypatch):
     assert "exempt" in msg
 
 
+def test_planted_synthetic_on_live_non_syn_not_exempt(tmp_path, monkeypatch):
+    """Planted .synthetic on a live-looking Matters path without SYN-* is not exempt."""
+    matters = tmp_path / "MattersRoot"
+    # Simulate drive:\Matters\REAL by monkeypatching is_live_matter_path.
+    matter = matters / "REAL-CLIENT-01"
+    matter.mkdir(parents=True)
+    (matter / ".synthetic").write_text(
+        "SYNTHETIC / NON-CLIENT / TEST ONLY\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(auth, "is_live_matter_path", lambda _p: True)
+    monkeypatch.delenv("HERMES_REQUIRE_PROVIDER_AUTH", raising=False)
+    code, msg = auth.check_provider_auth(matter, force=True)
+    assert code == 1
+    assert "PROVIDER_AUTH" in msg
+
+
 def test_cli_exit_codes(tmp_path, monkeypatch):
     matter = tmp_path / "CliCase"
     matter.mkdir(parents=True)
