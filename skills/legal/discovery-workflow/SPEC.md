@@ -4,7 +4,7 @@
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
 draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
 expansion: jurisdiction packs (`frcp_generic`, `fela`, `ca_ccp`,
-`ca_san_bernardino_local`, `wa_cr`, `wa_king_lcr`, `wa_pierce_pclr`) +
+`ca_san_bernardino`, `wa_state`, `wa_king_county`, `wa_pierce_county`) +
 **D1-D3** + **G1** + **E1** + **C1-C3** `draft_response` (synthetic-only).
 See `COUNSEL_PACK_SPEC.md`.
 **Not ready for live client use** (owner §9.5 still required per real matter).

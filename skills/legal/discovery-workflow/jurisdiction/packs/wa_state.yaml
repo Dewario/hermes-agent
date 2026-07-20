@@ -1,16 +1,16 @@
-pack_id: wa_cr
+pack_id: wa_state
 version: 1
 status: active
 title: "Washington Superior Court Civil Rules - civil discovery"
 jurisdiction_kind: state
 source_checked: "2026-07-20"
 source_url: "https://www.courts.wa.gov/court_rules/?fa=court_rules.list&group=sup&set=cr"
-overlays_allowed: [wa_king_lcr, wa_pierce_pclr]
+overlays_allowed: [wa_king_county, wa_pierce_county]
 rules:
   - id: WA-CR-26-SCOPE
     citation: "Wash. Super. Ct. Civ. R. 26(a), 26(b)(1)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
-    summary: "Civil discovery methods include depositions, interrogatories, production/entry requests, physical or mental exams, and RFAs; scope is nonprivileged matter relevant to the subject matter, subject to court limits."
+    summary: "Civil discovery methods include depositions, interrogatories, production/entry requests, physical or mental exams, and RFAs; scope is nonprivileged matter relevant to the subject matter, subject to court limits. Washington CR 26(b)(1) has not adopted the federal proportional-to-the-needs wording."
     applies_to: [all]
     check_hints: [scope, relevance, privilege, cumulative, burden]
 
@@ -38,9 +38,9 @@ rules:
   - id: WA-CR-33-A
     citation: "Wash. Super. Ct. Civ. R. 33(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_33_00_00.pdf"
-    summary: "Interrogatories may be served without leave at the stated early pleading stage; answers or objections are generally due in 30 days, or 40 days for a defendant after summons and complaint service."
+    summary: "Interrogatories may be served without leave at the stated early pleading stage; answers or objections are generally due in 30 days, or 40 days for a defendant after summons and complaint service. CR 33 has no statewide numerical cap; local limits are county/track-specific."
     applies_to: [rog]
-    check_hints: [interrogatory, response_deadline, verification, objection_reason]
+    check_hints: [interrogatory, response_deadline, verification, objection_reason, no_statewide_limit]
 
   - id: WA-CR-33-C
     citation: "Wash. Super. Ct. Civ. R. 33(c)"
@@ -52,9 +52,9 @@ rules:
   - id: WA-CR-34-A
     citation: "Wash. Super. Ct. Civ. R. 34(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_34_00_00.pdf"
-    summary: "A party may request documents, ESI, tangible things, and entry onto land within CR 26(b) scope."
+    summary: "A party may request documents, ESI, tangible things, and entry onto land within CR 26(b) scope. CR 34 has no statewide numerical RFP cap."
     applies_to: [rfp]
-    check_hints: [production, esi, tangible_things, entry_on_land]
+    check_hints: [production, esi, tangible_things, entry_on_land, no_statewide_limit]
 
   - id: WA-CR-34-B
     citation: "Wash. Super. Ct. Civ. R. 34(b)"
@@ -73,9 +73,9 @@ rules:
   - id: WA-CR-36-A
     citation: "Wash. Super. Ct. Civ. R. 36(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf"
-    summary: "RFAs must be in a separate discovery document; each matter must be separately stated; unanswered matters are admitted if not timely answered or objected to."
+    summary: "RFAs must be in a separate discovery document; each matter must be separately stated; unanswered matters are admitted if not timely answered or objected to. CR 36 has no statewide numerical RFA cap."
     applies_to: [rfa]
-    check_hints: [separately_stated, separate_document, auto_admit, response_deadline]
+    check_hints: [separately_stated, separate_document, auto_admit, response_deadline, no_statewide_limit]
 
   - id: WA-CR-36-B
     citation: "Wash. Super. Ct. Civ. R. 36(b)"

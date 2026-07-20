@@ -34,7 +34,7 @@ A jurisdictionally disciplined plaintiff discovery counsel loop:
 |------|--------|
 | `request_type` | `rog` \| `rfp` \| `rfa` \| `expert` (G1 may emit multi-type recommendations) |
 | `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` \| `trial_gap_assessment` \| `expert_needs_assessment` \| `draft_response` (C1-C3) |
-| `jurisdiction_pack` | Required for D\*, G1, and E1 (e.g. `frcp_generic`, `ca_ccp`, `wa_cr`). Stub packs fail live. |
+| `jurisdiction_pack` | Required for D\*, G1, and E1 (e.g. `frcp_generic`, `ca_ccp`, `wa_state`). Stub packs fail live. |
 | `case_overlay` | Optional (e.g. `fela`). Must declare `base_pack`. |
 
 One `--matter-dir` per invocation. Packs pinned from matter profile at start —
@@ -174,7 +174,7 @@ Avoid Bates-like `RFP-001` in packages — use `IR-*` / `TG-*` / existing
 | 11 | E1 expert needs | pytest + selftest; liability and damages candidates with source anchors |
 
 Jurisdiction unit tests: load `frcp_generic`+`fela`, active `ca_ccp`,
-`ca_san_bernardino_local`, `wa_cr`, `wa_king_lcr`, and `wa_pierce_pclr`;
+`ca_san_bernardino`, `wa_state`, `wa_king_county`, and `wa_pierce_county`;
 refuse unknown `rule_id` references; refuse overlay/base mismatches.
 
 ---

@@ -91,6 +91,8 @@ def _load_module(path: Path, name: str):
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rfp_req_audit")
 _ms = _load_module(MATTER_SAFETY, "matter_safety_rfp_request_audit")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d1")
+_limits = _load_module(WORKFLOW_ROOT / "jurisdiction" / "limits.py", "jurisdiction_limits_d1")
+resolve_rfp_limit = _limits.resolve_rfp_limit
 
 
 def utcnow() -> str:
@@ -200,6 +202,14 @@ def load_matter_profile(root: Path) -> dict[str, Any]:
         raise UsageError("matter_profile.yaml must set jurisdiction_pack")
     overlay = data.get("case_overlay")
     overlay_id = str(overlay).strip() if overlay else None
+    limits = data.get("limits_used") or {}
+    if not isinstance(limits, dict):
+        limits = {}
+    rfp_used = limits.get("rfp", 0)
+    try:
+        rfp_used_n = int(rfp_used) if rfp_used is not None else 0
+    except (TypeError, ValueError):
+        rfp_used_n = 0
     return {
         "matter_id": data.get("matter_id") or _matter_id(root),
         "court": data.get("court"),
@@ -207,7 +217,8 @@ def load_matter_profile(root: Path) -> dict[str, Any]:
         "case_overlay": overlay_id or None,
         "discovery_cutoff": data.get("discovery_cutoff"),
         "expert_cutoff": data.get("expert_cutoff"),
-        "limits_used": data.get("limits_used") or {},
+        "limits_used": limits,
+        "rfp_used": rfp_used_n,
         "raw": data,
     }
 
@@ -292,6 +303,9 @@ def audit_request(
     *,
     available_rules: set[str],
     index: int,
+    rfp_used: int = 0,
+    set_total: int = 0,
+    rfp_limit: int | None = None,
 ) -> dict[str, Any]:
     text = str(req.get("text") or "")
     flags: list[str] = []
@@ -359,9 +373,28 @@ def audit_request(
         if severity == "info":
             pass
 
+    if rfp_limit is None:
+        add(
+            "numerical_limit_none",
+            ["FRCP-34-a", "CCP-2031-030", "WA-CR-34-A"],
+            "No numerical cap applies to requests for production in this "
+            "jurisdiction absent a case-specific order.",
+            "info",
+        )
+    else:
+        projected = rfp_used + set_total
+        if projected > rfp_limit:
+            add(
+                "exceeds_numerical_limit",
+                ["FRCP-34-a", "CCP-2031-030", "WA-CR-34-A"],
+                f"Projected RFP count (used {rfp_used} + this set {set_total} "
+                f"= {projected}) exceeds the attorney-set limit of {rfp_limit}.",
+                "fail_candidate",
+            )
+
     if not flags:
         # Still attach scope rule as informational baseline
-        for rid in ("FRCP-34-a", "CCP-2031-030", "FRCP-26-b-1", "CCP-2017-010"):
+        for rid in ("FRCP-34-a", "CCP-2031-030", "WA-CR-34-A", "FRCP-26-b-1", "CCP-2017-010"):
             _ensure_rule(rule_ids, available_rules, rid)
         notes.append("No automated particularity/privilege flags; attorney serve/response strategy still required.")
 
@@ -433,8 +466,17 @@ def cmd_audit_incoming_rfp(args: argparse.Namespace) -> int:
         return 2
     available = set(loaded["rule_ids"])
     requests = read_jsonl(root / REQUESTS_REL)
+    set_total = len(requests)
+    rfp_limit = resolve_rfp_limit(profile, available)
     items = [
-        audit_request(req, available_rules=available, index=i)
+        audit_request(
+            req,
+            available_rules=available,
+            index=i,
+            rfp_used=int(profile.get("rfp_used") or 0),
+            set_total=set_total,
+            rfp_limit=rfp_limit,
+        )
         for i, req in enumerate(requests, 1)
     ]
     write_jsonl(output_path(root, ITEMS_REL), items)
@@ -446,6 +488,9 @@ def cmd_audit_incoming_rfp(args: argparse.Namespace) -> int:
         "case_overlay": profile.get("case_overlay"),
         "pack_rule_count": len(available),
         "audit_item_count": len(items),
+        "rfp_used": profile.get("rfp_used"),
+        "rfp_limit": rfp_limit,
+        "rfp_set_total": set_total,
     })
     write_json(output_path(root, META_REL), meta)
     refresh_casegraph_index(root)

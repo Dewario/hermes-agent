@@ -49,8 +49,8 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 
 **Counsel-pack:** D1-D3 + G1 + E1 + C1-C3 implemented (synthetic-only).
 Jurisdiction
-packs: `frcp_generic`, `fela`, `ca_ccp`, `ca_san_bernardino_local`, `wa_cr`,
-`wa_king_lcr`, `wa_pierce_pclr`. Live client use still needs owner
+packs: `frcp_generic`, `fela`, `ca_ccp`, `ca_san_bernardino`, `wa_state`,
+`wa_king_county`, `wa_pierce_county`. Live client use still needs owner
 §9.5 outside the repo — see `OWNER_LIVE_GATE.md`.
 
 ## Hard Rules

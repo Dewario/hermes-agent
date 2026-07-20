@@ -1,8 +1,8 @@
-pack_id: wa_king_lcr
+pack_id: wa_king_county
 version: 1
 status: active
 overlay: true
-base_pack: wa_cr
+base_pack: wa_state
 title: "King County Superior Court local civil overlay"
 jurisdiction_kind: local
 source_checked: "2026-07-20"
@@ -26,9 +26,9 @@ rules:
   - id: KING-LCR-26-CAPS
     citation: "King County Super. Ct. LCR 26(b)(2)-(6)"
     source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-26"
-    summary: "Covered civil cases have local caps for interrogatories, depositions, and RFAs; over-limit discovery requires stipulation or court order."
+    summary: "Covered civil cases have local caps: without court-approved pattern interrogatories, 40 interrogatories including discrete subparts; with court-approved pattern interrogatories, 15 additional interrogatories including discrete subparts; 25 RFAs per other party, excluding RFAs propounded to authenticate documents. Over-limit discovery requires stipulation or court order."
     applies_to: [rog, rfa, all]
-    check_hints: [numerical_limit, pattern_interrogatories, deposition_limit, overlimit]
+    check_hints: [numerical_limit, forty_interrogatories, rfa_limit_25, authenticity_rfa_exempt, pattern_interrogatories, deposition_limit, overlimit]
 
   - id: KING-LCR-26-WITNESS
     citation: "King County Super. Ct. LCR 26(k)"
@@ -40,9 +40,9 @@ rules:
   - id: KING-LCR-33-PATTERN
     citation: "King County Super. Ct. LCR 33"
     source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-33"
-    summary: "Pattern interrogatory use is governed by LCR 33; attorney should confirm whether a court-approved set applies to the case."
+    summary: "Pattern interrogatory use and format are governed by LCR 33. The current rule page shows subsection (a) reserved; King official forms pages confirm an approved automobile-tort pattern set through KCBA. Do not assume broader named pattern sets without separate source support."
     applies_to: [rog]
-    check_hints: [pattern_interrogatories, attorney_confirm, auto_tort]
+    check_hints: [pattern_interrogatories, attorney_confirm, auto_tort, partial_source_caveat]
 
   - id: KING-LCR-37-CUTOFF
     citation: "King County Super. Ct. LCR 37(g)"
@@ -54,6 +54,6 @@ rules:
   - id: KING-LCR-7-MOTION
     citation: "King County Super. Ct. LCR 7(b)(4)"
     source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-7"
-    summary: "Civil motion timing uses local judicial-day deadlines for motion, opposition, and reply papers; discovery motions still require CR 26(i) compliance."
+    summary: "Civil motion timing uses local judicial-day deadlines: moving papers by 4:30 p.m. nine judicial days before consideration, opposition four judicial days before, reply two judicial days before. Memoranda use word limits: 4,200 words for initial/opposition and 1,750 words for reply. Discovery motions still require CR 26(i) compliance."
     applies_to: [all]
-    check_hints: [motion_timing, discovery_motion, meet_and_confer]
+    check_hints: [motion_timing, word_limit_4200, reply_word_limit_1750, discovery_motion, meet_and_confer]

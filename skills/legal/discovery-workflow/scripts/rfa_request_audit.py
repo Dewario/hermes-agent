@@ -69,6 +69,11 @@ VAGUE_RE = re.compile(
     r"including but not limited to)\b",
     re.IGNORECASE,
 )
+AUTHENTICITY_RE = re.compile(
+    r"\b(authentic|authenticate|authentication|genuine|true and correct copy|"
+    r"business record|admissible under evidence code|admissible under rule)\b",
+    re.IGNORECASE,
+)
 
 
 class UsageError(RuntimeError):
@@ -89,6 +94,8 @@ def _load_module(path: Path, name: str):
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rfa_req_audit")
 _ms = _load_module(MATTER_SAFETY, "matter_safety_rfa_request_audit")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d2")
+_limits = _load_module(WORKFLOW_ROOT / "jurisdiction" / "limits.py", "jurisdiction_limits_d2")
+resolve_rfa_limit = _limits.resolve_rfa_limit
 
 
 def utcnow() -> str:
@@ -198,6 +205,14 @@ def load_matter_profile(root: Path) -> dict[str, Any]:
         raise UsageError("matter_profile.yaml must set jurisdiction_pack")
     overlay = data.get("case_overlay")
     overlay_id = str(overlay).strip() if overlay else None
+    limits = data.get("limits_used") or {}
+    if not isinstance(limits, dict):
+        limits = {}
+    rfa_used = limits.get("rfa", 0)
+    try:
+        rfa_used_n = int(rfa_used) if rfa_used is not None else 0
+    except (TypeError, ValueError):
+        rfa_used_n = 0
     return {
         "matter_id": data.get("matter_id") or _matter_id(root),
         "court": data.get("court"),
@@ -205,9 +220,14 @@ def load_matter_profile(root: Path) -> dict[str, Any]:
         "case_overlay": overlay_id or None,
         "discovery_cutoff": data.get("discovery_cutoff"),
         "expert_cutoff": data.get("expert_cutoff"),
-        "limits_used": data.get("limits_used") or {},
+        "limits_used": limits,
+        "rfa_used": rfa_used_n,
         "raw": data,
     }
+
+
+def is_authenticity_rfa(text: str) -> bool:
+    return AUTHENTICITY_RE.search(text) is not None
 
 
 def _blocks_by_heading(text: str) -> list[tuple[str, str]]:
@@ -289,8 +309,12 @@ def audit_request(
     *,
     available_rules: set[str],
     index: int,
+    rfa_used: int = 0,
+    set_countable_total: int = 0,
+    rfa_limit: int | None = None,
 ) -> dict[str, Any]:
     text = str(req.get("text") or "")
+    authenticity_exempt = is_authenticity_rfa(text)
     flags: list[str] = []
     rule_ids: set[str] = set()
     notes: list[str] = []
@@ -345,6 +369,28 @@ def audit_request(
             "fail_candidate",
         )
 
+    if rfa_limit is None:
+        add(
+            "numerical_limit_not_pinned",
+            ["FRCP-36-a-1", "WA-CR-36-A"],
+            "No numerical RFA cap is pinned by this jurisdiction profile; the "
+            "cap may be none or county-local. Attorney must confirm the venue's "
+            "posture or set rfa_limit in matter_profile.",
+            "warn",
+        )
+    else:
+        projected = rfa_used + set_countable_total
+        if projected > rfa_limit:
+            add(
+                "exceeds_numerical_limit",
+                ["FRCP-36-a-1", "CCP-2033-030", "KING-LCR-26-CAPS"],
+                f"Projected countable RFA count (used {rfa_used} + this non-authenticity "
+                f"set {set_countable_total} = {projected}) exceeds limit of {rfa_limit} "
+                "(absent stipulation/order/declaration). Authenticity/genuineness RFAs "
+                "are excluded from this count.",
+                "fail_candidate",
+            )
+
     if not flags:
         for rid in ("FRCP-36-a-1", "CCP-2033-030", "FRCP-26-b-1", "CCP-2017-010"):
             _ensure_rule(rule_ids, available_rules, rid)
@@ -362,6 +408,7 @@ def audit_request(
         "mode": MODE,
         "source_request_label": f"Served admission request {req.get('served_number')}",
         "text": text,
+        "authenticity_exempt": authenticity_exempt,
         "flags": sorted(set(flags)),
         "rule_ids": sorted(rule_ids),
         "severity": severity if flags else "info",
@@ -418,8 +465,19 @@ def cmd_audit_incoming_rfa(args: argparse.Namespace) -> int:
         return 2
     available = set(loaded["rule_ids"])
     requests = read_jsonl(root / REQUESTS_REL)
+    set_countable_total = sum(
+        0 if is_authenticity_rfa(str(r.get("text") or "")) else 1 for r in requests
+    )
+    rfa_limit = resolve_rfa_limit(profile, available)
     items = [
-        audit_request(req, available_rules=available, index=i)
+        audit_request(
+            req,
+            available_rules=available,
+            index=i,
+            rfa_used=int(profile.get("rfa_used") or 0),
+            set_countable_total=set_countable_total,
+            rfa_limit=rfa_limit,
+        )
         for i, req in enumerate(requests, 1)
     ]
     write_jsonl(output_path(root, ITEMS_REL), items)
@@ -431,6 +489,9 @@ def cmd_audit_incoming_rfa(args: argparse.Namespace) -> int:
         "case_overlay": profile.get("case_overlay"),
         "pack_rule_count": len(available),
         "audit_item_count": len(items),
+        "rfa_used": profile.get("rfa_used"),
+        "rfa_limit": rfa_limit,
+        "rfa_countable_set_total": set_countable_total,
     })
     write_json(output_path(root, META_REL), meta)
     refresh_casegraph_index(root)

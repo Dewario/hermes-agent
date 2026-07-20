@@ -840,7 +840,7 @@ def _write_profile(root: Path, matter_id: str) -> None:
         f"matter_id: {matter_id}\n"
         "court: \"San Bernardino Superior Court (synthetic)\"\n"
         "jurisdiction_pack: ca_ccp\n"
-        "case_overlay: ca_san_bernardino_local\n"
+        "case_overlay: ca_san_bernardino\n"
         "case_type: premises liability\n"
         "liability_theory: prior notice of unsafe ladder and failed inspection\n"
         "injuries: lumbar surgery, chronic pain, permanent work restrictions\n"

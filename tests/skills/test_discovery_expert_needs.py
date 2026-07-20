@@ -42,7 +42,7 @@ def _matter(tmp_path: Path, matter_id: str = "SYN-EXP-A", prefix: str = "EXPERT-
         f"matter_id: {matter_id}\n"
         "court: \"San Bernardino Superior Court (synthetic)\"\n"
         "jurisdiction_pack: ca_ccp\n"
-        "case_overlay: ca_san_bernardino_local\n"
+        "case_overlay: ca_san_bernardino\n"
         "case_type: premises liability\n"
         "liability_theory: prior notice of unsafe ladder and missed inspection\n"
         "injuries: lumbar surgery, permanent restrictions, chronic pain\n"

@@ -5,7 +5,7 @@ title: "California Code of Civil Procedure - civil discovery (generic state pack
 jurisdiction_kind: state
 source_checked: "2026-07-20"
 source_url: "https://leginfo.legislature.ca.gov/faces/codes.xhtml"
-overlays_allowed: [ca_san_bernardino_local]
+overlays_allowed: [ca_san_bernardino]
 rules:
   - id: CCP-2017-010
     citation: "Cal. Code Civ. Proc. sec. 2017.010"
@@ -59,9 +59,16 @@ rules:
   - id: CCP-2031-210
     citation: "Cal. Code Civ. Proc. sec. 2031.210"
     source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.210."
-    summary: "Inspection-demand responses must state compliance, inability to comply, or objection."
+    summary: "Inspection-demand responses must state compliance, inability to comply, or objection. Withholding particulars and privilege-log facts belong in CCP 2031.240."
     applies_to: [rfp]
-    check_hints: [withholding_statement, objection_specificity, production_manner]
+    check_hints: [response_form, objection_specificity, production_manner]
+
+  - id: CCP-2031-240
+    citation: "Cal. Code Civ. Proc. sec. 2031.240"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.240."
+    summary: "An objection to an inspection demand must identify the responsive material with particularity, state the extent and grounds of objection, and provide enough factual information to evaluate privilege/work-product claims, including a privilege log if necessary."
+    applies_to: [rfp]
+    check_hints: [withholding_statement, privilege_log, objection_specificity]
 
   - id: CCP-2031-280
     citation: "Cal. Code Civ. Proc. sec. 2031.280"
@@ -97,6 +104,48 @@ rules:
     summary: "Each answer must fairly meet the substance of the request; qualified admissions are permitted when good faith requires."
     applies_to: [rfa]
     check_hints: [qualify, fair_meet, admission_answer]
+
+  - id: CCP-2033-280
+    citation: "Cal. Code Civ. Proc. sec. 2033.280"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.280."
+    summary: "Failure to serve timely RFA responses waives objections and permits a motion to have genuineness/truth deemed admitted; monetary sanctions are mandatory. This is the no-timely-response deemed-admission statute, distinct from CCP 2033.290 further-response motion practice."
+    applies_to: [rfa]
+    check_hints: [deemed_admitted, waiver, sanctions_mandatory, no_timely_response]
+
+  - id: CCP-2033-290
+    citation: "Cal. Code Civ. Proc. sec. 2033.290"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.290."
+    summary: "After RFA responses are served, a party may move to compel further responses when answers or objections are insufficient. Do not use this section as the no-response deemed-admission authority."
+    applies_to: [rfa]
+    check_hints: [further_response, insufficient_answer, distinction_from_no_response]
+
+  - id: CCP-2016-040
+    citation: "Cal. Code Civ. Proc. sec. 2016.040"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2016.040."
+    summary: "Discovery motions requiring a meet-and-confer declaration must show a reasonable and good-faith attempt to resolve each issue in person, by telephone, or by videoconference, and address retention of a shorthand reporter when applicable. AB 1521 amendments are effective Jan. 1, 2026."
+    applies_to: [all]
+    check_hints: [meet_confer, declaration, motion_prerequisite, ab_1521_2026]
+
+  - id: CCP-2023-010
+    citation: "Cal. Code Civ. Proc. sec. 2023.010"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2023.010."
+    summary: "Misuses of discovery include failing to confer in person, by telephone, or by videoconference when required, along with other discovery abuses. AB 1521 amendments are effective Jan. 1, 2026."
+    applies_to: [all]
+    check_hints: [discovery_misuse, meet_confer, sanctions, ab_1521_2026]
+
+  - id: CCP-2023-050
+    citation: "Cal. Code Civ. Proc. sec. 2023.050"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2023.050."
+    summary: "Mandatory $1,000 sanction applies to specified document-production and meet-and-confer misconduct, subject to statutory exceptions. SB 235 increased the sanction from $250 to $1,000 effective Jan. 1, 2024."
+    applies_to: [all]
+    check_hints: [sanctions_mandatory, monetary, production_misconduct, sb_235]
+
+  - id: CCP-UD-10-DAY-DISCOVERY
+    citation: "Cal. Code Civ. Proc. secs. 2030.020, 2031.020, 2033.020"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.020."
+    summary: "In unlawful-detainer actions, interrogatories, inspection demands, and RFAs may be served 10 days after service of summons or appearance, whichever occurs first, under AB 1521 amendments effective Jan. 1, 2026."
+    applies_to: [rog, rfp, rfa]
+    check_hints: [unlawful_detainer, early_discovery, ten_day_timing, ab_1521_2026]
 
   - id: CCP-2034-210
     citation: "Cal. Code Civ. Proc. sec. 2034.210"
@@ -139,3 +188,10 @@ rules:
     summary: "Expert opinion must assist on a subject beyond common experience and rest on matter of a type reasonably relied on in the field."
     applies_to: [expert]
     check_hints: [expert_opinion_basis, expert_fit, reliable_basis]
+
+  - id: EVID-801-1
+    citation: "Cal. Evid. Code sec. 801.1"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?article=1.&chapter=1.&division=7.&lawCode=EVID&part=&title="
+    summary: "In a general civil case, a qualified expert may offer medical-causation opinions to a reasonable medical probability based on a differential diagnosis or other reliable methodology. SB 652 added the section; SB 135 scoped/amended the operative text, operative Jan. 1, 2024."
+    applies_to: [expert]
+    check_hints: [medical_causation, reasonable_medical_probability, plaintiff_damages, sb_652, sb_135]

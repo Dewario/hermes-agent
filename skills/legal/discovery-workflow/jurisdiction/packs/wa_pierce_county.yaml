@@ -1,8 +1,8 @@
-pack_id: wa_pierce_pclr
+pack_id: wa_pierce_county
 version: 1
 status: active
 overlay: true
-base_pack: wa_cr
+base_pack: wa_state
 title: "Pierce County Superior Court local civil overlay"
 jurisdiction_kind: local
 source_checked: "2026-07-20"
@@ -26,16 +26,16 @@ rules:
   - id: PIERCE-PCLR-3-ROG-CAPS
     citation: "Pierce County Super. Ct. PCLR 3(h)"
     source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
-    summary: "Local track assignment controls interrogatory caps: expedited uses 25, standard and complex use 35, with subparts counted as separate interrogatories."
+    summary: "Local track assignment controls interrogatory caps, with subparts counted separately: expedited 25, standard 35, complex 35, and dissolution 100. Written discovery must be propounded early enough to complete by cutoff."
     applies_to: [rog]
-    check_hints: [numerical_limit, discrete_subparts, track_assignment]
+    check_hints: [numerical_limit, discrete_subparts, track_assignment, expedited_25, standard_35, complex_35, dissolution_100]
 
   - id: PIERCE-PCLR-3-RFA
     citation: "Pierce County Super. Ct. PCLR 3(h)"
     source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
-    summary: "For expedited, standard, and complex tracks, PCLR 3(h) states no local numerical limit on RFAs, subject to other applicable rules and orders."
+    summary: "PCLR 3(h) states there is no local numerical limit on RFAs, subject to other applicable rules and orders."
     applies_to: [rfa]
-    check_hints: [numerical_limit, track_assignment, attorney_confirm]
+    check_hints: [no_rfa_limit, track_assignment, attorney_confirm]
 
   - id: PIERCE-PCLR-26-WITNESS
     citation: "Pierce County Super. Ct. PCLR 26(a)-(e)"
@@ -54,9 +54,9 @@ rules:
   - id: PIERCE-PCLR-7-MOTION-TIMING
     citation: "Pierce County Super. Ct. PCLR 7(a)(3)-(10)"
     source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
-    summary: "Civil motions use local filing, opposition, reply, working-copy, and confirmation deadlines measured in court days."
+    summary: "Civil motions use local filing, opposition, reply, working-copy, and confirmation deadlines measured in court days: filing/service by the seventh court day before hearing, opposition by noon three court days before, reply by noon two court days before, and confirmation no earlier than five court days and no later than noon three court days before. Page limits are 12 pages for initial/opposition and 5 pages for reply, with 24/12 for summary judgment."
     applies_to: [all]
-    check_hints: [motion_timing, working_copies, confirmation]
+    check_hints: [motion_timing, seven_court_days, working_copies, confirmation, page_limit_12, reply_page_limit_5]
 
   - id: PIERCE-PCLR-16-PRETRIAL
     citation: "Pierce County Super. Ct. PCLR 16(b)(3)-(4)"

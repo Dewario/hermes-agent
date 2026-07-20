@@ -20,10 +20,10 @@ Machine-readable discovery rule packs for the counsel-pack expansion
 | `frcp_generic` | active | Default federal discovery rules (26/33/34/36/e) |
 | `fela` | active | FELA/railroad theme checks on top of FRCP (`fela.yaml`) |
 | `ca_ccp` | active | California CCP/Evidence Code baselines for discovery and expert planning |
-| `ca_san_bernardino_local` | active overlay | San Bernardino Superior Court local civil overlay for `ca_ccp` |
-| `wa_cr` | active | Washington Superior Court Civil Rules and Evidence Rule expert baselines |
-| `wa_king_lcr` | active overlay | King County Superior Court local civil overlay for `wa_cr` |
-| `wa_pierce_pclr` | active overlay | Pierce County Superior Court local civil overlay for `wa_cr` |
+| `ca_san_bernardino` | active overlay | San Bernardino Superior Court local civil overlay for `ca_ccp` |
+| `wa_state` | active | Washington Superior Court Civil Rules and Evidence Rule expert baselines |
+| `wa_king_county` | active overlay | King County Superior Court local civil overlay for `wa_state` |
+| `wa_pierce_county` | active overlay | Pierce County Superior Court local civil overlay for `wa_state` |
 
 ## Checker contract
 

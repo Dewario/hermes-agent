@@ -1,0 +1,219 @@
+# Expert witness taxonomy for plaintiff-side recommendation.
+# Each expert type maps trigger keywords (case-fact patterns) to a discipline,
+# role, admissibility notes, and foundation gaps. Data-driven so the script
+# stays testable and extensible. Synthetic-only until owner §9.5.
+
+liability:
+  - id: EXP-L-ACC-RECON
+    discipline: Accident Reconstruction
+    role: Reconstruct the incident mechanics, speeds, forces, and sequence.
+    trigger_keywords:
+      [collision, vehicle, truck, train, derailment, impact, skid, speed,
+       intersection, right-of-way, lane, rollover, braking, pedestrian strike,
+       bicycle, motorcycle, forklift, crane, heavy equipment]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — engineering methodology, peer-reviewed reconstruction techniques, demonstrative admissibility."
+      ca: "Kelly/Frye (People v. Kelly (1976) 17 Cal.3d 24) for novel scientific methods; Sargon (2012) 55 Cal.4th 747 gatekeeping under Evid. Code 801(b)/802; Sanchez (2016) 63 Cal.4th 665 limits reciting case-specific hearsay."
+      wa: "Frye (novel science, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); qualification by training and experience; ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Scene measurements / photographs / diagrams
+      - Vehicle/equipment inspection and black-box (EDR) data
+      - Witness statements on speed and sequence
+
+  - id: EXP-L-HUMAN-FACTORS
+    discipline: Human Factors
+    role: Assess perception, warning adequacy, human error, and product/user interface.
+    trigger_keywords:
+      [warning, label, instruction, perception, conspicuity, human error,
+       fatigue, shift work, distraction, control design, signage, guard]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — human factors methodology; qualification by psychology/engineering training."
+      ca: "Kelly/Frye for novel perception research; Sargon for applied theories."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Product/warning samples and design history
+      - User/task description and incident sequence
+
+  - id: EXP-L-SAFETY-STANDARDS
+    discipline: Safety / Industry Standards
+    role: Apply OSHA, FRA, ANSI, industry custom, and employer safety rules to the facts.
+    trigger_keywords:
+      [OSHA, FRA, ANSI, safety rule, industry standard, workplace, industrial,
+       employer, crew, supervisor, training, inspection, lockout, PPE,
+       scaffold, fall protection, forklift safety, railroad workplace]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — industry standards are generally admissible as technical knowledge."
+      ca: "CA Evid. Code 801; standards admissible; expert applies to facts."
+      wa: "ER 702; standards admissible; expert applies to facts."
+    foundation_gaps:
+      - Employer safety rules and training records
+      - Industry/OSHA standards applicable to the task
+
+  - id: EXP-L-ENGINEERING
+    discipline: Engineering (Mechanical / Structural / Electrical)
+    role: Diagnose equipment/machinery/structure failure and design defect.
+    trigger_keywords:
+      [equipment failure, machinery, defect, mechanical, structural, electrical,
+       design, maintenance, weld, fracture, corrosion, ladder, scaffold, tool]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — engineering failure analysis methodology."
+      ca: "Kelly/Frye for novel failure analysis; Sargon gatekeeping."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Equipment inspection and maintenance records
+      - Design drawings and failure analysis
+
+  - id: EXP-L-REGULATORY
+    discipline: Regulatory Compliance (FRA / FRSA / OSHA)
+    role: Establish regulatory violation as evidence of negligence per se or statutory duty.
+    trigger_keywords:
+      [FRA, FRSA, OSHA, Hours of Service, Locomotive Inspection Act, Safety Appliance Act,
+       regulation, statutory violation, inspection report, citation]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert; regulatory expert testimony on compliance."
+      ca: "CA Evid. Code 720; negligence per se framework per Evid. Code 669."
+      wa: "ER 702; regulatory compliance testimony."
+    foundation_gaps:
+      - Agency inspection reports and citations
+      - Employer rule books and operating rules
+
+  - id: EXP-L-TOXICOLOGY
+    discipline: Forensic Toxicology
+    role: Assess chemical exposure, impairment, or causation of toxic injury.
+    trigger_keywords:
+      [chemical, exposure, toxic, solvent, asbestos, silica, benzene, pesticide,
+       impairment, blood alcohol, drug screen, inhalation, dermal]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — toxicology methodology; dose-response literature."
+      ca: "Kelly/Frye for novel toxicology; Sargon."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Exposure monitoring and sampling data
+      - Medical testing for biomarkers
+
+  - id: EXP-L-FIRE-ORIGIN
+    discipline: Fire Cause and Origin
+    role: Determine fire origin, cause, and propagation.
+    trigger_keywords:
+      [fire, ignition, smoke, explosion, electrical fault, arson, combustion,
+       thermal, burn]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — NFPA 921 methodology."
+      ca: "Kelly/Frye for novel fire science; Sargon."
+      wa: "Frye (novel science, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); NFPA 921 generally accepted; ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Scene photographs and burn patterns
+      - Electrical/gas system inspection
+
+  - id: EXP-L-PREMISES-SECURITY
+    discipline: Premises Security
+    role: Assess adequacy of security measures against foreseeable crime.
+    trigger_keywords:
+      [assault, negligent security, parking lot, apartment, hotel, bar, retail,
+       crime, security guard, lighting, surveillance, foreseeable]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — crime foreseeability and security methodology."
+      ca: "Kelly/Frye; Sargon."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Crime history for the premises and area
+      - Security staffing, lighting, and surveillance records
+
+damages:
+  - id: EXP-D-TREATING-PHYSICIAN
+    discipline: Treating Physician
+    role: Establish causation, diagnosis, treatment, and prognosis from the treating relationship.
+    trigger_keywords:
+      [injury, treatment, surgery, fracture, diagnosis, prognosis, medical record,
+       hospital, emergency, physical therapy, pain, restriction]
+    admissibility_notes:
+      federal: "FRE 702 / 703 — treating physician opinion based on personal treatment."
+      ca: "CA Evid. Code 720/801/802; treating physician opinion on causation permitted; Sanchez (2016) 63 Cal.4th 665 limits reciting case-specific hearsay; § 801.1 (operative Jan. 1, 2024) holds defense alternative-cause experts to the same reasonable-medical-probability standard — plaintiff-favorable exclusion tool."
+      wa: "ER 702/703; treating physician opinion."
+    foundation_gaps:
+      - Complete medical records and imaging
+      - Treatment notes linking injury to incident
+
+  - id: EXP-D-FORENSIC-MEDICAL
+    discipline: Forensic Medical Expert (IME)
+    role: Independent medical examination and causation opinion.
+    trigger_keywords:
+      [IME, independent medical exam, causation dispute, permanent impairment,
+       disability rating, future medical, surgical recommendation]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert."
+      ca: "Kelly/Frye for novel medical causation; Sargon (2012) 55 Cal.4th 747 gatekeeping; Sanchez (2016) 63 Cal.4th 665 hearsay-basis limits; § 801.1 (operative Jan. 1, 2024) medical-causation symmetry."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Prior medical history and pre-existing conditions
+      - Current examination findings and imaging
+
+  - id: EXP-D-FORENSIC-ECON
+    discipline: Forensic Economics
+    role: Quantify lost wages, earning capacity, and future economic losses.
+    trigger_keywords:
+      [wage loss, earning capacity, lost income, future earnings, RRTA, FICA,
+       net present value, economic loss, salary, benefits, pension]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — economic methodology; net-after-tax (Helvering v. Horst)."
+      ca: "CA Evid. Code 801; RRTA net-after-tax methodology for FELA."
+      wa: "ER 702; economic methodology."
+    foundation_gaps:
+      - Pre-injury earnings records (pay stubs, W-2, RRB statements)
+      - Vocational assessment of residual earning capacity
+
+  - id: EXP-D-VOCATIONAL
+    discipline: Vocational Rehabilitation
+    role: Assess employability, occupational disability, and transferable skills.
+    trigger_keywords:
+      [employability, vocational, occupational disability, return to work,
+       light duty, transferable skills, job market, retraining]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — vocational methodology."
+      ca: "CA Evid. Code 801; vocational expert qualification."
+      wa: "ER 702; vocational methodology."
+    foundation_gaps:
+      - Work history and education records
+      - Functional capacity evaluation
+
+  - id: EXP-D-LIFE-CARE
+    discipline: Life Care Planning
+    role: Project future medical and care needs with costs for catastrophic injury.
+    trigger_keywords:
+      [catastrophic, life care plan, future medical, future care, TBI, SCI,
+       paralysis, brain injury, spinal cord, long-term care, attendant care]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — life care planning methodology."
+      ca: "Kelly/Frye; Sargon."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Treating provider future-care recommendations
+      - Cost data for the local care market
+
+  - id: EXP-D-NEUROPSYCH
+    discipline: Neuropsychology
+    role: Assess cognitive impairment, TBI, and psychological sequelae.
+    trigger_keywords:
+      [TBI, traumatic brain injury, concussion, cognitive, memory, attention,
+       neuropsychological testing, head injury, psychological, PTSD]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — neuropsychological testing methodology."
+      ca: "Kelly/Frye for novel testing; Sargon."
+      wa: "Frye (novel scientific evidence, State v. Copeland, 130 Wn.2d 244 (1996)) + ER 702 (two-part test, State v. Cauthron, 120 Wn.2d 879 (1993)); ER 702 does not track the 2023 FRE 702 amendment."
+    foundation_gaps:
+      - Pre-injury cognitive baseline (school, employment records)
+      - Post-injury neuropsychological testing battery
+
+  - id: EXP-D-FORENSIC-ACCT
+    discipline: Forensic Accounting
+    role: Quantify business losses, self-employment losses, and lost profits.
+    trigger_keywords:
+      [business loss, self-employed, lost profits, business interruption,
+       sole proprietor, partnership, revenue, accounts]
+    admissibility_notes:
+      federal: "FRE 702 / Daubert — accounting methodology."
+      ca: "CA Evid. Code 801; forensic accounting qualification."
+      wa: "ER 702; accounting methodology."
+    foundation_gaps:
+      - Business tax returns and financial statements
+      - Pre- and post-incident revenue records

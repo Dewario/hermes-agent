@@ -15,6 +15,12 @@ except ImportError:  # pragma: no cover - stdlib fallback not attempted
 
 
 PACKS_DIR = Path(__file__).resolve().parent / "packs"
+PACK_ALIASES = {
+    "ca_san_bernardino_local": "ca_san_bernardino",
+    "wa_cr": "wa_state",
+    "wa_king_lcr": "wa_king_county",
+    "wa_pierce_pclr": "wa_pierce_county",
+}
 
 
 class PackError(RuntimeError):
@@ -38,6 +44,9 @@ def load_pack(
     packs_dir: Path | None = None,
 ) -> dict[str, Any]:
     root = packs_dir or PACKS_DIR
+    pack_id = PACK_ALIASES.get(pack_id, pack_id)
+    if overlay_id:
+        overlay_id = PACK_ALIASES.get(overlay_id, overlay_id)
     base_path = root / f"{pack_id}.yaml"
     if not base_path.is_file():
         raise PackError(f"unknown jurisdiction_pack: {pack_id}")
@@ -130,7 +139,7 @@ def main(argv: list[str] | None = None) -> int:
         print(
             f"loaded {loaded['jurisdiction_pack']}"
             + (f"+{loaded['case_overlay']}" if loaded["case_overlay"] else "")
-            + f" → {len(loaded['rule_ids'])} rules"
+            + f" -> {len(loaded['rule_ids'])} rules"
         )
         for rid in loaded["rule_ids"]:
             print(f"  {rid}")

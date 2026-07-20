@@ -47,19 +47,19 @@ def test_ca_ccp_active_loads():
 
 
 def test_california_local_overlay_loads():
-    loaded = jp.load_pack("ca_ccp", overlay_id="ca_san_bernardino_local")
+    loaded = jp.load_pack("ca_ccp", overlay_id="ca_san_bernardino")
     assert "SBC-LR-411-1" in loaded["rule_ids"]
     expert_rules = jp.rules_for_type(loaded, "expert")
     assert any(r["id"] == "SBC-LR-411-2" for r in expert_rules)
 
 
 def test_washington_pack_and_local_overlays_load():
-    king = jp.load_pack("wa_cr", overlay_id="wa_king_lcr")
+    king = jp.load_pack("wa_state", overlay_id="wa_king_county")
     assert "WA-CR-26-B5" in king["rule_ids"]
     assert "KING-LCR-26-WITNESS" in king["rule_ids"]
     assert any(r["id"] == "KING-LCR-26-WITNESS" for r in jp.rules_for_type(king, "expert"))
 
-    pierce = jp.load_pack("wa_cr", overlay_id="wa_pierce_pclr")
+    pierce = jp.load_pack("wa_state", overlay_id="wa_pierce_county")
     assert "PIERCE-PCLR-26-WITNESS" in pierce["rule_ids"]
     assert any(r["id"] == "PIERCE-PCLR-3-ROG-CAPS" for r in jp.rules_for_type(pierce, "rog"))
 
@@ -76,4 +76,4 @@ def test_overlay_base_mismatch_fails():
 def test_cli_lists_rules():
     assert jp.main(["frcp_generic", "--overlay", "fela", "--request-type", "rfa"]) == 0
     assert jp.main(["ca_ccp", "--request-type", "rfp"]) == 0
-    assert jp.main(["wa_cr", "--overlay", "wa_king_lcr", "--request-type", "expert"]) == 0
+    assert jp.main(["wa_state", "--overlay", "wa_king_county", "--request-type", "expert"]) == 0

@@ -4,8 +4,8 @@
 
 matter_id: REPLACE_ME
 court: "REPLACE"
-jurisdiction_pack: frcp_generic   # frcp_generic | ca_ccp | wa_cr
-case_overlay: fela                # optional: fela | ca_san_bernardino_local | wa_king_lcr | wa_pierce_pclr
+jurisdiction_pack: frcp_generic   # frcp_generic | ca_ccp | wa_state
+case_overlay: fela                # optional: fela | ca_san_bernardino | wa_king_county | wa_pierce_county
 case_type: null                   # e.g. premises liability, auto, med-mal, FELA
 liability_theory: null            # attorney-authored short theory
 injuries: null                    # attorney-authored summary for E1

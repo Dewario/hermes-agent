@@ -91,6 +91,8 @@ def _load_module(path: Path, name: str):
 cg = _load_module(CASEGRAPH_SCRIPT, "legal_casegraph_rog_req_audit")
 _ms = _load_module(MATTER_SAFETY, "matter_safety_rog_request_audit")
 jp = _load_module(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_d3")
+_limits = _load_module(WORKFLOW_ROOT / "jurisdiction" / "limits.py", "jurisdiction_limits_d3")
+resolve_rog_limit = _limits.resolve_rog_limit
 
 
 def utcnow() -> str:
@@ -351,6 +353,7 @@ def audit_request(
     index: int,
     rog_used: int,
     set_discrete_total: int,
+    rog_limit: int | None = None,
 ) -> dict[str, Any]:
     text = str(req.get("text") or "")
     discrete = int(req.get("discrete_subpart_count") or 1)
@@ -408,17 +411,26 @@ def audit_request(
             "fail_candidate",
         )
 
-    limit = 35 if "CCP-2030-030" in available_rules else DEFAULT_ROG_LIMIT
-    projected = rog_used + set_discrete_total
-    if projected > limit:
+    if rog_limit is None:
         add(
-            "exceeds_numerical_limit",
-            ["FRCP-33-a-1", "CCP-2030-030"],
-            f"Projected interrogatory count (used {rog_used} + this set {set_discrete_total} "
-            f"= {projected}) exceeds default limit of {limit} "
-            "(absent stipulation/order).",
-            "fail_candidate",
+            "numerical_limit_county_local",
+            ["WA-CR-33-A"],
+            "No statewide interrogatory cap applies for this jurisdiction; "
+            "numerical limit is county-local/track-dependent. Attorney must "
+            "confirm the venue's local cap or set rog_limit in matter_profile.",
+            "warn",
         )
+    else:
+        projected = rog_used + set_discrete_total
+        if projected > rog_limit:
+            add(
+                "exceeds_numerical_limit",
+                ["FRCP-33-a-1", "CCP-2030-030"],
+                f"Projected interrogatory count (used {rog_used} + this set {set_discrete_total} "
+                f"= {projected}) exceeds limit of {rog_limit} "
+                "(absent stipulation/order).",
+                "fail_candidate",
+            )
 
     if not flags:
         for rid in ("FRCP-33-a-1", "CCP-2030-030", "FRCP-26-b-1", "CCP-2017-010"):
@@ -497,6 +509,7 @@ def cmd_audit_incoming_rog(args: argparse.Namespace) -> int:
     available = set(loaded["rule_ids"])
     requests = read_jsonl(root / REQUESTS_REL)
     set_discrete_total = sum(int(r.get("discrete_subpart_count") or 1) for r in requests)
+    rog_limit = resolve_rog_limit(profile, available)
     items = [
         audit_request(
             req,
@@ -504,6 +517,7 @@ def cmd_audit_incoming_rog(args: argparse.Namespace) -> int:
             index=i,
             rog_used=int(profile.get("rog_used") or 0),
             set_discrete_total=set_discrete_total,
+            rog_limit=rog_limit,
         )
         for i, req in enumerate(requests, 1)
     ]
@@ -517,6 +531,7 @@ def cmd_audit_incoming_rog(args: argparse.Namespace) -> int:
         "pack_rule_count": len(available),
         "audit_item_count": len(items),
         "rog_used": profile.get("rog_used"),
+        "rog_limit": rog_limit,
         "discrete_subpart_total": set_discrete_total,
     })
     write_json(output_path(root, META_REL), meta)

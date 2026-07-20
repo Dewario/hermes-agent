@@ -1,0 +1,11 @@
+# SYNTHETIC / NON-CLIENT / TEST ONLY
+matter_id: SYN-SMOKE-EXPERT
+court: "King County Sup. Ct. (synthetic smoke)"
+jurisdiction_pack: wa_state
+case_overlay: wa_king_county
+discovery_cutoff: null
+expert_cutoff: null
+limits_used:
+  rog: 0
+  rfp: null
+  rfa: 0

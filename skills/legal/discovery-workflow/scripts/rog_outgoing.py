@@ -22,9 +22,13 @@ from typing import Any, Iterable
 
 SCRIPT_PATH = Path(__file__).resolve()
 LEGAL_ROOT = SCRIPT_PATH.parents[2]
+WORKFLOW_ROOT = SCRIPT_PATH.parents[1]
 CASEGRAPH_SCRIPT = LEGAL_ROOT / "casegraph" / "scripts" / "casegraph.py"
 LIVE_PREFLIGHT_SCRIPT = LEGAL_ROOT / "scripts" / "live_preflight.py"
 MATTER_SAFETY = LEGAL_ROOT / "scripts" / "matter_safety.py"
+LOAD_PACK_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "load_pack.py"
+LIMITS_SCRIPT = WORKFLOW_ROOT / "jurisdiction" / "limits.py"
+PROFILE_REL = Path("03_attorney") / "matter_profile.yaml"
 
 TARGETS_REL = Path("02_outputs") / "outgoing_rog_targets.jsonl"
 ITEMS_REL = Path("02_outputs") / "outgoing_rog_items.jsonl"
@@ -90,6 +94,71 @@ def _load_matter_safety():
 
 
 _ms = _load_matter_safety()
+
+
+def _load_aux(path: Path, name: str):
+    sys.dont_write_bytecode = True
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load {name}: {path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+jp = _load_aux(LOAD_PACK_SCRIPT, "jurisdiction_load_pack_rog_outgoing")
+_limits = _load_aux(LIMITS_SCRIPT, "jurisdiction_limits_rog_outgoing")
+resolve_rog_limit = _limits.resolve_rog_limit
+
+
+def load_matter_profile(root: Path) -> dict[str, Any]:
+    path = root / PROFILE_REL
+    if not path.is_file():
+        return {"jurisdiction_pack": None, "case_overlay": None, "raw": {}}
+    try:
+        import yaml
+    except ImportError:
+        return {"jurisdiction_pack": None, "case_overlay": None, "raw": {}}
+    try:
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {"jurisdiction_pack": None, "case_overlay": None, "raw": {}}
+    if not isinstance(data, dict):
+        return {"jurisdiction_pack": None, "case_overlay": None, "raw": {}}
+    pack = str(data.get("jurisdiction_pack") or "").strip() or None
+    overlay = data.get("case_overlay")
+    overlay_id = str(overlay).strip() if overlay else None
+    return {
+        "jurisdiction_pack": pack,
+        "case_overlay": overlay_id or None,
+        "raw": data,
+    }
+
+
+def check_outgoing_rog_limit(root: Path, item_count: int) -> list[str]:
+    profile = load_matter_profile(root)
+    pack = profile.get("jurisdiction_pack")
+    if not pack:
+        return []
+    try:
+        loaded = jp.load_pack(pack, overlay_id=profile.get("case_overlay"))
+    except Exception as exc:
+        return [f"cannot load jurisdiction pack '{pack}' for limit check: {exc}"]
+    limit = resolve_rog_limit(profile, set(loaded["rule_ids"]))
+    if limit is None:
+        return [
+            "numerical_limit_county_local: no statewide interrogatory cap applies "
+            "for this jurisdiction; limit is county-local/track-dependent. "
+            "Attorney must confirm the venue's local cap or set rog_limit in "
+            "matter_profile."
+        ]
+    if item_count > limit:
+        return [
+            f"exceeds_numerical_limit: outgoing interrogatory count ({item_count}) "
+            f"exceeds jurisdiction limit of {limit} (absent stipulation/order)."
+        ]
+    return []
 
 
 def utcnow() -> str:
@@ -491,6 +560,10 @@ def cmd_validate_outgoing_rog(args: argparse.Namespace) -> int:
     targets = read_jsonl(root / TARGETS_REL)
     items = read_jsonl(root / ITEMS_REL)
     errors = validate_outgoing_records(targets, items)
+    limit_notes = check_outgoing_rog_limit(root, len(items))
+    limit_warnings = [n for n in limit_notes if n.startswith("numerical_limit_county_local")]
+    limit_errors = [n for n in limit_notes if n.startswith("exceeds_numerical_limit")]
+    errors.extend(limit_errors)
     package = root / PACKAGE_REL
     if not package.is_file():
         errors.append(f"missing package: {package}")
@@ -503,6 +576,8 @@ def cmd_validate_outgoing_rog(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"FAIL: {error}")
         return 1
+    for warning in limit_warnings:
+        print(f"WARN: {warning}")
 
     gates = [
         [sys.executable, str(CASEGRAPH_SCRIPT), "status", str(root)],

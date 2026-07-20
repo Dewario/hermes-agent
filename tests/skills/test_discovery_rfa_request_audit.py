@@ -102,6 +102,44 @@ def test_rejects_missing_profile(tmp_path):
     assert mod.main(["audit-incoming-rfa", str(matter)]) == 2
 
 
+def test_king_rfa_limit_excludes_authenticity_requests(tmp_path):
+    matter = _matter(tmp_path)
+    (matter / "03_attorney" / "matter_profile.yaml").write_text(
+        "matter_id: SYN-IRFA-A\n"
+        "court: King County Superior Court (synthetic)\n"
+        "jurisdiction_pack: wa_state\n"
+        "case_overlay: wa_king_county\n"
+        "discovery_cutoff: null\n"
+        "limits_used:\n"
+        "  rog: 0\n"
+        "  rfp: null\n"
+        "  rfa: 0\n",
+        encoding="utf-8",
+    )
+    merits = [
+        f"Request for Admission No. {i}: Admit fact {i} about defendant notice.\n"
+        for i in range(1, 26)
+    ]
+    auth = [
+        "Request for Admission No. 26: Admit Exhibit A is a genuine business record.\n",
+        "Request for Admission No. 27: Admit Exhibit B is an authentic copy.\n",
+    ]
+    (matter / "01_discovery_served" / "rfa_set.md").write_text(
+        "\n".join(merits + auth),
+        encoding="utf-8",
+    )
+    assert mod.main(["parse-served-rfa", str(matter)]) == 0
+    assert mod.main(["audit-incoming-rfa", str(matter)]) == 0
+    items = _read_jsonl(matter / "02_outputs" / "incoming_rfa_request_audit_items.jsonl")
+    assert len(items) == 27
+    assert sum(1 for i in items if not i["authenticity_exempt"]) == 25
+    assert sum(1 for i in items if i["authenticity_exempt"]) == 2
+    assert not any("exceeds_numerical_limit" in (i.get("flags") or []) for i in items)
+    meta = json.loads((matter / "02_outputs" / "incoming_rfa_request_audit_meta.json").read_text(encoding="utf-8"))
+    assert meta["rfa_limit"] == 25
+    assert meta["rfa_countable_set_total"] == 25
+
+
 def test_package_and_validate(tmp_path):
     matter = _matter(tmp_path)
     for command in (

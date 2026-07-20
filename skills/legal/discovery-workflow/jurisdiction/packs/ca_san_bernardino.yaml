@@ -1,0 +1,143 @@
+pack_id: ca_san_bernardino
+version: 1
+status: active
+overlay: true
+base_pack: ca_ccp
+title: "San Bernardino Superior Court local civil overlay"
+jurisdiction_kind: local
+source_checked: "2026-07-20"
+source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+currentness_note: "Local rules PDF is effective July 1, 2026. Attorney must also confirm department standing orders, designated-case orders, limited/unlimited status, and complex-case guidelines."
+rules:
+  - id: SBC-LR-400
+    citation: "San Bernardino Super. Ct. Local Rule 400"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Local civil case-management rules apply to general civil cases as defined by California rules unless exempted by the chapter."
+    applies_to: [all]
+    check_hints: [case_management, general_civil, local_rule_scope]
+
+  - id: SBC-LR-404
+    citation: "San Bernardino Super. Ct. Local Rule 404"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "The plaintiff/petitioner designates the civil action category on filing; disagreements may be resolved by motion or court-initiated determination."
+    applies_to: [all]
+    check_hints: [case_designation, limited_unlimited, filing_category]
+
+  - id: SBC-LR-411-1
+    citation: "San Bernardino Super. Ct. Local Rule 411.1"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Initial trial setting conference is used in limited and unlimited civil cases, generally set by the clerk within the local rule's timing and requiring a local conference statement."
+    applies_to: [all]
+    check_hints: [trial_setting_conference, case_schedule, local_form, cutoff_context]
+
+  - id: SBC-LR-411-2
+    citation: "San Bernardino Super. Ct. Local Rule 411.2"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Trial readiness conference in unlimited and complex civil cases finalizes trial preparation, including witness and exhibit lists, jury instructions, verdict forms, and motions in limine materials."
+    applies_to: [expert, all]
+    check_hints: [trial_readiness, witness_list, exhibit_list, expert_trial_prep]
+
+  - id: SBC-LR-412
+    citation: "San Bernardino Super. Ct. Local Rule 412"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Complex cases are governed by posted complex litigation program guidelines; attorney must confirm the current guideline/order for any complex-designated case."
+    applies_to: [all]
+    check_hints: [complex_case, attorney_confirm, standing_order]
+
+  - id: SBC-LR-415
+    citation: "San Bernardino Super. Ct. Local Rule 415"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Motions in limine have local declaration requirements and may not be used as substitute summary-judgment or separate-trial motions."
+    applies_to: [all]
+    check_hints: [motion_in_limine, discovery_answer_use, trial_motion]
+
+  - id: SBC-LR-416
+    citation: "San Bernardino Super. Ct. Local Rule 416"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Counsel must inform the assigned judge and opposing counsel of facts indicating the case may not proceed on the assigned trial date."
+    applies_to: [expert, all]
+    check_hints: [trial_date, readiness, expert_cutoff, attorney_confirm]
+
+  - id: SBC-LR-418
+    citation: "San Bernardino Super. Ct. Local Rule 418"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Continuance requests follow California Rule of Court 3.1332."
+    applies_to: [all]
+    check_hints: [continuance, good_cause, schedule_risk]
+
+  - id: SBC-LR-403
+    citation: "San Bernardino Super. Ct. Local Rule 403"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Assigned judges handle civil matters under the local assignment structure; confirm the assigned department for discovery and trial-readiness motions."
+    applies_to: [all]
+    check_hints: [assigned_judge, department_assignment, civil_motions]
+
+  - id: SBC-CRC-3-20-PREEMPTION
+    citation: "Cal. Rules of Court, rule 3.20"
+    source_url: "https://courts.ca.gov/cms/rules/index/three/rule3_20"
+    summary: "CRC 3.20 preempts local court rules on pleadings, motions, discovery, and form/format. No stand-alone civil local discovery chapter/rule series was identified in the July 1, 2026 San Bernardino civil local rules; discovery substance comes from CCP/CRC and case-specific orders."
+    applies_to: [all]
+    check_hints: [preemption, no_stand_alone_civil_discovery_chapter, crc_controls_substance]
+
+  - id: SBC-LR-520
+    citation: "San Bernardino Super. Ct. Local Rule 520"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "A motion may not be noticed without first reserving a hearing date with the clerk, subject to stated exceptions."
+    applies_to: [all]
+    check_hints: [reservation_required, motion_calendaring]
+
+  - id: SBC-LR-521
+    citation: "San Bernardino Super. Ct. Local Rule 521"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Motion filing fees must be paid within the local rule's timing after reservation."
+    applies_to: [all]
+    check_hints: [filing_fee, motion_reservation]
+
+  - id: SBC-LR-550
+    citation: "San Bernardino Super. Ct. Local Rule 550"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Continuance or non-proceed notices must be provided to the judicial assistant and opposing counsel by the local rule deadline before hearing."
+    applies_to: [all]
+    check_hints: [continuance, notice_timing]
+
+  - id: SBC-LR-560
+    citation: "San Bernardino Super. Ct. Local Rule 560"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "The court may remove motions from calendar if meet-and-confer declaration requirements are not met; this works with CCP 2016.040 for discovery-motion practice."
+    applies_to: [all]
+    check_hints: [meet_and_confer, declaration_enforcement, motion_prerequisite]
+
+  - id: SBC-LR-561
+    citation: "San Bernardino Super. Ct. Local Rule 561"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Tentative rulings are optional and posted under the local rule's timing and appearance procedure."
+    applies_to: [all]
+    check_hints: [tentative_ruling, appearance_practice]
+
+  - id: SBC-LR-571
+    citation: "San Bernardino Super. Ct. Local Rule 571"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Exhibits are generally filed rather than lodged unless lodging is authorized."
+    applies_to: [all]
+    check_hints: [exhibits_filed, lodging]
+
+  - id: SBC-LR-1800-1860-EFILING
+    citation: "San Bernardino Super. Ct. Local Rules 1800-1860; Local Rule 1810.B"
+    source_url: "https://sanbernardino.courts.ca.gov/online-services/efiling/civil-efiling/civil-efiling-requirements"
+    summary: "Local Rules 1800-1860 provide the eFiling framework; the civil eFiling requirements page supplies the implementation detail that mandatory electronic filing and service in General Civil cases became effective Sept. 2, 2025 by General Order and Local Rule 1810.B. EFM/portal reference is Odyssey eFileCA."
+    applies_to: [all]
+    check_hints: [efiling, odyssey_efileca, mandatory_general_civil, sept_2_2025]
+
+  - id: SBC-DISCOVERY-CUTOFF
+    citation: "CCP 2024.020 et seq.; San Bernardino case-specific TSC/CMO orders"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2024.020."
+    summary: "No countywide stand-alone local discovery-cutoff rule was identified in the July 1, 2026 civil local rules. Cutoffs run from CCP 2024.020 et seq. plus case-specific trial-setting, case-management, complex, or department orders. Do not invent dates."
+    applies_to: [all]
+    check_hints: [discovery_cutoff, no_local_standing_cutoff, ccp_2024, needs_matter_profile]
+
+  - id: SBC-EXPERT-DISCLOSURE
+    citation: "CCP 2034.210-2034.310; San Bernardino case-specific orders"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?article=2.&chapter=18.&division=&lawCode=CCP&part=4.&title=4."
+    summary: "No stand-alone local civil expert-disclosure rule was identified in the July 1, 2026 civil local rules. Expert exchange is governed by CCP 2034.210-2034.310 plus any TSC, CMO, complex, or department order."
+    applies_to: [expert, all]
+    check_hints: [expert_disclosure, no_local_expert_rule, ccp_2034_series, needs_matter_profile]
