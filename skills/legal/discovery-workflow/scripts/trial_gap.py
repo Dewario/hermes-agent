@@ -742,6 +742,14 @@ def cmd_validate(args: argparse.Namespace) -> int:
         for error in errors:
             print(f"FAIL: {error}")
         return 1
+    request_type = getattr(args, "request_type", None)
+    if (
+        request_type is None
+        and _ms.is_live_matter_path(root)
+        and not _ms.is_syn_matter_id(_ms.resolve_matter_id(root))
+    ):
+        print("FAIL: --request-type is required for live trial-gap owner gate")
+        return 1
 
     gates = [
         [sys.executable, str(CASEGRAPH_SCRIPT), "status", str(root)],
@@ -754,6 +762,9 @@ def cmd_validate(args: argparse.Namespace) -> int:
         live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
         skip_live_preflight=bool(args.skip_live_preflight),
         synthetic_flag=bool(getattr(args, 'synthetic', False)),
+        request_type=request_type,
+        mode=MODE,
+        slice_id="G1",
     )
     for command in gates:
         code = run_command(command)
@@ -891,6 +902,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("validate-trial-gap", help="run Slice G1 validators and gates")
     p.add_argument("matter_dir")
+    p.add_argument("--request-type", choices=("rog", "rfp", "rfa"))
     p.add_argument("--skip-live-preflight", action="store_true")
     p.add_argument("--synthetic", action="store_true")
     p.add_argument("--allow-stub-pack", action="store_true")

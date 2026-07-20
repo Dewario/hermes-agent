@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Counsel-pack synthetic smoke: one matter × D1–D3 + G1 + A2 + B1–B3 + C1–C3.
+"""Counsel-pack synthetic smoke: one matter x D1-D3 + G1 + E1 + A2 + B1-B3 + C1-C3.
 
 Materializes fixtures/smoke_matter/seed into a temp (or --matter-dir) workspace,
 indexes casegraph, and runs validate gates. Synthetic-only — not §9.5 live.
@@ -61,6 +61,7 @@ d1 = _load_main(WORKFLOW_SCRIPTS / "rfp_request_audit.py", "smoke_d1")
 d2 = _load_main(WORKFLOW_SCRIPTS / "rfa_request_audit.py", "smoke_d2")
 d3 = _load_main(WORKFLOW_SCRIPTS / "rog_request_audit.py", "smoke_d3")
 g1 = _load_main(WORKFLOW_SCRIPTS / "trial_gap.py", "smoke_g1")
+e1 = _load_main(WORKFLOW_SCRIPTS / "expert_needs.py", "smoke_e1")
 a2 = _load_main(WORKFLOW_SCRIPTS / "rfa_audit.py", "smoke_a2")
 b1 = _load_main(WORKFLOW_SCRIPTS / "rfa_outgoing.py", "smoke_b1")
 b2 = _load_main(WORKFLOW_SCRIPTS / "rog_outgoing.py", "smoke_b2")
@@ -88,6 +89,9 @@ STEPS: list[tuple[str, Callable[[list[str] | None], int], list[str]]] = [
     ("G1 export briefs", g1, ["export-issue-briefs"]),
     ("G1 package", g1, ["package-trial-gap"]),
     ("G1 validate", g1, ["validate-trial-gap"]),
+    ("E1 assess", e1, ["assess-expert-needs"]),
+    ("E1 package", e1, ["package-expert-needs"]),
+    ("E1 validate", e1, ["validate-expert-needs"]),
     (
         "A2 parse served",
         a2,
@@ -217,6 +221,7 @@ def run_smoke(matter: Path) -> int:
         "02_outputs/incoming_rfa_request_audit_report.md",
         "02_outputs/incoming_rog_request_audit_report.md",
         "02_outputs/trial_gap_report.md",
+        "02_outputs/expert_needs_assessment.md",
         "02_outputs/rfa_response_audit_report.md",
         "02_outputs/outgoing_rfa_set.md",
         "02_outputs/outgoing_rog_set.md",

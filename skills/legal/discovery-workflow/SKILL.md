@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.15.0
+version: 0.16.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -32,6 +32,8 @@ See `SPEC.md` for the full roadmap.
   (`scripts/rog_request_audit.py`)
 - **G1** — trial gap assessment → suggested B1–B3 issue-brief lines
   (`scripts/trial_gap.py`)
+- **E1** - plaintiff expert-needs assessment for liability and damages
+  (`scripts/expert_needs.py`)
 - **C1–C3** — draft responses to served RFP/RFA/ROG from attorney answer briefs
   (`scripts/*_response_draft.py`)
 
@@ -45,8 +47,10 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1–D3 + G1 + C1–C3 implemented (synthetic-only). Jurisdiction
-packs: `frcp_generic`, `fela`, `ca_ccp`. Live client use still needs owner
+**Counsel-pack:** D1-D3 + G1 + E1 + C1-C3 implemented (synthetic-only).
+Jurisdiction
+packs: `frcp_generic`, `fela`, `ca_ccp`, `ca_san_bernardino_local`, `wa_cr`,
+`wa_king_lcr`, `wa_pierce_pclr`. Live client use still needs owner
 §9.5 outside the repo — see `OWNER_LIVE_GATE.md`.
 
 ## Hard Rules
@@ -238,6 +242,24 @@ Outputs:
 
 Edit suggested lines, then run B1–B3. Does **not** serve discovery.
 
+## Slice E1 Procedure (expert needs assessment)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`.
+Uses matter-local context only unless the owner gate later authorizes live use.
+
+```powershell
+$e1 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\expert_needs.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $e1 assess-expert-needs $m
+python $e1 package-expert-needs $m
+python $e1 validate-expert-needs $m
+```
+
+Output: `02_outputs/expert_needs_assessment.md`. The package identifies
+liability and damages expert categories for attorney review; it does **not**
+retain, designate, or finally approve any expert.
+
 ## Counsel-Pack Smoke (one synthetic matter)
 
 Seed: `fixtures/smoke_matter/seed/` (SYNTHETIC / NON-CLIENT only).
@@ -249,7 +271,7 @@ python $dw smoke
 python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
 ```
 
-Runs D1–D3 + G1 + A2 + B1–B3 + C1–C3 validate gates on one materialised matter.
+Runs D1-D3 + G1 + E1 + A2 + B1-B3 + C1-C3 validate gates on one materialised matter.
 
 ## Synthetic preparation ladder (no live files)
 
@@ -285,4 +307,5 @@ python $d1 selftest
 python $d2 selftest
 python $d3 selftest
 python $g1 selftest
+python $e1 selftest
 ```

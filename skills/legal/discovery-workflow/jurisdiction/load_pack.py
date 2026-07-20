@@ -114,7 +114,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("pack_id")
     parser.add_argument("--overlay")
     parser.add_argument("--allow-stub", action="store_true")
-    parser.add_argument("--request-type", choices=("rog", "rfp", "rfa"))
+    parser.add_argument("--request-type", choices=("rog", "rfp", "rfa", "expert"))
     args = parser.parse_args(argv)
     try:
         loaded = load_pack(args.pack_id, overlay_id=args.overlay, allow_stub=args.allow_stub)

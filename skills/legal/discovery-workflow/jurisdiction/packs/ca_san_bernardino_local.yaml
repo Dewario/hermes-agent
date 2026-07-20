@@ -1,0 +1,66 @@
+pack_id: ca_san_bernardino_local
+version: 1
+status: active
+overlay: true
+base_pack: ca_ccp
+title: "San Bernardino Superior Court local civil overlay"
+jurisdiction_kind: local
+source_checked: "2026-07-20"
+source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+currentness_note: "Local rules PDF is effective July 1, 2026. Attorney must also confirm department standing orders, designated-case orders, limited/unlimited status, and complex-case guidelines."
+rules:
+  - id: SBC-LR-400
+    citation: "San Bernardino Super. Ct. Local Rule 400"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Local civil case-management rules apply to general civil cases as defined by California rules unless exempted by the chapter."
+    applies_to: [all]
+    check_hints: [case_management, general_civil, local_rule_scope]
+
+  - id: SBC-LR-404
+    citation: "San Bernardino Super. Ct. Local Rule 404"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "The plaintiff/petitioner designates the civil action category on filing; disagreements may be resolved by motion or court-initiated determination."
+    applies_to: [all]
+    check_hints: [case_designation, limited_unlimited, filing_category]
+
+  - id: SBC-LR-411-1
+    citation: "San Bernardino Super. Ct. Local Rule 411.1"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Initial trial setting conference is used in limited and unlimited civil cases, generally set by the clerk within the local rule's timing and requiring a local conference statement."
+    applies_to: [all]
+    check_hints: [trial_setting_conference, case_schedule, local_form, cutoff_context]
+
+  - id: SBC-LR-411-2
+    citation: "San Bernardino Super. Ct. Local Rule 411.2"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Trial readiness conference in unlimited and complex civil cases finalizes trial preparation, including witness and exhibit lists, jury instructions, verdict forms, and motions in limine materials."
+    applies_to: [expert, all]
+    check_hints: [trial_readiness, witness_list, exhibit_list, expert_trial_prep]
+
+  - id: SBC-LR-412
+    citation: "San Bernardino Super. Ct. Local Rule 412"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Complex cases are governed by posted complex litigation program guidelines; attorney must confirm the current guideline/order for any complex-designated case."
+    applies_to: [all]
+    check_hints: [complex_case, attorney_confirm, standing_order]
+
+  - id: SBC-LR-415
+    citation: "San Bernardino Super. Ct. Local Rule 415"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Motions in limine have local declaration requirements and may not be used as substitute summary-judgment or separate-trial motions."
+    applies_to: [all]
+    check_hints: [motion_in_limine, discovery_answer_use, trial_motion]
+
+  - id: SBC-LR-416
+    citation: "San Bernardino Super. Ct. Local Rule 416"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Counsel must inform the assigned judge and opposing counsel of facts indicating the case may not proceed on the assigned trial date."
+    applies_to: [expert, all]
+    check_hints: [trial_date, readiness, expert_cutoff, attorney_confirm]
+
+  - id: SBC-LR-418
+    citation: "San Bernardino Super. Ct. Local Rule 418"
+    source_url: "https://sanbernardino.courts.ca.gov/system/files/local-rules/rulesofcourt.pdf"
+    summary: "Continuance requests follow California Rule of Court 3.1332."
+    applies_to: [all]
+    check_hints: [continuance, good_cause, schedule_risk]

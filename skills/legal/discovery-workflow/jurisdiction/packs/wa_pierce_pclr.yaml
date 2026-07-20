@@ -1,0 +1,66 @@
+pack_id: wa_pierce_pclr
+version: 1
+status: active
+overlay: true
+base_pack: wa_cr
+title: "Pierce County Superior Court local civil overlay"
+jurisdiction_kind: local
+source_checked: "2026-07-20"
+source_url: "https://www.piercecountywa.gov/1195/Local-Rules"
+currentness_note: "Pierce County local rules are effective September 1, 2025 and proposed 2026 changes would become effective September 1, 2026; revalidate this overlay before use on or after that date."
+rules:
+  - id: PIERCE-PCLR-3-TRACK
+    citation: "Pierce County Super. Ct. PCLR 3(h)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Cases receiving an Order Setting Case Schedule are assigned to expedited, standard, complex, or other local tracks; attorney must confirm track assignment at intake."
+    applies_to: [all]
+    check_hints: [track_assignment, case_schedule, attorney_confirm]
+
+  - id: PIERCE-PCLR-3-CUTOFFS
+    citation: "Pierce County Super. Ct. PCLR 3(h)-(i)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Expedited, standard, and complex tracks use week-based discovery cutoffs and trial intervals; written discovery must be propounded early enough to finish by cutoff."
+    applies_to: [all]
+    check_hints: [discovery_cutoff, trial_date, written_discovery_timing]
+
+  - id: PIERCE-PCLR-3-ROG-CAPS
+    citation: "Pierce County Super. Ct. PCLR 3(h)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Local track assignment controls interrogatory caps: expedited uses 25, standard and complex use 35, with subparts counted as separate interrogatories."
+    applies_to: [rog]
+    check_hints: [numerical_limit, discrete_subparts, track_assignment]
+
+  - id: PIERCE-PCLR-3-RFA
+    citation: "Pierce County Super. Ct. PCLR 3(h)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "For expedited, standard, and complex tracks, PCLR 3(h) states no local numerical limit on RFAs, subject to other applicable rules and orders."
+    applies_to: [rfa]
+    check_hints: [numerical_limit, track_assignment, attorney_confirm]
+
+  - id: PIERCE-PCLR-26-WITNESS
+    citation: "Pierce County Super. Ct. PCLR 26(a)-(e)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Possible lay and expert witnesses must be disclosed by case-schedule deadlines; expert disclosures include anticipated opinions, basis, qualifications or CV, and treating physicians are both expert and fact witnesses."
+    applies_to: [expert]
+    check_hints: [witness_disclosure, expert_disclosure, treating_physician, expert_opinions, expert_qualification]
+
+  - id: PIERCE-PCLR-7-DISCOVERY-MOTION
+    citation: "Pierce County Super. Ct. PCLR 7(a)(1)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Contested discovery motions are heard before the assigned judicial department."
+    applies_to: [all]
+    check_hints: [discovery_motion, assigned_judge, motion_route]
+
+  - id: PIERCE-PCLR-7-MOTION-TIMING
+    citation: "Pierce County Super. Ct. PCLR 7(a)(3)-(10)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Civil motions use local filing, opposition, reply, working-copy, and confirmation deadlines measured in court days."
+    applies_to: [all]
+    check_hints: [motion_timing, working_copies, confirmation]
+
+  - id: PIERCE-PCLR-16-PRETRIAL
+    citation: "Pierce County Super. Ct. PCLR 16(b)(3)-(4)"
+    source_url: "https://www.piercecountywa.gov/DocumentCenter/View/150861/2025-Local-Rules---Pierce-County"
+    summary: "Pretrial dispositive motions must be heard by the schedule cutoff absent court order and good cause; the Joint Statement of Evidence lists expected witnesses and exhibits."
+    applies_to: [expert, all]
+    check_hints: [dispositive_cutoff, joint_statement_evidence, witness_list, exhibit_list]

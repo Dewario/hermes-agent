@@ -1,0 +1,59 @@
+pack_id: wa_king_lcr
+version: 1
+status: active
+overlay: true
+base_pack: wa_cr
+title: "King County Superior Court local civil overlay"
+jurisdiction_kind: local
+source_checked: "2026-07-20"
+source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules"
+currentness_note: "King County has adopted 2026 local-rule changes effective September 1, 2026; revalidate this overlay before use on or after that date."
+rules:
+  - id: KING-LCR-4-SCHEDULE
+    citation: "King County Super. Ct. LCR 4(a)-(e)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-4"
+    summary: "Civil case schedules are issued at filing for covered cases, served by the filing party, and provide witness, discovery, trial-readiness, exchange, and motion milestones."
+    applies_to: [all]
+    check_hints: [case_schedule, service, discovery_cutoff, witness_deadline]
+
+  - id: KING-LCR-4-STIP-EXT
+    citation: "King County Super. Ct. LCR 4(d)(1)-(2)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-4"
+    summary: "Witness-disclosure and discovery-cutoff deadlines may be extended by written stipulation for up to 14 days only if the required no-continuance-basis language is included."
+    applies_to: [all]
+    check_hints: [stipulated_extension, discovery_cutoff, witness_deadline, no_trial_continuance]
+
+  - id: KING-LCR-26-CAPS
+    citation: "King County Super. Ct. LCR 26(b)(2)-(6)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-26"
+    summary: "Covered civil cases have local caps for interrogatories, depositions, and RFAs; over-limit discovery requires stipulation or court order."
+    applies_to: [rog, rfa, all]
+    check_hints: [numerical_limit, pattern_interrogatories, deposition_limit, overlimit]
+
+  - id: KING-LCR-26-WITNESS
+    citation: "King County Super. Ct. LCR 26(k)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-26"
+    summary: "Primary and additional witness disclosures must identify possible trial witnesses with contact information, lay knowledge, and for experts a summary of opinions, basis, and qualifications."
+    applies_to: [expert]
+    check_hints: [witness_disclosure, expert_disclosure, expert_opinions, expert_qualification]
+
+  - id: KING-LCR-33-PATTERN
+    citation: "King County Super. Ct. LCR 33"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-33"
+    summary: "Pattern interrogatory use is governed by LCR 33; attorney should confirm whether a court-approved set applies to the case."
+    applies_to: [rog]
+    check_hints: [pattern_interrogatories, attorney_confirm, auto_tort]
+
+  - id: KING-LCR-37-CUTOFF
+    citation: "King County Super. Ct. LCR 37(g)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-37"
+    summary: "Discovery under CR 26-37 must be completed, including responses and supplementation, by the local discovery cutoff unless changed by order or valid stipulation."
+    applies_to: [all]
+    check_hints: [discovery_cutoff, completion_deadline, supplementation]
+
+  - id: KING-LCR-7-MOTION
+    citation: "King County Super. Ct. LCR 7(b)(4)"
+    source_url: "https://kingcounty.gov/en/dept/dja/courts-jails-legal-system/superior-court-local-rules/local-civil-rules/lcr-7"
+    summary: "Civil motion timing uses local judicial-day deadlines for motion, opposition, and reply papers; discovery motions still require CR 26(i) compliance."
+    applies_to: [all]
+    check_hints: [motion_timing, discovery_motion, meet_and_confer]

@@ -793,6 +793,9 @@ def cmd_validate_audit(args: argparse.Namespace) -> int:
         live_preflight_script=LIVE_PREFLIGHT_SCRIPT,
         skip_live_preflight=bool(args.skip_live_preflight),
         synthetic_flag=bool(getattr(args, 'synthetic', False)),
+        request_type="rfp",
+        mode="audit_incoming_response",
+        slice_id="A1",
     )
     for command in gates:
         code = run_command(command)

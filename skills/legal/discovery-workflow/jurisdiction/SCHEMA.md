@@ -12,11 +12,14 @@ status: active                 # active | stub | deprecated
 title: "Federal Rules of Civil Procedure (generic)"
 jurisdiction_kind: federal     # federal | state | local
 overlays_allowed: [fela]       # optional overlay pack_ids
+source_checked: "2026-07-20"   # last primary-source check date
+source_url: "https://..."      # official source for the pack as a whole
 rules:                         # list of rule entries
   - id: FRCP-33-a-1
     citation: "Fed. R. Civ. P. 33(a)(1)"
     summary: "..."
-    applies_to: [rog]          # rog | rfp | rfa | all
+    source_url: "https://..."  # official source for this rule if different
+    applies_to: [rog]          # rog | rfp | rfa | expert | all
     check_hints:               # machine-usable tokens
       - numerical_limit
       - interrogatory

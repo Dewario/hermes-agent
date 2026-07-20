@@ -34,6 +34,7 @@ DISPATCH: dict[tuple[str, str], Path] = {
     ("rfp", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
     ("rfa", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
     ("rog", "trial_gap_assessment"): WORKFLOW_SCRIPTS / "trial_gap.py",
+    ("expert", "expert_needs_assessment"): WORKFLOW_SCRIPTS / "expert_needs.py",
     ("rfp", "draft_response"): WORKFLOW_SCRIPTS / "rfp_response_draft.py",
     ("rfa", "draft_response"): WORKFLOW_SCRIPTS / "rfa_response_draft.py",
     ("rog", "draft_response"): WORKFLOW_SCRIPTS / "rog_response_draft.py",
@@ -50,6 +51,7 @@ SLICE_SELFTESTS: list[tuple[str, Path]] = [
     ("D2 rfa/request-audit", WORKFLOW_SCRIPTS / "rfa_request_audit.py"),
     ("D3 rog/request-audit", WORKFLOW_SCRIPTS / "rog_request_audit.py"),
     ("G1 trial-gap", WORKFLOW_SCRIPTS / "trial_gap.py"),
+    ("E1 expert-needs", WORKFLOW_SCRIPTS / "expert_needs.py"),
     ("C1 rfp/draft-response", WORKFLOW_SCRIPTS / "rfp_response_draft.py"),
     ("C2 rfa/draft-response", WORKFLOW_SCRIPTS / "rfa_response_draft.py"),
     ("C3 rog/draft-response", WORKFLOW_SCRIPTS / "rog_response_draft.py"),
@@ -140,7 +142,7 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--matter-dir", type=Path, help="matter directory (injected if omitted from subcommand)")
-    parser.add_argument("--request-type", choices=("rog", "rfp", "rfa"))
+    parser.add_argument("--request-type", choices=("rog", "rfp", "rfa", "expert"))
     parser.add_argument(
         "--mode",
         choices=(
@@ -148,6 +150,7 @@ def build_parser() -> argparse.ArgumentParser:
             "draft_outgoing_request",
             "audit_incoming_request",
             "trial_gap_assessment",
+            "expert_needs_assessment",
             "draft_response",
         ),
     )

@@ -67,6 +67,9 @@ def run_preflight(
     *,
     output: Path | None = None,
     skip_ocr_queue: bool = False,
+    request_type: str | None = None,
+    mode: str | None = None,
+    slice_id: str | None = None,
 ) -> tuple[int, list[dict[str, str]]]:
     """Run ordered live-matter safety gates and return exit status plus results."""
     root = matter_dir.expanduser().resolve()
@@ -81,7 +84,13 @@ def run_preflight(
         _record(results, "OCR skip policy", "FAIL", str(exc))
         return 1, results
 
-    gate_ok, gate_detail = _ms.require_owner_live_gate_if_live(root)
+    gate_ok, gate_detail = _ms.require_owner_live_gate_if_live(
+        root,
+        expected_matter_id=_ms.resolve_matter_id(root),
+        request_type=request_type,
+        mode=mode,
+        slice_id=slice_id,
+    )
     if not gate_ok:
         _record(results, "owner §9.5 live gate", "FAIL", gate_detail)
         return 1, results
@@ -193,11 +202,41 @@ def main(argv: list[str] | None = None) -> int:
         "--skip-ocr-queue", action="store_true",
         help="Do not block on the casegraph OCR queue",
     )
+    parser.add_argument("--request-type", choices=("rog", "rfp", "rfa", "expert"))
+    parser.add_argument(
+        "--mode",
+        choices=(
+            "audit_incoming_response",
+            "draft_outgoing_request",
+            "audit_incoming_request",
+            "trial_gap_assessment",
+            "draft_response",
+            "expert_needs_assessment",
+        ),
+    )
+    parser.add_argument(
+        "--slice",
+        dest="slice_id",
+        choices=(
+            "A1", "A2", "A3",
+            "B1", "B2", "B3",
+            "C1", "C2", "C3",
+            "D1", "D2", "D3",
+            "E1",
+            "G1",
+        ),
+        help="Expected slice id, e.g. D1",
+    )
     parser.add_argument("--json", action="store_true", help="Print JSON results")
     args = parser.parse_args(argv)
 
     code, results = run_preflight(
-        args.matter_dir, output=args.output, skip_ocr_queue=args.skip_ocr_queue,
+        args.matter_dir,
+        output=args.output,
+        skip_ocr_queue=args.skip_ocr_queue,
+        request_type=args.request_type,
+        mode=args.mode,
+        slice_id=args.slice_id,
     )
     print_summary(results, args.json)
     return code

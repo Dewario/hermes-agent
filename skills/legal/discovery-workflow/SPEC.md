@@ -3,8 +3,10 @@
 **Status:** Program SPEC active. Implemented synthetic-only slices: **A1**
 (RFP audit), **A2** (RFA audit), **A3** (ROG audit), **B1** (outgoing RFA
 draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
-expansion: jurisdiction packs (`frcp_generic`, `fela`, `ca_ccp`) + **D1–D3** +
-**G1** + **C1–C3** `draft_response` (synthetic-only). See `COUNSEL_PACK_SPEC.md`.
+expansion: jurisdiction packs (`frcp_generic`, `fela`, `ca_ccp`,
+`ca_san_bernardino_local`, `wa_cr`, `wa_king_lcr`, `wa_pierce_pclr`) +
+**D1-D3** + **G1** + **E1** + **C1-C3** `draft_response` (synthetic-only).
+See `COUNSEL_PACK_SPEC.md`.
 **Not ready for live client use** (owner §9.5 still required per real matter).
 **Date:** 2026-07-18 (amended: C* + active `ca_ccp` + live rehearsal script)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
@@ -13,7 +15,7 @@ cross-client combined review.
 
 **Hard ban:** Do not run any discovery workflow against Allen, Client A,
 Client B, or any live matter until that slice’s synthetic cell is green
-**and** the owner signs §9.5 for that matter, request type, and mode. The
+**and** the owner signs §9.5 for that matter, request type, mode, and slice. The
 current RFP-audit CLI is a foundation only; it is **not** live-use-ready for a
 full discovery program (rog + rfp + rfa, audit + draft).
 
@@ -41,6 +43,7 @@ repo).
 | Audit defense-served **RFA** requests (D2) | |
 | Audit defense-served **ROG** requests (D3) | |
 | Trial gap assessment → brief lines (G1) | |
+| Expert-needs assessment for liability and damages (E1) | |
 | Draft responses from attorney answer briefs (C1–C3) | |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
@@ -57,8 +60,8 @@ Every invocation declares exactly one value on each axis:
 
 | Axis | Values | Meaning |
 |------|--------|---------|
-| `request_type` | `rog` \| `rfp` \| `rfa` | Interrogatory / request for production / request for admission |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1–D3) \| `trial_gap_assessment` (G1) \| `draft_response` (C1–C3) | What the tool does |
+| `request_type` | `rog` \| `rfp` \| `rfa` \| `expert` | Interrogatory / request for production / request for admission / expert-needs assessment |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1-D3) \| `trial_gap_assessment` (G1) \| `expert_needs_assessment` (E1) \| `draft_response` (C1-C3) | What the tool does |
 
 Definitions:
 
@@ -72,6 +75,9 @@ Definitions:
   `COUNSEL_PACK_SPEC.md`).
 - **`trial_gap_assessment`** — Recommend additional plaintiff discovery before
   trial; feeds B1–B3 issue briefs (G1).
+- **`expert_needs_assessment`** - Identify plaintiff-side liability and damages
+  expert categories for attorney review (E1). Does not retain, designate, or
+  finally approve any expert.
 - **`draft_response`** — Draft responses to served requests from an attorney
   answer brief (C1 RFP / C2 RFA / C3 ROG). Does not invent admissions;
   `objection_draft` stays null unless attorney opt-in.
@@ -219,12 +225,17 @@ Do not open a later slice’s live gate before earlier synthetic matrices pass.
 | **B1** | `rfa` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rfa_outgoing.py` |
 | **B2** | `rog` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rog_outgoing.py` |
 | **B3** | `rfp` | `draft_outgoing_request` | Implemented (synthetic-only) in `scripts/rfp_outgoing.py` |
+| **D1** | `rfp` | `audit_incoming_request` | Implemented (synthetic-only) in `scripts/rfp_request_audit.py` |
+| **D2** | `rfa` | `audit_incoming_request` | Implemented (synthetic-only) in `scripts/rfa_request_audit.py` |
+| **D3** | `rog` | `audit_incoming_request` | Implemented (synthetic-only) in `scripts/rog_request_audit.py` |
+| **G1** | `rog`/`rfp`/`rfa` | `trial_gap_assessment` | Implemented (synthetic-only) in `scripts/trial_gap.py` |
+| **E1** | `expert` | `expert_needs_assessment` | Implemented (synthetic-only) in `scripts/expert_needs.py` |
 | **C1** | `rfp` | `draft_response` | Implemented (synthetic-only) in `scripts/rfp_response_draft.py` |
 | **C2** | `rfa` | `draft_response` | Implemented (synthetic-only) in `scripts/rfa_response_draft.py` |
 | **C3** | `rog` | `draft_response` | Implemented (synthetic-only) in `scripts/rog_response_draft.py` |
 
 C* drafts are attorney-brief-driven packages only — never serve-ready without
-human edit. Live client use still needs owner §9.5 per matter × type × mode.
+human edit. Live client use still needs owner 9.5 per matter x type x mode x slice.
 
 Mixed discovery-set workflow (one CLI run over a combined rog+rfp+rfa binder)
 is out of scope until A2+A3+A1 are each green on synthetic fixtures. Until
@@ -243,13 +254,19 @@ are involved):
 4. draft outgoing RFP *(Slice B3 — exists)*
 5. audit RFA response *(Slice A2 — exists)*
 6. draft outgoing RFA *(Slice B1 — exists)*
+7. audit defense-served RFP request *(Slice D1 - exists)*
+8. audit defense-served RFA request *(Slice D2 - exists)*
+9. audit defense-served ROG request *(Slice D3 - exists)*
+10. trial gap assessment *(Slice G1 - exists)*
+11. expert-needs assessment *(Slice E1 - exists)*
+12. draft responses to served RFP/RFA/ROG *(Slices C1-C3 - exist)*
 
 Each cell needs parser golden or stable IDs, schema validation, package
 template render, and gate path (`validate-*` + synthetic `live_preflight`
 skip-OCR allowed). A live dry-run for a single slice requires that slice’s
 cell to be green plus full OCR + `casegraph status` + `verify-cites` +
 `check-isolation --strict` + `live_preflight` without skip-OCR + attorney
-§9.5 sign-off. Full-program use or marketing requires all six cells green.
+§9.5 sign-off. Full-program use or marketing requires all implemented synthetic cells green.
 
 ---
 
@@ -322,10 +339,11 @@ B3 commands: `parse-issue-brief`, `draft-outgoing-rfp`, `package-outgoing-rfp`,
 
 ```
 casegraph status <matter_dir>
-casegraph verify-cites <matter_dir> <output.md>
+casegraph verify-cites <matter_dir> <output.md> [--allow-empty for draft/no-Bates-cite slices]
 casegraph check-isolation <matter_dir> <output.md> --strict
 python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> \
-  --output <output.md>
+  --request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice> \
+  [--output <output.md> for cite-bearing audit packages]
 ```
 
 All exit 0. No `--skip-ocr-queue` on live.
@@ -338,20 +356,20 @@ All exit 0. No `--skip-ocr-queue` on live.
 
 ### 9.4 Program ready for “full discovery” marketing/use
 
-- [x] All six §7 synthetic cells green.
+- [x] All implemented Section 7 synthetic cells green.
 - [ ] A2 + A3 + A1 audit slices owner-approved for the target matter types
       actually in hand.
 - [ ] Outgoing slices used only after their own synthetic cells + owner
       sign-off.
 
-### 9.5 Ready-for-live gate (owner) — per matter × slice
+### 9.5 Ready-for-live gate (owner) - per matter x request_type x mode x slice
 
 - [ ] That slice’s §9.1–9.3 green on tip.
 - [ ] Explicit written approval naming matter ID + `request_type` + `mode`.
 - [ ] Single-matter invocation confirmed.
 - [ ] No client files under the repo.
 
-**Verification (2026-07-17 — A1+A2 synthetic tip):**
+**Verification (2026-07-20 - implemented synthetic matrix):**
 
 | Slice | §9.1–9.3 synthetic | §9.5 owner sign-off | Live dry-run (§9.2) |
 |-------|--------------------|---------------------|---------------------|
@@ -361,10 +379,16 @@ All exit 0. No `--skip-ocr-queue` on live.
 | B1 `rfa` / `draft_outgoing_request` | Green (pytest + selftest) | **Open — not signed** | Not run |
 | B2 `rog` / `draft_outgoing_request` | Green (pytest + selftest) | **Open — not signed** | Not run |
 | B3 `rfp` / `draft_outgoing_request` | Green (pytest + selftest) | **Open — not signed** | Not run |
+| D1 `rfp` / `audit_incoming_request` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| D2 `rfa` / `audit_incoming_request` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| D3 `rog` / `audit_incoming_request` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| G1 multi / `trial_gap_assessment` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| E1 `expert` / `expert_needs_assessment` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| C1-C3 / `draft_response` | Green (pytest + selftest) | **Open - not signed** | Not run |
 
 §9.5 is an **owner** gate. Engineering may mark §9.1–9.3 green; it must **not**
 check §9.5 boxes or run Allen/live matters until the owner writes approval for
-that exact matter ID + request_type + mode.
+that exact matter ID + request_type + mode + slice.
 
 ---
 
@@ -382,6 +406,10 @@ that exact matter ID + request_type + mode.
 | Slice B1 implementation | `skills/legal/discovery-workflow/scripts/rfa_outgoing.py` |
 | Slice B2 implementation | `skills/legal/discovery-workflow/scripts/rog_outgoing.py` |
 | Slice B3 implementation | `skills/legal/discovery-workflow/scripts/rfp_outgoing.py` |
+| Slice D1-D3 implementations | `skills/legal/discovery-workflow/scripts/*_request_audit.py` |
+| Slice G1 implementation | `skills/legal/discovery-workflow/scripts/trial_gap.py` |
+| Slice E1 implementation | `skills/legal/discovery-workflow/scripts/expert_needs.py` |
+| Slice C1-C3 implementations | `skills/legal/discovery-workflow/scripts/*_response_draft.py` |
 
 When this program SPEC and Slice A1 disagree on roadmap priority, **this file
 wins**. When they disagree on RFP-audit schema details already shipped, A1
@@ -391,12 +419,12 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-Synthetic matrix for A1–B3 + **D1–D3** + **G1** + **C1–C3** is **complete**.
+Synthetic matrix for A1-B3 + **D1-D3** + **G1** + **E1** + **C1-C3** is **complete**.
 `ca_ccp` pack is **active**. Live-shaped rehearsal (synthetic matter ID only)
 lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 §9.5 gates stay outside the repo.
 
-1. Keep A1–B3 + D1–D3 + G1 + C1–C3 synthetic cells green. **No real clients** without §9.5.
+1. Keep A1-B3 + D1-D3 + G1 + E1 + C1-C3 synthetic cells green. **No real clients** without §9.5.
 2. One-matter smoke: `discovery_workflow.py smoke` (includes C2).
 3. Real-client live dry-run still requires **owner §9.5** (`OWNER_LIVE_GATE.md`).
    Engineering never forges owner approval for a real client matter.

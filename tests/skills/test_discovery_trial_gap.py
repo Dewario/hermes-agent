@@ -176,6 +176,34 @@ def test_live_mode_enforces_ocr(tmp_path, monkeypatch):
     assert "--skip-ocr-queue" not in preflight
 
 
+def test_live_trial_gap_requires_and_threads_request_type(tmp_path, monkeypatch):
+    matter = _matter(tmp_path)
+    for command in (
+        "parse-gap-themes",
+        "assess-trial-gaps",
+        "export-issue-briefs",
+        "package-trial-gap",
+    ):
+        assert mod.main([command, str(matter)]) == 0
+    monkeypatch.setattr(mod._ms, "is_live_matter_path", lambda _p: True)
+    monkeypatch.setattr(mod._ms, "is_syn_matter_id", lambda _m: False)
+
+    assert mod.main(["validate-trial-gap", str(matter)]) == 1
+
+    captured: list[list[str]] = []
+
+    def _capture(command):
+        captured.append(list(command))
+        return 0
+
+    monkeypatch.setattr(mod, "run_command", _capture)
+    assert mod.main(["validate-trial-gap", str(matter), "--request-type", "rfp"]) == 0
+    preflight = next(cmd for cmd in captured if "live_preflight.py" in " ".join(cmd))
+    assert preflight[preflight.index("--request-type") + 1] == "rfp"
+    assert preflight[preflight.index("--mode") + 1] == "trial_gap_assessment"
+    assert preflight[preflight.index("--slice") + 1] == "G1"
+
+
 def test_isolation(tmp_path):
     a = _matter(tmp_path, "SYN-TG-A", "THORN-PROD")
     b = _matter(tmp_path, "SYN-TG-B", "RIVER-PROD")

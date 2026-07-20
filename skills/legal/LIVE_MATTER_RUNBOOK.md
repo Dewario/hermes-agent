@@ -127,17 +127,17 @@ For medical-record timelines after review, use `skills/legal/medical-chronology/
 
 ## 8. Discovery workflows — not ready for live use
 
-Program roadmap: `skills/legal/discovery-workflow/SPEC.md` (`rog`|`rfp`|`rfa`
-× audit|draft). All six §7 synthetic cells are implemented and green
-(synthetic-only). **Live use requires the owner to sign §9.5 per matter ×
-request_type × mode** using the copy-paste template in
+Program roadmap: `skills/legal/discovery-workflow/SPEC.md` (`rog`|`rfp`|`rfa`|`expert`
+x review/draft/assessment). The implemented synthetic matrix is green
+(synthetic-only). **Live use requires the owner to sign §9.5 per matter x
+request_type x mode x slice** using the copy-paste template in
 [`discovery-workflow/OWNER_LIVE_GATE.md`](discovery-workflow/OWNER_LIVE_GATE.md).
 Engineering may confirm §9.1–9.3; it must **never** check a §9.5 box or run a
 live/Allen matter. Do **not** use Hermes for Allen or any live matter's
 discovery audit/draft until that sign-off. Never combine two clients' records
 in one review context.
 
-**Six synthetic cells → script per cell:**
+**Synthetic cells -> script per cell:**
 
 | Cell | Slice | request_type × mode | Script to run |
 |------|-------|---------------------|---------------|
@@ -148,15 +148,20 @@ in one review context.
 | 5 | A2 | `rfa` audit_incoming_response | `discovery-workflow/scripts/rfa_audit.py` |
 | 6 | B1 | `rfa` draft_outgoing_request | `discovery-workflow/scripts/rfa_outgoing.py` |
 | 7 | D1 | `rfp` audit_incoming_request | `discovery-workflow/scripts/rfp_request_audit.py` |
+| 8 | D2 | `rfa` audit_incoming_request | `discovery-workflow/scripts/rfa_request_audit.py` |
+| 9 | D3 | `rog` audit_incoming_request | `discovery-workflow/scripts/rog_request_audit.py` |
+| 10 | G1 | multi trial_gap_assessment | `discovery-workflow/scripts/trial_gap.py` |
+| 11 | E1 | `expert` expert_needs_assessment | `discovery-workflow/scripts/expert_needs.py` |
+| 12 | C1 | `rfp` draft_response | `discovery-workflow/scripts/rfp_response_draft.py` |
+| 13 | C2 | `rfa` draft_response | `discovery-workflow/scripts/rfa_response_draft.py` |
+| 14 | C3 | `rog` draft_response | `discovery-workflow/scripts/rog_response_draft.py` |
 
 Optional umbrella (thin dispatcher — same slices):
 `discovery-workflow/scripts/discovery_workflow.py --request-type … --mode … <cmd>`
 or `… selftest-all`. Per-slice scripts above remain the canonical entry points.
 
-Counsel-pack: **D1** incoming RFP request audit exists synthetic-only
-(`discovery-workflow/scripts/rfp_request_audit.py`) and needs its own §9.5
-before any live dry-run. D2/D3/G1 remain SPEC-only
-(`discovery-workflow/COUNSEL_PACK_SPEC.md`).
+Counsel-pack: D1-D3, G1, E1, and C1-C3 exist synthetic-only and each needs its
+own owner §9.5 before any live dry-run (`discovery-workflow/COUNSEL_PACK_SPEC.md`).
 
 **Live dry-run for a single cell (only after owner §9.5 for that cell).** Produce
 the slice output with its script, then run gates **without** `--skip-ocr-queue`
@@ -164,12 +169,12 @@ the slice output with its script, then run gates **without** `--skip-ocr-queue`
 
 ```
 casegraph status <matter_dir>
-casegraph verify-cites <matter_dir> <output.md>   # add --allow-empty for outgoing drafts
+casegraph verify-cites <matter_dir> <output.md>   # add --allow-empty for outgoing drafts / E1
 casegraph check-isolation <matter_dir> <output.md> --strict
-# Audit slices (A1–A3):
-python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> --output <output.md>
-# Outgoing drafts (B1–B3): omit --output (packages intentionally cite no Bates)
-python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir>
+# Discovery slices with cite-bearing output:
+python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> --request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice> --output <output.md>
+# Discovery drafts / E1 with no Bates cites: omit --output
+python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> --request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice>
 ```
 
 All must exit 0, and `casegraph export-ocr-queue <matter_dir>` must be empty

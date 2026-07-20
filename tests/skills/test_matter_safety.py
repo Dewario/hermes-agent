@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "skills" / "legal" / "scripts" / "matter_safety.py"
+OWNER_GATE_TEMPLATE = REPO / "skills" / "legal" / "discovery-workflow" / "OWNER_LIVE_GATE.md"
 
 
 def _load():
@@ -21,6 +22,47 @@ def _load():
 
 
 ms = _load()
+
+
+def _valid_owner_gate(
+    *,
+    matter_id: str = "REAL-CLIENT-01",
+    request_type: str = "rfp",
+    mode: str = "audit_incoming_request",
+    slice_id: str = "D1",
+) -> str:
+    request_choices = {
+        "rog": "[x] rog   [ ] rfp   [ ] rfa   [ ] expert",
+        "rfp": "[ ] rog   [x] rfp   [ ] rfa   [ ] expert",
+        "rfa": "[ ] rog   [ ] rfp   [x] rfa   [ ] expert",
+        "expert": "[ ] rog   [ ] rfp   [ ] rfa   [x] expert",
+    }[request_type]
+    mode_choices = {
+        "audit_incoming_response": "[x] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+        "draft_outgoing_request": "[ ] audit_incoming_response\n                [x] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+        "audit_incoming_request": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [x] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+        "trial_gap_assessment": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [x] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+        "draft_response": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [x] draft_response\n                [ ] expert_needs_assessment",
+        "expert_needs_assessment": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [x] expert_needs_assessment",
+    }[mode]
+    return f"""# 9.5 Owner Live Gate - {matter_id}
+
+matter_id:      {matter_id}
+request_type:   {request_choices}
+mode:           {mode_choices}
+tip_commit_sha: 9718cc340eb3697222ad0d05f7f37f7b9bfe0c52
+slice:          {slice_id}
+
+--- 9.5 Ready-for-live (OWNER ONLY) ---
+[x] That slice's 9.1-9.3 are green on the tip_commit_sha above.
+[x] Explicit written approval naming this matter_id + request_type + mode.
+[x] Single-matter invocation confirmed.
+[x] No client files under the repo.
+
+owner_name:      Responsible Attorney
+owner_signature: Responsible Attorney
+date:            2026-07-20
+"""
 
 
 def test_syn_id_rejects_allen_embed():
@@ -69,6 +111,113 @@ def test_owner_gate_rejects_rehearsal_evidence(tmp_path):
     ok, detail = ms.owner_live_gate_satisfied(matter)
     assert ok is False
     assert "rehearsal" in detail.lower() or "void" in detail.lower()
+
+
+def test_owner_gate_ignores_draft_filename_even_if_checked(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    attorney = matter / "03_attorney"
+    attorney.mkdir(parents=True)
+    (attorney / "OWNER_LIVE_GATE_DRAFT.md").write_text(
+        _valid_owner_gate(),
+        encoding="utf-8",
+    )
+    ok, detail = ms.owner_live_gate_satisfied(matter)
+    assert ok is False
+    assert "canonical" in detail.lower()
+
+
+def test_owner_gate_accepts_canonical_matching_axis(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    attorney = matter / "03_attorney"
+    attorney.mkdir(parents=True)
+    (attorney / "OWNER_LIVE_GATE_D1.md").write_text(
+        _valid_owner_gate(),
+        encoding="utf-8",
+    )
+    ok, detail = ms.owner_live_gate_satisfied(
+        matter,
+        expected_matter_id="REAL-CLIENT-01",
+        request_type="rfp",
+        mode="audit_incoming_request",
+        slice_id="D1",
+    )
+    assert ok is True
+    assert "OWNER_LIVE_GATE_D1.md" in detail
+
+
+def test_owner_gate_rejects_wrong_mode_for_requested_slice(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    attorney = matter / "03_attorney"
+    attorney.mkdir(parents=True)
+    (attorney / "OWNER_LIVE_GATE_D1.md").write_text(
+        _valid_owner_gate(mode="audit_incoming_request"),
+        encoding="utf-8",
+    )
+    ok, detail = ms.owner_live_gate_satisfied(
+        matter,
+        request_type="rfp",
+        mode="draft_outgoing_request",
+        slice_id="D1",
+    )
+    assert ok is False
+    assert "mode mismatch" in detail.lower()
+
+
+def test_append_live_preflight_gate_threads_owner_axes(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    matter.mkdir()
+    gates: list[list[str]] = []
+
+    ms.append_live_preflight_gate(
+        gates,
+        matter,
+        live_preflight_script=Path("live_preflight.py"),
+        skip_live_preflight=False,
+        request_type="rfp",
+        mode="audit_incoming_request",
+        slice_id="D1",
+        python="python",
+    )
+
+    command = gates[0]
+    assert command[command.index("--request-type") + 1] == "rfp"
+    assert command[command.index("--mode") + 1] == "audit_incoming_request"
+    assert command[command.index("--slice") + 1] == "D1"
+
+
+def test_owner_gate_template_matches_validator_contract():
+    text = OWNER_GATE_TEMPLATE.read_text(encoding="utf-8")
+    assert "owner_gate_assistant.py" in text
+    assert "GATE_REVIEW_PACKET_*.md" in text
+    assert "OWNER_LIVE_GATE_<slice>.md" in text
+    assert "file_name:" in text
+    assert "matter_id:" in text
+    assert "tip_commit_sha:" in text
+    assert "owner_signature:" in text
+    assert "--request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice>" in text
+
+
+def test_owner_gate_accepts_expert_needs_axis(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    attorney = matter / "03_attorney"
+    attorney.mkdir(parents=True)
+    (attorney / "OWNER_LIVE_GATE_E1.md").write_text(
+        _valid_owner_gate(
+            request_type="expert",
+            mode="expert_needs_assessment",
+            slice_id="E1",
+        ),
+        encoding="utf-8",
+    )
+    ok, detail = ms.owner_live_gate_satisfied(
+        matter,
+        expected_matter_id="REAL-CLIENT-01",
+        request_type="expert",
+        mode="expert_needs_assessment",
+        slice_id="E1",
+    )
+    assert ok is True
+    assert "OWNER_LIVE_GATE_E1.md" in detail
 
 
 def test_refuse_skip_live_preflight_on_live(tmp_path, monkeypatch):

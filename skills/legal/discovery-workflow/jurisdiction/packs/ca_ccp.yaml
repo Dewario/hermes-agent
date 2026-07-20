@@ -1,84 +1,141 @@
 pack_id: ca_ccp
-version: 1
+version: 2
 status: active
-title: "California Code of Civil Procedure — civil discovery (generic state pack)"
+title: "California Code of Civil Procedure - civil discovery (generic state pack)"
 jurisdiction_kind: state
-overlays_allowed: []
+source_checked: "2026-07-20"
+source_url: "https://leginfo.legislature.ca.gov/faces/codes.xhtml"
+overlays_allowed: [ca_san_bernardino_local]
 rules:
   - id: CCP-2017-010
-    citation: "Cal. Code Civ. Proc. § 2017.010"
-    summary: "Discovery may obtain any nonprivileged matter relevant to the subject matter, if reasonably calculated to lead to admissible evidence."
+    citation: "Cal. Code Civ. Proc. sec. 2017.010"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2017.010."
+    summary: "Discovery scope covers nonprivileged matter relevant to the pending action, subject to the statute's admissibility / discovery-of-admissible-evidence framing."
     applies_to: [all]
     check_hints: [scope, relevance, privilege, overbreadth]
 
   - id: CCP-2019-010
-    citation: "Cal. Code Civ. Proc. § 2019.010"
+    citation: "Cal. Code Civ. Proc. sec. 2019.010"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2019.010."
     summary: "Permitted discovery methods include interrogatories, inspection demands, and requests for admission."
     applies_to: [all]
     check_hints: [methods, sequence, timing]
 
   - id: CCP-2019-030
-    citation: "Cal. Code Civ. Proc. § 2019.030"
+    citation: "Cal. Code Civ. Proc. sec. 2019.030"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2019.030."
     summary: "Court may restrict discovery that is unreasonably cumulative, duplicative, or unduly burdensome/expensive relative to the case."
     applies_to: [all]
     check_hints: [proportionality, cumulative, burden]
 
   - id: CCP-2030-030
-    citation: "Cal. Code Civ. Proc. § 2030.030"
-    summary: "Unless stipulated or ordered, a party may propound 35 specially prepared interrogatories and 35 official-form interrogatories."
+    citation: "Cal. Code Civ. Proc. sec. 2030.030"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.030."
+    summary: "A party may propound 35 specially prepared interrogatories, plus official-form interrogatories, subject to statutory exceptions."
     applies_to: [rog]
     check_hints: [numerical_limit, interrogatory, discrete_subparts]
 
   - id: CCP-2030-060
-    citation: "Cal. Code Civ. Proc. § 2030.060"
-    summary: "Interrogatories must be full and complete in themselves; no preface/instruction that is not approved; subparts counted toward limits when discrete."
+    citation: "Cal. Code Civ. Proc. sec. 2030.060"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.060."
+    summary: "Interrogatories must be full and complete in themselves; no unapproved preface/instruction; discrete subparts may count toward limits."
     applies_to: [rog]
     check_hints: [form, discrete_subparts, contention_interrogatory]
 
   - id: CCP-2030-210
-    citation: "Cal. Code Civ. Proc. § 2030.210"
-    summary: "Answers and objections — each response must be as complete and straightforward as possible; objections stated with specificity."
+    citation: "Cal. Code Civ. Proc. sec. 2030.210"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.210."
+    summary: "Interrogatory responses must answer, exercise the option to produce writings, or object; response drafting remains attorney-controlled."
     applies_to: [rog]
     check_hints: [objection_specificity, verification, waiver_risk]
 
   - id: CCP-2031-030
-    citation: "Cal. Code Civ. Proc. § 2031.030"
+    citation: "Cal. Code Civ. Proc. sec. 2031.030"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.030."
     summary: "Inspection demands must designate documents with reasonable particularity and may specify form of ESI production."
     applies_to: [rfp]
     check_hints: [particularity, overbreadth, esi_form, production]
 
   - id: CCP-2031-210
-    citation: "Cal. Code Civ. Proc. § 2031.210"
-    summary: "Responses to inspection demands — statement of compliance, representation of inability, or objection; withholding must be identified."
+    citation: "Cal. Code Civ. Proc. sec. 2031.210"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.210."
+    summary: "Inspection-demand responses must state compliance, inability to comply, or objection."
     applies_to: [rfp]
     check_hints: [withholding_statement, objection_specificity, production_manner]
 
   - id: CCP-2031-280
-    citation: "Cal. Code Civ. Proc. § 2031.280"
+    citation: "Cal. Code Civ. Proc. sec. 2031.280"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.280."
     summary: "Documents produced must be identified with the specific request to which they respond, or produced as kept in ordinary course."
     applies_to: [rfp]
     check_hints: [production_manner, labeling]
 
   - id: CCP-2033-030
-    citation: "Cal. Code Civ. Proc. § 2033.030"
-    summary: "Unless stipulated or ordered, a party may propound 35 requests for admission that do not relate to genuineness of documents (plus genuineness RFAs as authorized)."
+    citation: "Cal. Code Civ. Proc. sec. 2033.030"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.030."
+    summary: "Unless a statutory declaration or order allows more, a party may propound 35 RFAs that do not relate to document genuineness."
     applies_to: [rfa]
     check_hints: [numerical_limit, admission]
 
   - id: CCP-2033-060
-    citation: "Cal. Code Civ. Proc. § 2033.060"
-    summary: "Each request for admission must be full and complete in itself and separately set forth; no compound/conjunctive abuse."
+    citation: "Cal. Code Civ. Proc. sec. 2033.060"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.060."
+    summary: "Each request for admission must be full and complete in itself and separately set forth."
     applies_to: [rfa]
     check_hints: [separately_stated, compound, form]
 
   - id: CCP-2033-210
-    citation: "Cal. Code Civ. Proc. § 2033.210"
-    summary: "Answers to RFAs — admit, deny, or detail inability after reasonable inquiry; objections with specificity."
+    citation: "Cal. Code Civ. Proc. sec. 2033.210"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.210."
+    summary: "Responses to RFAs must be an answer or an objection, signed by the party or attorney as required."
     applies_to: [rfa]
     check_hints: [admission_answer, lack_information, objection_specificity]
 
   - id: CCP-2033-220
-    citation: "Cal. Code Civ. Proc. § 2033.220"
-    summary: "Each answer must fairly meet the substance of the request; qualified admissions permitted when good faith requires."
+    citation: "Cal. Code Civ. Proc. sec. 2033.220"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.220."
+    summary: "Each answer must fairly meet the substance of the request; qualified admissions are permitted when good faith requires."
     applies_to: [rfa]
     check_hints: [qualify, fair_meet, admission_answer]
+
+  - id: CCP-2034-210
+    citation: "Cal. Code Civ. Proc. sec. 2034.210"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2034.210."
+    summary: "After an initial trial date is set, a party may demand simultaneous exchange of expert trial witness information."
+    applies_to: [expert]
+    check_hints: [expert_exchange, expert_disclosure, trial_date]
+
+  - id: CCP-2034-260
+    citation: "Cal. Code Civ. Proc. sec. 2034.260"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displayText.xhtml?article=2.&chapter=18.&division=&lawCode=CCP&part=4.&title=4."
+    summary: "Expert exchange must identify expected expert witnesses or state no present intent; retained/party/employee experts require the statutory declaration content."
+    applies_to: [expert]
+    check_hints: [expert_exchange, expert_declaration, expert_qualification, expert_opinions, fees]
+
+  - id: CCP-2034-280
+    citation: "Cal. Code Civ. Proc. sec. 2034.280"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2034.280."
+    summary: "A party that participated in the exchange may supplement with experts on subjects first covered by an adverse party's designation, subject to statutory timing and deposition availability."
+    applies_to: [expert]
+    check_hints: [supplemental_expert, rebuttal_expert, deposition_availability]
+
+  - id: CCP-2034-300
+    citation: "Cal. Code Civ. Proc. sec. 2034.300"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2034.300."
+    summary: "Unreasonable failure to list, declare, produce discoverable expert writings, or make the expert available for deposition creates exclusion risk on objection."
+    applies_to: [expert]
+    check_hints: [expert_exclusion, expert_declaration, expert_reports, deposition_availability]
+
+  - id: EVID-720
+    citation: "Cal. Evid. Code sec. 720"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=EVID&sectionNum=720."
+    summary: "Expert qualification turns on special knowledge, skill, experience, training, or education sufficient for the subject of testimony."
+    applies_to: [expert]
+    check_hints: [expert_qualification, liability_expert, damages_expert]
+
+  - id: EVID-801
+    citation: "Cal. Evid. Code sec. 801"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=EVID&sectionNum=801."
+    summary: "Expert opinion must assist on a subject beyond common experience and rest on matter of a type reasonably relied on in the field."
+    applies_to: [expert]
+    check_hints: [expert_opinion_basis, expert_fit, reliable_basis]

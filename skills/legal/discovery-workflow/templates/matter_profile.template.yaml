@@ -1,12 +1,17 @@
 # Copy to <matter>/03_attorney/matter_profile.yaml (outside the repo).
-# Required for audit_incoming_request / trial_gap_assessment slices.
+# Required for audit_incoming_request / trial_gap_assessment /
+# expert_needs_assessment slices.
 
 matter_id: REPLACE_ME
-court: "U.S. District Court — REPLACE"
-jurisdiction_pack: frcp_generic   # active: frcp_generic | ca_ccp (+ optional fela overlay); live still needs §9.5
-case_overlay: fela                # optional; must match base_pack
+court: "REPLACE"
+jurisdiction_pack: frcp_generic   # frcp_generic | ca_ccp | wa_cr
+case_overlay: fela                # optional: fela | ca_san_bernardino_local | wa_king_lcr | wa_pierce_pclr
+case_type: null                   # e.g. premises liability, auto, med-mal, FELA
+liability_theory: null            # attorney-authored short theory
+injuries: null                    # attorney-authored summary for E1
+damages_theory: null              # attorney-authored summary for E1
 discovery_cutoff: null            # ISO date or null
-expert_cutoff: null
+expert_cutoff: null               # ISO date or null
 limits_used:
   rog: 0
   rfp: null

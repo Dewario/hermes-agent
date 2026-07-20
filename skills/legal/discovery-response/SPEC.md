@@ -357,6 +357,7 @@ python skills/legal/discovery-response/scripts/discovery_response.py \
   validate-audit <matter_dir>
 # equivalent live_preflight (OCR enforced — do NOT pass --skip-ocr-queue):
 python skills/legal/scripts/live_preflight.py --matter-dir <matter_dir> \
+  --request-type rfp --mode audit_incoming_response --slice A1 \
   --output <matter_dir>/02_outputs/response_audit_report.md
 ```
 

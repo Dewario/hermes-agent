@@ -29,6 +29,7 @@ def test_resolve_known_slices():
     assert dw.resolve_slice("rog", "draft_outgoing_request").name == "rog_outgoing.py"
     assert dw.resolve_slice("rfp", "draft_outgoing_request").name == "rfp_outgoing.py"
     assert dw.resolve_slice("rfp", "audit_incoming_response").name == "discovery_response.py"
+    assert dw.resolve_slice("expert", "expert_needs_assessment").name == "expert_needs.py"
 
 
 def test_draft_response_resolves():
@@ -104,6 +105,7 @@ def test_selftest_all_runs_all_slices(monkeypatch):
     assert any("rfa_request_audit.py" in c for c in calls)
     assert any("rog_request_audit.py" in c for c in calls)
     assert any("trial_gap.py" in c for c in calls)
+    assert any("expert_needs.py" in c for c in calls)
 
 
 def test_dispatch_incoming_request_rfp(monkeypatch):
@@ -167,6 +169,22 @@ def test_dispatch_trial_gap(monkeypatch):
         "selftest",
     ]) == 0
     assert captured == ["trial_gap.py"]
+
+
+def test_dispatch_expert_needs(monkeypatch):
+    captured: list[str] = []
+
+    def _fake_forward(path, argv):
+        captured.append(path.name)
+        return 0
+
+    monkeypatch.setattr(dw, "forward", _fake_forward)
+    assert dw.main([
+        "--request-type", "expert",
+        "--mode", "expert_needs_assessment",
+        "selftest",
+    ]) == 0
+    assert captured == ["expert_needs.py"]
 
 
 def test_smoke_command_forwards(monkeypatch):

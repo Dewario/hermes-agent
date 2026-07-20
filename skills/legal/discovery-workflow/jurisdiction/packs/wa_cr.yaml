@@ -1,0 +1,113 @@
+pack_id: wa_cr
+version: 1
+status: active
+title: "Washington Superior Court Civil Rules - civil discovery"
+jurisdiction_kind: state
+source_checked: "2026-07-20"
+source_url: "https://www.courts.wa.gov/court_rules/?fa=court_rules.list&group=sup&set=cr"
+overlays_allowed: [wa_king_lcr, wa_pierce_pclr]
+rules:
+  - id: WA-CR-26-SCOPE
+    citation: "Wash. Super. Ct. Civ. R. 26(a), 26(b)(1)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "Civil discovery methods include depositions, interrogatories, production/entry requests, physical or mental exams, and RFAs; scope is nonprivileged matter relevant to the subject matter, subject to court limits."
+    applies_to: [all]
+    check_hints: [scope, relevance, privilege, cumulative, burden]
+
+  - id: WA-CR-26-E
+    citation: "Wash. Super. Ct. Civ. R. 26(e)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "A party that has responded to discovery must seasonably supplement or correct the response with later-acquired information."
+    applies_to: [all]
+    check_hints: [supplementation, incomplete_response, corrected_response]
+
+  - id: WA-CR-26-G
+    citation: "Wash. Super. Ct. Civ. R. 26(g)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "Discovery requests, responses, and objections must be signed; general objections are not permitted; privilege objections require enough information to evaluate the claim without revealing protected content."
+    applies_to: [all]
+    check_hints: [signature, general_objection, privilege_detail, objection_specificity]
+
+  - id: WA-CR-26-I
+    citation: "Wash. Super. Ct. Civ. R. 26(i)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "Counsel must confer before the court will entertain motions or objections under CR 26-37, and motions must certify conference compliance."
+    applies_to: [all]
+    check_hints: [meet_and_confer, discovery_motion, certification]
+
+  - id: WA-CR-33-A
+    citation: "Wash. Super. Ct. Civ. R. 33(a)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_33_00_00.pdf"
+    summary: "Interrogatories may be served without leave at the stated early pleading stage; answers or objections are generally due in 30 days, or 40 days for a defendant after summons and complaint service."
+    applies_to: [rog]
+    check_hints: [interrogatory, response_deadline, verification, objection_reason]
+
+  - id: WA-CR-33-C
+    citation: "Wash. Super. Ct. Civ. R. 33(c)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_33_00_00.pdf"
+    summary: "Where the answer may be derived from business records or ESI and burden is substantially equal, the responding party may specify records instead of a narrative answer."
+    applies_to: [rog]
+    check_hints: [business_records_option, esi, record_specification]
+
+  - id: WA-CR-34-A
+    citation: "Wash. Super. Ct. Civ. R. 34(a)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_34_00_00.pdf"
+    summary: "A party may request documents, ESI, tangible things, and entry onto land within CR 26(b) scope."
+    applies_to: [rfp]
+    check_hints: [production, esi, tangible_things, entry_on_land]
+
+  - id: WA-CR-34-B
+    citation: "Wash. Super. Ct. Civ. R. 34(b)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_34_00_00.pdf"
+    summary: "Requests must describe items with reasonable particularity; responses are generally due in 30 days, or 40 days for a defendant, and objections must be specific."
+    applies_to: [rfp]
+    check_hints: [particularity, response_deadline, specific_objection, esi_form]
+
+  - id: WA-CR-34-C
+    citation: "Wash. Super. Ct. Civ. R. 34(c)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_34_00_00.pdf"
+    summary: "CR 34 does not displace independent actions or subpoenas under CR 45 for production from nonparties."
+    applies_to: [rfp]
+    check_hints: [nonparty, subpoena, cr45]
+
+  - id: WA-CR-36-A
+    citation: "Wash. Super. Ct. Civ. R. 36(a)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf"
+    summary: "RFAs must be in a separate discovery document; each matter must be separately stated; unanswered matters are admitted if not timely answered or objected to."
+    applies_to: [rfa]
+    check_hints: [separately_stated, separate_document, auto_admit, response_deadline]
+
+  - id: WA-CR-36-B
+    citation: "Wash. Super. Ct. Civ. R. 36(b)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf"
+    summary: "An admission is conclusive in the pending action unless the court permits withdrawal or amendment."
+    applies_to: [rfa]
+    check_hints: [conclusive_admission, withdrawal, amendment]
+
+  - id: WA-CR-26-B5
+    citation: "Wash. Super. Ct. Civ. R. 26(b)(5)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "Testifying expert discovery includes identification/disclosure content and expert depositions; non-testifying expert discovery is limited to CR 35(b) or exceptional circumstances."
+    applies_to: [expert]
+    check_hints: [expert_disclosure, expert_opinions, expert_deposition, non_testifying_expert]
+
+  - id: WA-CR-26-B7
+    citation: "Wash. Super. Ct. Civ. R. 26(b)(7)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "The party seeking discovery from a treating health-care provider must pay a reasonable fee for reasonable time spent responding."
+    applies_to: [expert]
+    check_hints: [treating_provider, provider_fee, medical_expert]
+
+  - id: WA-ER-702
+    citation: "Wash. R. Evid. 702"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/ER/GA_ER_07_02_00.pdf"
+    summary: "A qualified expert may testify if scientific, technical, or specialized knowledge will assist the trier of fact."
+    applies_to: [expert]
+    check_hints: [expert_qualification, expert_fit, liability_expert, damages_expert]
+
+  - id: WA-ER-703
+    citation: "Wash. R. Evid. 703"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/ER/GA_ER_07_03_00.pdf"
+    summary: "Expert opinion may rest on facts or data perceived by or made known to the expert if reasonably relied on by experts in the field."
+    applies_to: [expert]
+    check_hints: [expert_opinion_basis, reliable_basis]

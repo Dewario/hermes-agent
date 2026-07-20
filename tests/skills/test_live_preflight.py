@@ -29,6 +29,36 @@ def _complete_auth(matter: Path) -> None:
     auth.write_text("- Attorney initials: JD  Date: 2026-07-12\n", encoding="utf-8")
 
 
+def _owner_gate(matter: Path, *, mode: str = "audit_incoming_request") -> None:
+    choices = {
+        "audit_incoming_request": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [x] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+        "draft_outgoing_request": "[ ] audit_incoming_response\n                [x] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
+    }[mode]
+    path = matter / "03_attorney" / "OWNER_LIVE_GATE_D1.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f"""# 9.5 Owner Live Gate - {matter.name}
+
+matter_id:      {matter.name}
+request_type:   [ ] rog   [x] rfp   [ ] rfa   [ ] expert
+mode:           {choices}
+tip_commit_sha: 9718cc340eb3697222ad0d05f7f37f7b9bfe0c52
+slice:          D1
+
+--- 9.5 Ready-for-live (OWNER ONLY) ---
+[x] That slice's 9.1-9.3 are green on the tip_commit_sha above.
+[x] Explicit written approval naming this matter_id + request_type + mode.
+[x] Single-matter invocation confirmed.
+[x] No client files under the repo.
+
+owner_name:      Responsible Attorney
+owner_signature: Responsible Attorney
+date:            2026-07-20
+""",
+        encoding="utf-8",
+    )
+
+
 def test_preflight_stops_after_provider_auth_failure(tmp_path, monkeypatch, capsys):
     matter = tmp_path / "matter"
     matter.mkdir()
@@ -134,3 +164,22 @@ def test_preflight_refuses_skip_ocr_on_live_non_syn(tmp_path, monkeypatch, capsy
     out = capsys.readouterr().out
     assert "FAIL" in out
     assert "OCR skip" in out or "skip-ocr" in out.lower()
+
+
+def test_preflight_rejects_owner_gate_for_wrong_axis(tmp_path, monkeypatch, capsys):
+    matter = tmp_path / "REAL-CLIENT-01"
+    matter.mkdir()
+    _complete_auth(matter)
+    _owner_gate(matter, mode="audit_incoming_request")
+    monkeypatch.setattr(preflight._ms, "is_live_matter_path", lambda _p: True)
+    monkeypatch.setattr(preflight._ms, "is_syn_matter_id", lambda _m: False)
+
+    assert preflight.main([
+        "--matter-dir", str(matter),
+        "--request-type", "rfp",
+        "--mode", "draft_outgoing_request",
+        "--slice", "D1",
+    ]) == 1
+    out = capsys.readouterr().out
+    assert "FAIL" in out
+    assert "mode mismatch" in out

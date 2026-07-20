@@ -1,7 +1,7 @@
 # Plaintiff Discovery Counsel Pack — Expansion SPEC
 
-**Status:** Expansion SPEC active. **D1–D3** + **G1** + **C1–C3** implemented
-synthetic-only. `ca_ccp` pack active. Real-client live use still needs owner
+**Status:** Expansion SPEC active. **D1-D3** + **G1** + **E1** + **C1-C3** implemented
+synthetic-only. California and Washington trial-court packs are active. Real-client live use still needs owner
 §9.5 outside the repo. **Not ready for marketing as live-ready.**
 **Date:** 2026-07-18 (amended: C* + ca_ccp + live rehearsal)  
 
@@ -23,6 +23,7 @@ A jurisdictionally disciplined plaintiff discovery counsel loop:
 | 1 | `audit_incoming_request` | Are **defense-served** ROGs/RFPs/RFAs proper under the pinned rule pack? |
 | 2 | `audit_incoming_response` | Do **plaintiff proposed responses** match the record and rule duties? (A1–A3 exist; deepen with `rule_ids`) |
 | 3 | `trial_gap_assessment` | What **additional** discovery should plaintiff issue before trial? → feeds B1–B3 |
+| 4 | `expert_needs_assessment` | What liability and damages expert categories should plaintiff consider before designation? |
 | Rule layer | `jurisdiction_pack` (+ optional `case_overlay`) | Every finding cites pack `rule_id`s or `needs_attorney_rule_confirm` |
 
 ---
@@ -31,9 +32,9 @@ A jurisdictionally disciplined plaintiff discovery counsel loop:
 
 | Axis | Values |
 |------|--------|
-| `request_type` | `rog` \| `rfp` \| `rfa` (N/A for pure G1 orchestrator runs that emit multi-type recommendations) |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` \| `trial_gap_assessment` \| `draft_response` (C1–C3) |
-| `jurisdiction_pack` | Required for D\* and G1 (e.g. `frcp_generic`). Stub packs fail live. |
+| `request_type` | `rog` \| `rfp` \| `rfa` \| `expert` (G1 may emit multi-type recommendations) |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` \| `trial_gap_assessment` \| `expert_needs_assessment` \| `draft_response` (C1-C3) |
+| `jurisdiction_pack` | Required for D\*, G1, and E1 (e.g. `frcp_generic`, `ca_ccp`, `wa_cr`). Stub packs fail live. |
 | `case_overlay` | Optional (e.g. `fela`). Must declare `base_pack`. |
 
 One `--matter-dir` per invocation. Packs pinned from matter profile at start —
@@ -61,6 +62,10 @@ matter_id: ...
 court: ...
 jurisdiction_pack: frcp_generic
 case_overlay: fela          # optional
+case_type: null             # optional, attorney-authored
+liability_theory: null      # optional, attorney-authored
+injuries: null              # optional, attorney-authored for E1
+damages_theory: null        # optional, attorney-authored for E1
 discovery_cutoff: null      # ISO date or null → cutoff checks need_attorney
 expert_cutoff: null
 limits_used:
@@ -81,6 +86,7 @@ Scaffold may create a blank template later; D1 refuses live without pack id.
 | **D2** | `audit_incoming_request` | `rfa` | After D1 green |
 | **D3** | `audit_incoming_request` | `rog` | After D2 green |
 | **G1** | `trial_gap_assessment` | (multi recommend) | After D1 + A\* available |
+| **E1** | `expert_needs_assessment` | `expert` | Plaintiff liability/damages expert categories for attorney review |
 | A\* deepen | `audit_incoming_response` | per type | Add `rule_ids[]` to audit items — done (baselines) |
 | C\* | `draft_response` | per type | Only after matching audit intentional for live |
 
@@ -130,7 +136,27 @@ engines; G1 emits issue-brief lines + priorities into `01_discovery_outgoing/`.
 
 `priority`: `must_before_cutoff` \| `should` \| `optional` \| `defer_to_attorney`.
 
-### 5.3 Display IDs
+### 5.3 `expert_need_item`
+
+```json
+{
+  "expert_need_id": "EN-01",
+  "track": "liability",
+  "expert_type": "premises_safety",
+  "priority": "must_consider",
+  "source_anchors": [{"relpath": "00_intake/case_context.md", "line": 4}],
+  "why_needed": "...",
+  "plaintiff_value": "...",
+  "rule_ids": ["EVID-720", "EVID-801"],
+  "needs_attorney_decision": true,
+  "needs_attorney_rule_confirm": false
+}
+```
+
+`priority`: `must_consider` \| `should_consider` \| `attorney_confirm`.
+No expert names, retention decisions, or final designations.
+
+### 5.4 Display IDs
 
 Avoid Bates-like `RFP-001` in packages — use `IR-*` / `TG-*` / existing
 `ORP-*`/`ORA-*`/`ORI-*` for outgoing.
@@ -145,8 +171,10 @@ Avoid Bates-like `RFP-001` in packages — use `IR-*` / `TG-*` / existing
 | 8 | D2 rfa request audit | pytest + selftest |
 | 9 | D3 rog request audit | pytest + selftest |
 | 10 | G1 trial gap | pytest + selftest; exports brief lines without foreign Bates |
+| 11 | E1 expert needs | pytest + selftest; liability and damages candidates with source anchors |
 
-Jurisdiction unit tests: load `frcp_generic`+`fela` and active `ca_ccp`;
+Jurisdiction unit tests: load `frcp_generic`+`fela`, active `ca_ccp`,
+`ca_san_bernardino_local`, `wa_cr`, `wa_king_lcr`, and `wa_pierce_pclr`;
 refuse unknown `rule_id` references; refuse overlay/base mismatches.
 
 ---
@@ -156,9 +184,9 @@ refuse unknown `rule_id` references; refuse overlay/base mismatches.
 | Skill | Role |
 |-------|------|
 | `discovery-workflow` A1–B3 | Keep; deepen; do not stretch parsers |
-| `discovery-review` / `discovery-intake` | Prose inputs to G1 — bridge, don’t duplicate |
+| `discovery-review` / `discovery-intake` | Prose inputs to G1/E1 - bridge, do not duplicate |
 | `casegraph` | Unchanged gate layer |
-| `jurisdiction/` | Pack data for D\*/G1 |
+| `jurisdiction/` | Pack data for D\*/G1/E1 |
 
 ---
 
@@ -199,3 +227,13 @@ Same as parent SPEC §9.1–9.3 + pack pinning + rule_id discipline.
 - [x] Template + fixture + `test_discovery_trial_gap.py` + `selftest`
 - [x] Umbrella dispatch for `trial_gap_assessment` (request_type optional)
 - [x] No Bates-like `RFP/ROG/RFA-00N` in package/exports; live OCR not skipped unless synthetic
+
+### E1 acceptance checklist (synthetic)
+
+- [x] Dedicated `expert_needs.py`; emits `expert_needs_items.jsonl`
+- [x] Liability and damages expert categories require matter-local source anchors
+- [x] Uses jurisdiction-pack expert `rule_ids` or `needs_attorney_rule_confirm`
+- [x] Package is attorney-review only; no expert names, retention, or final designation
+- [x] Template + fixture + `test_discovery_expert_needs.py` + `selftest`
+- [x] Umbrella dispatch for `expert` / `expert_needs_assessment`
+- [x] Live validate does not skip OCR unless synthetic; owner 9.5 remains required
