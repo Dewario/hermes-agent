@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.16.0
+version: 0.17.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -34,6 +34,9 @@ See `SPEC.md` for the full roadmap.
   (`scripts/trial_gap.py`)
 - **E1** - plaintiff expert-needs assessment for liability and damages
   (`scripts/expert_needs.py`)
+- **F1** - plaintiff enforcement-lever scaffolds (deemed-admitted, motion to
+  compel, meet-and-confer, sanctions) with jurisdiction-aware statute selection
+  (`scripts/enforcement_motion.py`)
 - **C1–C3** — draft responses to served RFP/RFA/ROG from attorney answer briefs
   (`scripts/*_response_draft.py`)
 
@@ -47,7 +50,7 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1-D3 + G1 + E1 + C1-C3 implemented (synthetic-only).
+**Counsel-pack:** D1-D3 + G1 + E1 + F1 + C1-C3 implemented (synthetic-only).
 Jurisdiction
 packs: `frcp_generic`, `fela`, `ca_ccp`, `ca_san_bernardino`, `wa_state`,
 `wa_king_county`, `wa_pierce_county`. Live client use still needs owner
@@ -260,6 +263,33 @@ Output: `02_outputs/expert_needs_assessment.md`. The package identifies
 liability and damages expert categories for attorney review; it does **not**
 retain, designate, or finally approve any expert.
 
+## Slice F1 Procedure (plaintiff enforcement levers)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`.
+Deterministically selects the controlling statute from the loaded pack's
+available rules; refuses levers that are unavailable in the jurisdiction
+(e.g. `deemed_admitted` is CA / RFA only — CCP sec. 2033.280 — and Washington
+has no no-response deemed-admission parallel).
+
+```powershell
+$f1 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\enforcement_motion.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $f1 draft-enforcement-motion $m --lever deemed_admitted --request-type rfa
+python $f1 validate-enforcement-motion $m --lever deemed_admitted --request-type rfa --synthetic
+# other levers: motion_to_compel | meet_and_confer_letter | sanctions
+# other request types (motion_to_compel only): rog | rfp | rfa
+```
+
+Outputs:
+- `02_outputs/enforcement_<lever>_scaffold.md` (attorney-review draft only)
+- `02_outputs/enforcement_<lever>_meta.json`
+
+The scaffold is non-substantive: it names the controlling statute and
+attorney-controlled relief/sanction posture. It does **not** invent Bates or
+page:line cites, does **not** set a sanction amount, and does **not** sign
+§9.5. Live use needs `OWNER_LIVE_GATE_F1.md` outside the repo.
+
 ## Counsel-Pack Smoke (one synthetic matter)
 
 Seed: `fixtures/smoke_matter/seed/` (SYNTHETIC / NON-CLIENT only).
@@ -308,4 +338,5 @@ python $d2 selftest
 python $d3 selftest
 python $g1 selftest
 python $e1 selftest
+python $f1 selftest
 ```

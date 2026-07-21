@@ -115,9 +115,23 @@ rules:
   - id: CCP-2033-290
     citation: "Cal. Code Civ. Proc. sec. 2033.290"
     source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.290."
-    summary: "After RFA responses are served, a party may move to compel further responses when answers or objections are insufficient. Do not use this section as the no-response deemed-admission authority."
+    summary: "On receipt of responses to requests for admission, a party may move to compel further responses when answers or objections are insufficient. Do not use this section as the no-response deemed-admission authority."
     applies_to: [rfa]
     check_hints: [further_response, insufficient_answer, distinction_from_no_response]
+
+  - id: CCP-2030-300
+    citation: "Cal. Code Civ. Proc. sec. 2030.300"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.300."
+    summary: "On receipt of responses to interrogatories, a party may move to compel further responses when an answer is evasive, incomplete, or objection is too general or without merit. No-timely-response deemed-admission posture is separate (sec. 2030.290)."
+    applies_to: [rog]
+    check_hints: [motion_to_compel, further_response, evasive, incomplete]
+
+  - id: CCP-2031-310
+    citation: "Cal. Code Civ. Proc. sec. 2031.310"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.310."
+    summary: "On receipt of responses to an inspection demand, a party may move to compel further responses when a statement of compliance is incomplete, an objection is too general or without merit, or no response was served. Distinct from sec. 2031.320 no-timely-response posture."
+    applies_to: [rfp]
+    check_hints: [motion_to_compel, further_response, incomplete_compliance, no_response]
 
   - id: CCP-2016-040
     citation: "Cal. Code Civ. Proc. sec. 2016.040"
