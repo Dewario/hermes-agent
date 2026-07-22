@@ -480,10 +480,11 @@ lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 - [x] Dedicated `enforcement_motion.py`; four levers (deemed_admitted,
       motion_to_compel, meet_and_confer_letter, sanctions) with
       jurisdiction-aware statute selection from the loaded pack's available rules.
-- [x] `deemed_admitted` is CA / RFA only (CCP sec. 2033.280); refused for WA and
-      for non-rfa request types. CA motion-to-compel selects by request type
-      (CCP sec. 2030.300 / 2031.310 / 2033.290); WA uses CR 37(a). Sanctions
-      select CCP sec. 2023.050 (+ sec. 2023.010 supporting) or CR 37(c).
+- [x] `deemed_admitted` is RFA-only: CA selects CCP sec. 2033.280; WA selects
+      CR 36(a) with CR 36(b) supporting effect authority; non-rfa request types
+      are refused. CA motion-to-compel selects by request type (CCP sec.
+      2030.300 / 2031.310 / 2033.290); WA uses CR 37(a). Sanctions select CCP
+      sec. 2023.050 (+ sec. 2023.010 supporting) or CR 37(a)(4).
 - [x] Non-substantive scaffold; no invented Bates/page:line cites; no sanction
       amount; no §9.5 signature. `enforcement_<lever>_scaffold.md` + meta.
 - [x] `tests/skills/test_discovery_enforcement_motion.py` + `selftest`.

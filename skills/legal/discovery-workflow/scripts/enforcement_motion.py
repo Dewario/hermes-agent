@@ -9,8 +9,8 @@ non-substantive scaffold, and gates on the same casegraph / live_preflight
 infrastructure as the other slices.
 
 Not file-ready; attorney review required. Live use needs SPEC sec. 9.5
-sign-off. deemed_admitted is CA / RFA only (CCP sec. 2033.280); Washington
-has no no-response deemed-admission parallel and the script refuses it.
+sign-off. deemed_admitted is RFA-only: California uses CCP sec. 2033.280,
+and Washington uses CR 36(a) / CR 36(b).
 """
 
 from __future__ import annotations
@@ -155,12 +155,15 @@ def select_statute(
     if lever == "deemed_admitted":
         if request_type != "rfa":
             return None, [], "deemed_admitted lever is RFA-only"
-        if "CCP-2033-280" not in avail:
-            return None, [], (
-                "deemed_admitted lever requires Cal. Code Civ. Proc. sec. 2033.280 "
-                "(CA); Washington has no no-response deemed-admission parallel"
-            )
-        return "CCP-2033-280", [], None
+        if "CCP-2033-280" in avail:
+            return "CCP-2033-280", [], None
+        if "WA-CR-36-A" in avail:
+            supporting = [r for r in ("WA-CR-36-B",) if r in avail]
+            return "WA-CR-36-A", supporting, None
+        return None, [], (
+            "deemed_admitted lever requires Cal. Code Civ. Proc. sec. 2033.280 "
+            "(CA) or Wash. Super. Ct. Civ. R. 36(a) (WA)"
+        )
 
     if lever == "motion_to_compel":
         ca_id = CA_MTC_BY_TYPE.get(request_type)
@@ -184,8 +187,8 @@ def select_statute(
         if "CCP-2023-050" in avail:
             supporting = [r for r in ("CCP-2023-010",) if r in avail]
             return "CCP-2023-050", supporting, None
-        if "WA-CR-37-C" in avail:
-            return "WA-CR-37-C", [], None
+        if "WA-CR-37-A-4" in avail:
+            return "WA-CR-37-A-4", [], None
         return None, [], "sanctions: no sanctions authority in available rules"
 
     return None, [], f"unknown lever: {lever}"
@@ -237,20 +240,22 @@ def sanctions_block(lever: str, available_rules: Iterable[str]) -> str:
         return ""
     if "CCP-2023-050" in avail:
         return (
-            "A monetary sanction up to $1,000 may be imposed absent a showing "
-            "of substantial justification or other circumstances making an "
-            "award unjust (section 2023.050 of the code of civil procedure). "
+            "Section 2023.050 of the code of civil procedure requires a "
+            "$1,000 monetary sanction when the statutory findings are made, "
+            "unless the court makes written findings of substantial "
+            "justification or other circumstances making the sanction unjust. "
             "Misuse of the discovery process is defined by section 2023.010 of "
             "the code of civil procedure. Sanction amount and strategy are "
             "attorney-controlled."
         )
-    if "WA-CR-37-C" in avail:
+    if "WA-CR-37-A-4" in avail:
         return (
-            "The court may order the failing party to pay the reasonable "
-            "expenses, including attorney fees, incurred in making the motion, "
-            "unless the failure was substantially justified or other "
-            "circumstances make an award unjust (CR 37(c)). Sanction amount "
-            "and strategy are attorney-controlled."
+            "CR 37(a)(4) requires the court, after opportunity for hearing, "
+            "to award the moving party's reasonable expenses incurred in "
+            "obtaining the order, including attorney fees, unless the "
+            "opposition was substantially justified or other circumstances "
+            "make an award unjust. Sanction amount and strategy are "
+            "attorney-controlled."
         )
     return ""
 
@@ -407,7 +412,13 @@ def cmd_draft_enforcement_motion(args: argparse.Namespace) -> int:
     matter_id = _matter_id(root)
     notes: list[str] = []
     if lever == "deemed_admitted":
-        notes.append("CA / RFA only; do not use for ROG or RFP.")
+        if primary_id == "CCP-2033-280":
+            notes.append("CA / RFA only; do not use for ROG or RFP.")
+        elif primary_id == "WA-CR-36-A":
+            notes.append(
+                "WA / RFA only; CR 36(a) admissions are self-executing "
+                "if no timely answer or objection is served."
+            )
     if lever == "motion_to_compel" and "WA-CR-37-A" in available and "CCP-2030-300" not in available:
         notes.append("CR 37(a) applies to ROG/RFP/RFA; meet-and-confer via CR 26(i).")
 
@@ -595,13 +606,8 @@ def cmd_selftest(_args: argparse.Namespace) -> int:
                 print(f"selftest failed (CA validate {lever}/{rt})", file=sys.stderr)
                 return code
 
-        # WA: deemed_admitted must be refused (no CCP 2033.280).
-        code = main(["draft-enforcement-motion", str(wa), "--lever", "deemed_admitted", "--request-type", "rfa"])
-        if code == 0:
-            print("selftest failed: WA deemed_admitted should have been refused", file=sys.stderr)
-            return 1
-        # WA: motion_to_compel / meet_and_confer / sanctions succeed for rfa.
-        for lever in ("motion_to_compel", "meet_and_confer_letter", "sanctions"):
+        # WA: all RFA levers, including deemed_admitted under CR 36(a), succeed.
+        for lever in ("deemed_admitted", "motion_to_compel", "meet_and_confer_letter", "sanctions"):
             code = main(["draft-enforcement-motion", str(wa), "--lever", lever, "--request-type", "rfa"])
             if code != 0:
                 print(f"selftest failed (WA draft {lever})", file=sys.stderr)
@@ -623,7 +629,7 @@ def cmd_selftest(_args: argparse.Namespace) -> int:
         if "SYN-ENF-WA" in ca_pkg or "SYN-ENF-CA" in wa_pkg:
             print("selftest failed: cross-matter id leaked", file=sys.stderr)
             return 1
-        if "Wash. Super. Ct. Civ. R. 37(c)" not in wa_pkg or "2023.050" not in ca_pkg:
+        if "Wash. Super. Ct. Civ. R. 37(a)(4)" not in wa_pkg or "2023.050" not in ca_pkg:
             print("selftest failed: jurisdiction-aware statute not selected", file=sys.stderr)
             return 1
 

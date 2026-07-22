@@ -73,7 +73,7 @@ rules:
   - id: WA-CR-36-A
     citation: "Wash. Super. Ct. Civ. R. 36(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf"
-    summary: "RFAs must be in a separate discovery document; each matter must be separately stated; unanswered matters are admitted if not timely answered or objected to. CR 36 has no statewide numerical RFA cap."
+    summary: "RFAs must be in a separate discovery document; each matter must be separately stated; the matter is admitted unless the responding party timely serves a written answer or objection. CR 36 has no statewide numerical RFA cap."
     applies_to: [rfa]
     check_hints: [separately_stated, separate_document, auto_admit, response_deadline, no_statewide_limit]
 
@@ -87,14 +87,14 @@ rules:
   - id: WA-CR-37-A
     citation: "Wash. Super. Ct. Civ. R. 37(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf"
-    summary: "A party may move to compel answers or responses to discovery (interrogatories, production, or admissions) that are evasive, incomplete, or not served. The motion must include the CR 26(i) meet-and-confer certification; no separate no-response deemed-admission statute parallels CCP 2033.280 in Washington."
+    summary: "A party may move to compel answers or responses to discovery (interrogatories, production, or admissions) that are evasive, incomplete, or not served. The motion must include the CR 26(i) meet-and-confer certification; RFA no-response admissions are handled under CR 36(a)."
     applies_to: [rog, rfp, rfa]
     check_hints: [motion_to_compel, further_response, no_response, meet_confer_certification]
 
-  - id: WA-CR-37-C
-    citation: "Wash. Super. Ct. Civ. R. 37(c)"
+  - id: WA-CR-37-A-4
+    citation: "Wash. Super. Ct. Civ. R. 37(a)(4)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf"
-    summary: "If a party fails to respond or provide discovery, or if a motion to compel is granted, the court may order the failing party to pay the reasonable expenses, including attorney fees, incurred in making the motion, unless the court finds the failure was substantially justified or other circumstances make an award unjust."
+    summary: "If a motion to compel is granted, the court shall require the party or attorney whose conduct necessitated the motion to pay the moving party's reasonable expenses, including attorney fees, unless the opposition was substantially justified or other circumstances make an award unjust."
     applies_to: [rog, rfp, rfa]
     check_hints: [sanctions, expenses, attorney_fees, substantial_justification]
 

@@ -268,8 +268,8 @@ retain, designate, or finally approve any expert.
 Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`.
 Deterministically selects the controlling statute from the loaded pack's
 available rules; refuses levers that are unavailable in the jurisdiction
-(e.g. `deemed_admitted` is CA / RFA only — CCP sec. 2033.280 — and Washington
-has no no-response deemed-admission parallel).
+(e.g. `deemed_admitted` is RFA-only: CA uses CCP sec. 2033.280; Washington uses
+CR 36(a) with CR 36(b) as supporting effect authority).
 
 ```powershell
 $f1 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\enforcement_motion.py"

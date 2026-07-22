@@ -61,7 +61,7 @@ CA_RULES = {
     "CCP-2033-280", "CCP-2033-290", "CCP-2030-300", "CCP-2031-310",
     "CCP-2016-040", "CCP-2023-010", "CCP-2023-050",
 }
-WA_RULES = {"WA-CR-37-A", "WA-CR-37-C", "WA-CR-26-I"}
+WA_RULES = {"WA-CR-36-A", "WA-CR-36-B", "WA-CR-37-A", "WA-CR-37-A-4", "WA-CR-26-I"}
 
 
 def test_select_statute_ca_deemed_admitted_rfa_only():
@@ -77,10 +77,11 @@ def test_select_statute_deemed_admitted_refuses_non_rfa():
     assert "RFA-only" in refusal
 
 
-def test_select_statute_deemed_admitted_refuses_wa():
-    primary, _supporting, refusal = enf.select_statute("deemed_admitted", "rfa", WA_RULES)
-    assert primary is None
-    assert "2033.280" in refusal
+def test_select_statute_deemed_admitted_accepts_wa():
+    primary, supporting, refusal = enf.select_statute("deemed_admitted", "rfa", WA_RULES)
+    assert primary == "WA-CR-36-A"
+    assert supporting == ["WA-CR-36-B"]
+    assert refusal is None
 
 
 def test_select_statute_ca_motion_to_compel_by_type():
@@ -103,7 +104,7 @@ def test_select_statute_sanctions_jurisdiction_aware():
     primary, supporting, refusal = enf.select_statute("sanctions", "rfa", CA_RULES)
     assert primary == "CCP-2023-050"
     assert "CCP-2023-010" in supporting
-    assert enf.select_statute("sanctions", "rfa", WA_RULES)[0] == "WA-CR-37-C"
+    assert enf.select_statute("sanctions", "rfa", WA_RULES)[0] == "WA-CR-37-A-4"
     assert refusal is None
 
 
@@ -151,23 +152,39 @@ def test_ca_draft_and_validate_all_levers(tmp_path):
     assert "CCP-2023-050" in seen_statutes
 
 
-def test_wa_draft_and_validate_three_levers(tmp_path):
+def test_wa_draft_and_validate_all_rfa_levers(tmp_path):
     matter = _matter(tmp_path, matter_id="SYN-ENF-WA", pack="wa_state", court="King County Superior Court")
-    for lever in ("motion_to_compel", "meet_and_confer_letter", "sanctions"):
+    for lever in ("deemed_admitted", "motion_to_compel", "meet_and_confer_letter", "sanctions"):
         meta = _draft_and_validate(matter, lever, "rfa")
         assert meta["primary_rule_id"].startswith("WA-CR-")
+    deemed_meta = json.loads(
+        (matter / "02_outputs" / enf.META_REL_TEMPLATE.format(lever="deemed_admitted")).read_text(encoding="utf-8")
+    )
+    assert deemed_meta["primary_rule_id"] == "WA-CR-36-A"
+    assert deemed_meta["supporting_rule_ids"] == ["WA-CR-36-B"]
     sanctions_meta = json.loads(
         (matter / "02_outputs" / enf.META_REL_TEMPLATE.format(lever="sanctions")).read_text(encoding="utf-8")
     )
-    assert sanctions_meta["primary_rule_id"] == "WA-CR-37-C"
+    assert sanctions_meta["primary_rule_id"] == "WA-CR-37-A-4"
 
 
-def test_wa_deemed_admitted_is_refused(tmp_path):
+def test_wa_deemed_admitted_uses_cr36(tmp_path):
     matter = _matter(tmp_path, matter_id="SYN-ENF-WA2", pack="wa_state", court="Pierce County Superior Court")
-    code = enf.main([
-        "draft-enforcement-motion", str(matter), "--lever", "deemed_admitted", "--request-type", "rfa",
-    ])
-    assert code != 0
+    meta = _draft_and_validate(matter, "deemed_admitted", "rfa")
+    assert meta["primary_rule_id"] == "WA-CR-36-A"
+    pkg = (matter / "02_outputs" / enf.PACKAGE_REL_TEMPLATE.format(lever="deemed_admitted")).read_text(
+        encoding="utf-8"
+    )
+    assert "Wash. Super. Ct. Civ. R. 36(a)" in pkg
+    assert "WA-CR-36-B" in pkg
+
+
+def test_wa_pack_no_false_deemed_admission_caveat():
+    loaded = enf.jp.load_pack("wa_state")
+    rules = {rule["id"]: rule for rule in loaded["rules"]}
+    assert "WA-CR-37-A-4" in rules
+    assert "WA-CR-37-C" not in rules
+    assert "no-response deemed-admission statute parallels" not in rules["WA-CR-37-A"]["summary"]
 
 
 def test_ca_deemed_admitted_refuses_non_rfa(tmp_path):
@@ -197,7 +214,7 @@ def test_isolation_no_cross_matter_leak(tmp_path):
     b_pkg = (b / "02_outputs" / enf.PACKAGE_REL_TEMPLATE.format(lever="sanctions")).read_text(encoding="utf-8")
     assert "SYN-ENF-WA" not in a_pkg
     assert "SYN-ENF-CA" not in b_pkg
-    assert "Wash. Super. Ct. Civ. R. 37(c)" in b_pkg
+    assert "Wash. Super. Ct. Civ. R. 37(a)(4)" in b_pkg
     assert "2023.050" in a_pkg
 
 

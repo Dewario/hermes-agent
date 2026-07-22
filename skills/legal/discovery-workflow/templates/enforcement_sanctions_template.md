@@ -1,8 +1,9 @@
 <!-- synthetic / non-client / test only -->
 <!-- Reference scaffold for the sanctions lever (Slice F1). The script renders
      the final scaffold inline; this file documents the intended shape. CA:
-     sec. 2023.050 (monetary sanction up to $1,000) and sec. 2023.010 (abuse
-     of discovery definitions). WA: CR 37 sanctions. -->
+     sec. 2023.050 (mandatory $1,000 sanction when statutory findings are made)
+     and sec. 2023.010 (abuse of discovery definitions). WA: CR 37(a)(4)
+     motion-expense sanctions. -->
 
 # Discovery Sanctions - DRAFT FOR ATTORNEY REVIEW
 
@@ -37,9 +38,10 @@
 
 ## Sanction posture
 
-[… attorney-controlled: CA sec. 2023.050 monetary sanction up to $1,000 may be
-imposed absent a showing of substantial justification; CA sec. 2023.010
-defines misuse of the discovery process; WA CR 37 sanctions framework …]
+[… attorney-controlled: CA sec. 2023.050 mandatory $1,000 sanction when
+statutory findings are made, subject to substantial-justification / unjust
+circumstances exceptions; CA sec. 2023.010 defines misuse of the discovery
+process; WA CR 37(a)(4) motion-expense sanctions framework …]
 
 ## Attorney checklist
 
