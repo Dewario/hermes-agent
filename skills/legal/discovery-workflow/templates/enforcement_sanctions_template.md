@@ -1,47 +1,49 @@
 <!-- synthetic / non-client / test only -->
-<!-- Reference scaffold for the sanctions lever (Slice F1). The script renders
-     the final scaffold inline; this file documents the intended shape. CA:
-     sec. 2023.050 (mandatory $1,000 sanction when statutory findings are made)
-     and sec. 2023.010 (abuse of discovery definitions). WA: CR 37(a)(4)
-     motion-expense sanctions. -->
+<!-- Reference scaffold for the sanctions lever (Slice F1). This mirrors the
+     table-based scaffold emitted by enforcement_motion.py. CA: sec. 2023.050
+     mandatory $1,000 sanction when statutory findings are made, plus
+     sec. 2023.010 abuse definitions. WA: CR 37(a)(4) motion-expense
+     sanctions. -->
 
 # Discovery Sanctions - DRAFT FOR ATTORNEY REVIEW
 
-**Matter ID:** […]
-**Request type:** rog | rfp | rfa
-**Mode:** enforcement_motion_draft
-**Lever:** sanctions
-**Jurisdiction pack:** ca_ccp | wa_state
-**Primary citation:** [jurisdiction-aware]
-**Source URL:** […]
-**Casegraph status:** fresh | stale
-**Single-matter invocation:** confirmed
+| Field | Value |
+|---|---|
+| Matter ID | [...] |
+| Court | [...] |
+| Request type | rog / rfp / rfa |
+| Mode | enforcement_motion_draft |
+| Lever | sanctions |
+| Jurisdiction pack | ca_ccp or wa_state |
+| Primary citation | [jurisdiction-aware] |
+| Source URL | [...] |
+| Casegraph status | fresh |
+| Single-matter invocation | confirmed |
 
-> Draft for attorney review. Not a certification that this sanctions request is ready to file.
-> No final sanction amount or strategy. No cross-client facts.
+(Full party caption is attorney-controlled; not drafted by the tool.)
 
-## Caption
-
-[… parties / court / title block from matter profile …]
-
-## Procedural posture
-
-[… non-substantive: misuse of discovery identified on …]
+> Draft for attorney review. Not a certification that this scaffold is ready to file.
+> No final relief or sanction strategy. No cross-client facts.
 
 ## Authority
 
-[… jurisdiction-aware sanctions authority selected by the script …]
+[Jurisdiction-aware sanctions authority selected by the script.]
 
 ## Supporting authority
 
-- [none] (or attorney-added secondary cites)
+| Rule | Citation |
+|---|---|
+| [none or supporting rule] | [none or supporting citation] |
 
 ## Sanction posture
 
-[… attorney-controlled: CA sec. 2023.050 mandatory $1,000 sanction when
-statutory findings are made, subject to substantial-justification / unjust
-circumstances exceptions; CA sec. 2023.010 defines misuse of the discovery
-process; WA CR 37(a)(4) motion-expense sanctions framework …]
+[Attorney-controlled: CA sec. 2023.050 mandatory $1,000 sanction when statutory
+findings are made, subject to statutory exceptions; CA sec. 2023.010 misuse
+definitions; or WA CR 37(a)(4) motion-expense sanctions framework.]
+
+## Notes
+
+- [Jurisdiction-aware notes selected by the script.]
 
 ## Attorney checklist
 

@@ -90,9 +90,13 @@ def test_select_statute_ca_motion_to_compel_by_type():
     assert enf.select_statute("motion_to_compel", "rfa", CA_RULES)[0] == "CCP-2033-290"
 
 
-def test_select_statute_wa_motion_to_compel_all_types():
-    for rt in ("rog", "rfp", "rfa"):
+def test_select_statute_wa_motion_to_compel_by_type():
+    for rt in ("rog", "rfp"):
         assert enf.select_statute("motion_to_compel", rt, WA_RULES)[0] == "WA-CR-37-A"
+    primary, supporting, refusal = enf.select_statute("motion_to_compel", "rfa", WA_RULES)
+    assert primary == "WA-CR-36-A"
+    assert supporting == ["WA-CR-37-A-4"]
+    assert refusal is None
 
 
 def test_select_statute_meet_and_confer_jurisdiction_aware():
@@ -157,6 +161,13 @@ def test_wa_draft_and_validate_all_rfa_levers(tmp_path):
     for lever in ("deemed_admitted", "motion_to_compel", "meet_and_confer_letter", "sanctions"):
         meta = _draft_and_validate(matter, lever, "rfa")
         assert meta["primary_rule_id"].startswith("WA-CR-")
+    mtc_meta = json.loads(
+        (matter / "02_outputs" / enf.META_REL_TEMPLATE.format(lever="motion_to_compel")).read_text(
+            encoding="utf-8"
+        )
+    )
+    assert mtc_meta["primary_rule_id"] == "WA-CR-36-A"
+    assert mtc_meta["supporting_rule_ids"] == ["WA-CR-37-A-4"]
     deemed_meta = json.loads(
         (matter / "02_outputs" / enf.META_REL_TEMPLATE.format(lever="deemed_admitted")).read_text(encoding="utf-8")
     )
@@ -199,6 +210,10 @@ def test_scaffold_does_not_sign_owner_gate(tmp_path):
     matter = _matter(tmp_path)
     _draft_and_validate(matter, "sanctions", "rfa")
     pkg = (matter / "02_outputs" / enf.PACKAGE_REL_TEMPLATE.format(lever="sanctions")).read_text(encoding="utf-8")
+    assert "| Field | Value |" in pkg
+    assert "| Rule | Citation |" in pkg
+    assert "**Matter ID:**" not in pkg
+    assert "## Caption" not in pkg
     assert "DRAFT FOR ATTORNEY REVIEW" in pkg
     assert "owner_signature" not in pkg.lower()
     assert "sec. 9.5" in pkg.lower() or "§9.5" in pkg.lower() or "9.5" in pkg

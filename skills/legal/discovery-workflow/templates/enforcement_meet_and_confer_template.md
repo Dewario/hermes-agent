@@ -1,45 +1,45 @@
 <!-- synthetic / non-client / test only -->
-<!-- Reference scaffold for the meet-and-confer letter lever (Slice F1). The
-     script renders the final scaffold inline; this file documents the
-     intended shape. CA: sec. 2016.040 declaration. WA: CR 26(i)
-     certification. -->
+<!-- Reference scaffold for the meet-and-confer letter lever (Slice F1). This
+     mirrors the table-based scaffold emitted by enforcement_motion.py. CA:
+     sec. 2016.040 declaration. WA: CR 26(i) certification. -->
 
 # Meet-and-Confer Letter - DRAFT FOR ATTORNEY REVIEW
 
-**Matter ID:** […]
-**Request type:** rog | rfp | rfa
-**Mode:** enforcement_motion_draft
-**Lever:** meet_and_confer_letter
-**Jurisdiction pack:** ca_ccp | wa_state
-**Primary citation:** [jurisdiction-aware]
-**Source URL:** […]
-**Casegraph status:** fresh | stale
-**Single-matter invocation:** confirmed
+| Field | Value |
+|---|---|
+| Matter ID | [...] |
+| Court | [...] |
+| Request type | rog / rfp / rfa |
+| Mode | enforcement_motion_draft |
+| Lever | meet_and_confer_letter |
+| Jurisdiction pack | ca_ccp or wa_state |
+| Primary citation | [jurisdiction-aware] |
+| Source URL | [...] |
+| Casegraph status | fresh |
+| Single-matter invocation | confirmed |
 
-> Draft for attorney review. Not a certification that this letter is ready to send.
-> No final negotiation strategy. No cross-client facts.
+(Full party caption is attorney-controlled; not drafted by the tool.)
 
-## Caption
-
-[… parties / court / title block from matter profile …]
-
-## Procedural posture
-
-[… non-substantive: responses served on …, deficiencies identified …]
+> Draft for attorney review. Not a certification that this scaffold is ready to file.
+> No final relief or negotiation strategy. No cross-client facts.
 
 ## Authority
 
-[… jurisdiction-aware meet-and-confer authority selected by the script …]
+[Jurisdiction-aware primary rule summary selected by the script.]
 
-## Deficiencies identified
+## Supporting authority
 
-- [none] (or attorney-added deficiency items)
+| Rule | Citation |
+|---|---|
+| [none or supporting rule] | [none or supporting citation] |
 
-## Certification language
+## Meet-and-confer
 
-[… CA: meet-and-confer declaration under sec. 2016.040; WA: CR 26(i)
-certification that the parties conferred or attempted to confer in good
-faith …]
+[CA sec. 2016.040 meet-and-confer language or WA CR 26(i) confer language selected by the script.]
+
+## Notes
+
+- [Jurisdiction-aware notes selected by the script.]
 
 ## Attorney checklist
 

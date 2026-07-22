@@ -3,8 +3,8 @@
 Branch: `legal-enforcement-levers`
 Date: 2026-07-22
 
-Purpose: record the post-fix verification target for the F1-W1, F1-W2, and
-F1-CA1 corrections. This supplements the original F1 verification report
+Purpose: record the post-fix verification target for the F1-W1, F1-W2, F1-W3,
+and F1-CA1 corrections. This supplements the original F1 verification report
 without deleting the historical defect record.
 
 ## Source Packet
@@ -13,6 +13,7 @@ without deleting the historical defect record.
 |---|---|---|
 | F1-W1 | https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf | CR 36(a) admits an unanswered RFA unless a timely answer or objection is served; CR 36(b) supplies conclusive effect unless withdrawal or amendment is allowed. |
 | F1-W2 | https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf | CR 37(a)(4) is the motion-to-compel expense rule; CR 37(c) is the distinct expenses-on-failure-to-admit rule. |
+| F1-W3 | https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_36_00_00.pdf and https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf | WA RFA sufficiency / no-response motions are governed by CR 36(a); CR 37(a)(4) supplies the expense rule for motions under CR 36(a). |
 | F1-CA1 | https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2023.050. | CCP sec. 2023.050 requires a $1,000 sanction when statutory findings are made, subject to the statutory substantial-justification / unjust-circumstances exception. |
 
 ## Expected Corrected Behavior
@@ -23,7 +24,9 @@ without deleting the historical defect record.
 | WA deemed-admitted scaffold | Drafts and validates for RFA; cites `Wash. Super. Ct. Civ. R. 36(a)`; supporting table includes `WA-CR-36-B`. |
 | `WA-CR-37-A` summary | No statement that Washington lacks a no-response deemed-admission parallel; points RFA no-response admissions to CR 36(a). |
 | WA sanctions authority | Primary `WA-CR-37-A-4`; generated scaffold cites `Wash. Super. Ct. Civ. R. 37(a)(4)`. |
+| WA RFA motion-to-compel authority | Primary `WA-CR-36-A`; supporting `WA-CR-37-A-4`; CR 37(a) remains limited to ROG/RFP motion-to-compel scaffolds. |
 | CA sanctions prose | Does not use "up to $1,000" / "may be imposed" framing; states the mandatory $1,000 structure subject to statutory exceptions. |
+| Scaffold shape | Metadata and supporting authority render as markdown tables; reference templates mirror the generated scaffold and do not use stale bold key/value headers or caption/facts/relief sections. |
 
 ## Live Boundary
 

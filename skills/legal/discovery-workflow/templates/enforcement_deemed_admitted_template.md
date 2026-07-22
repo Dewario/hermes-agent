@@ -1,54 +1,48 @@
 <!-- synthetic / non-client / test only -->
-<!-- Reference scaffold for the deemed-admitted lever (Slice F1). The script
-     renders the final scaffold inline; this file documents the intended
-     shape. RFA only: CA uses CCP sec. 2033.280; WA uses CR 36(a), with
-     CR 36(b) as supporting effect authority. -->
+<!-- Reference scaffold for the deemed-admitted lever (Slice F1). This mirrors
+     the table-based scaffold emitted by enforcement_motion.py. RFA only:
+     CA uses CCP sec. 2033.280; WA uses CR 36(a), with CR 36(b) as supporting
+     effect authority. -->
 
 # Deemed-Admitted Motion - DRAFT FOR ATTORNEY REVIEW
 
-**Matter ID:** […]
-**Request type:** rfa
-**Mode:** enforcement_motion_draft
-**Lever:** deemed_admitted
-**Jurisdiction pack:** ca_ccp | wa_state
-**Primary citation:** Cal. Code Civ. Proc. sec. 2033.280 | Wash. Super. Ct. Civ. R. 36(a)
-**Source URL:** [jurisdiction-aware]
-**Casegraph status:** fresh | stale
-**Single-matter invocation:** confirmed
+| Field | Value |
+|---|---|
+| Matter ID | [...] |
+| Court | [...] |
+| Request type | rfa |
+| Mode | enforcement_motion_draft |
+| Lever | deemed_admitted |
+| Jurisdiction pack | ca_ccp or wa_state |
+| Primary citation | Cal. Code Civ. Proc. sec. 2033.280 or Wash. Super. Ct. Civ. R. 36(a) |
+| Source URL | [jurisdiction-aware] |
+| Casegraph status | fresh |
+| Single-matter invocation | confirmed |
 
-> Draft for attorney review. Not a certification that this motion is ready to file.
-> No final relief strategy. No cross-client facts.
+(Full party caption is attorney-controlled; not drafted by the tool.)
 
-## Caption
-
-[… parties / court / title block from matter profile …]
-
-## Statement of facts
-
-[… non-substantive procedural posture: RFA served on …, no response served by the
-statutory deadline …]
+> Draft for attorney review. Not a certification that this scaffold is ready to file.
+> No final relief or sanction strategy. No cross-client facts.
 
 ## Authority
 
-On receipt of no response to requests for admission, the controlling
-jurisdictional rule governs the deemed-admitted posture: California proceeds
-under CCP sec. 2033.280; Washington CR 36(a) admits the matter unless a timely
-answer or objection is served.
+[Jurisdiction-aware primary rule summary selected by the script.]
 
 ## Supporting authority
 
-- [none] (or attorney-added secondary cites)
+| Rule | Citation |
+|---|---|
+| [none or supporting rule] | [none or supporting citation] |
 
-## Relief requested
+## Notes
 
-[… attorney-controlled: request that the matters be deemed admitted, plus any
-sanctions posture under sec. 2023.050 if asserted separately …]
+- Deemed-admitted lever is RFA-only; do not use for ROG or RFP.
 
 ## Attorney checklist
 
+- [ ] Primary statute matches the request type and jurisdiction
 - [ ] No-response posture confirmed against the served date and proof of service
-- [ ] Deemed-admitted lever is RFA-only; do not use for ROG or RFP
 - [ ] No invented Bates or transcript locators in this package
-- [ ] No relief strategy invented by the tool
+- [ ] No relief / sanction strategy invented by the tool
 - [ ] Gate commands for Slice F1 exit 0
 - [ ] Owner sec. 9.5 sign-off before any live matter use

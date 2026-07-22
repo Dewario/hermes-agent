@@ -1,57 +1,53 @@
 <!-- synthetic / non-client / test only -->
-<!-- Reference scaffold for the motion-to-compel lever (Slice F1). The script
-     renders the final scaffold inline; this file documents the intended
-     shape. CA: ROG (sec. 2030.300), RFP (sec. 2031.310), RFA (sec. 2033.290).
-     WA: CR 37(a) for ROG/RFP/RFA. -->
+<!-- Reference scaffold for the motion-to-compel lever (Slice F1). This mirrors
+     the table-based scaffold emitted by enforcement_motion.py. CA: ROG
+     (sec. 2030.300), RFP (sec. 2031.310), RFA (sec. 2033.290). WA: CR 37(a)
+     for ROG/RFP; CR 36(a) for RFA sufficiency or no-response motions, with
+     CR 37(a)(4) supporting expense authority. -->
 
 # Motion to Compel Further Responses - DRAFT FOR ATTORNEY REVIEW
 
-**Matter ID:** […]
-**Request type:** rog | rfp | rfa
-**Mode:** enforcement_motion_draft
-**Lever:** motion_to_compel
-**Jurisdiction pack:** ca_ccp | wa_state
-**Primary citation:** [jurisdiction- and request-type-aware]
-**Source URL:** […]
-**Casegraph status:** fresh | stale
-**Single-matter invocation:** confirmed
+| Field | Value |
+|---|---|
+| Matter ID | [...] |
+| Court | [...] |
+| Request type | rog / rfp / rfa |
+| Mode | enforcement_motion_draft |
+| Lever | motion_to_compel |
+| Jurisdiction pack | ca_ccp or wa_state |
+| Primary citation | [jurisdiction- and request-type-aware] |
+| Source URL | [...] |
+| Casegraph status | fresh |
+| Single-matter invocation | confirmed |
 
-> Draft for attorney review. Not a certification that this motion is ready to file.
-> No final relief strategy. No cross-client facts.
+(Full party caption is attorney-controlled; not drafted by the tool.)
 
-## Caption
-
-[… parties / court / title block from matter profile …]
-
-## Statement of facts
-
-[… non-substantive procedural posture: responses served on …, evasive /
-incomplete / no response …]
+> Draft for attorney review. Not a certification that this scaffold is ready to file.
+> No final relief or sanction strategy. No cross-client facts.
 
 ## Authority
 
-[… jurisdiction-aware primary statute selected by the script from the
-available rules in the loaded pack …]
+[Jurisdiction-aware primary rule summary selected by the script.]
 
 ## Supporting authority
 
-- [none] (or attorney-added secondary cites)
+| Rule | Citation |
+|---|---|
+| [none or supporting rule] | [none or supporting citation] |
 
 ## Meet-and-confer
 
-[… required certification: CA sec. 2016.040 declaration; WA CR 26(i)
-certification …]
+[CA sec. 2016.040 declaration or WA CR 26(i) certification selected by the script.]
 
-## Relief requested
+## Notes
 
-[… attorney-controlled: order compelling further responses, plus any
-sanctions posture if asserted separately …]
+- [Jurisdiction-aware notes selected by the script.]
 
 ## Attorney checklist
 
 - [ ] Primary statute matches the request type and jurisdiction
-- [ ] Meet-and-confer certification included (CA sec. 2016.040 / WA CR 26(i))
+- [ ] Meet-and-confer certification included when required
 - [ ] No invented Bates or transcript locators in this package
-- [ ] No relief strategy invented by the tool
+- [ ] No relief / sanction strategy invented by the tool
 - [ ] Gate commands for Slice F1 exit 0
 - [ ] Owner sec. 9.5 sign-off before any live matter use

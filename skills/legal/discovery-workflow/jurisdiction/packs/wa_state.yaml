@@ -87,8 +87,8 @@ rules:
   - id: WA-CR-37-A
     citation: "Wash. Super. Ct. Civ. R. 37(a)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf"
-    summary: "A party may move to compel answers or responses to discovery (interrogatories, production, or admissions) that are evasive, incomplete, or not served. The motion must include the CR 26(i) meet-and-confer certification; RFA no-response admissions are handled under CR 36(a)."
-    applies_to: [rog, rfp, rfa]
+    summary: "A party may move to compel answers or responses to interrogatories or production requests that are evasive, incomplete, or not served. The motion must include the CR 26(i) meet-and-confer certification; RFA sufficiency and no-response admissions are handled under CR 36(a)."
+    applies_to: [rog, rfp]
     check_hints: [motion_to_compel, further_response, no_response, meet_confer_certification]
 
   - id: WA-CR-37-A-4

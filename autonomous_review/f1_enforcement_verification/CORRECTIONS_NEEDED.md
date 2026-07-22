@@ -5,7 +5,7 @@ Date: 2026-07-20
 
 Actionable corrections from the F1 independent verification pass. They were unresolved when first documented at `a4313948f`.
 
-Status as of the F1 fix commit: F1-W1, F1-W2, and F1-CA1 are applied on this branch and ready for independent cross-check. No live matter use remains allowed without owner sec. 9.5.
+Status as of the post-crosscheck fix commit: F1-W1, F1-W2, F1-W3, and F1-CA1 are applied on this branch and ready for independent cross-check. No live matter use remains allowed without owner sec. 9.5.
 
 ## F1-W1 - WA deemed-admission refusal is wrong (HIGH, RESOLVED)
 
@@ -41,10 +41,19 @@ Status as of the F1 fix commit: F1-W1, F1-W2, and F1-CA1 are applied on this bra
 
 **Severity rationale.** LOW because the scaffold is explicitly a draft for attorney review and the figure ($1,000) and the exception (substantial justification) are both correct; only the modal framing ("up to/may" vs "shall") is imprecise.
 
+## F1-W3 - WA RFA motion-to-compel primary authority precision (MEDIUM, RESOLVED)
+
+**Finding.** The first F1-W1/F1-W2 fix corrected WA deemed-admitted and CR 37(a)(4) sanctions, but left WA `motion_to_compel` selecting `WA-CR-37-A` for RFAs. Washington CR 37(a)(2) expressly addresses depositions, CR 30(b)(6) / 31(a) designations, interrogatories, and inspection / production requests. RFA answer-or-objection sufficiency is handled in CR 36(a), which also cross-references CR 37(a)(4) for expenses incurred on the motion.
+
+**Fix applied.** `select_statute()` now selects `WA-CR-37-A` for WA ROG/RFP motion-to-compel scaffolds, but selects `WA-CR-36-A` with `WA-CR-37-A-4` supporting for WA RFA sufficiency / no-response motion scaffolds. `WA-CR-37-A` now applies only to ROG/RFP in `wa_state.yaml`, the WA motion meet-and-confer block names a CR 36(a) RFA motion where appropriate, and regression tests cover the split.
+
+**Severity rationale.** MEDIUM because the prior selector was overbroad rather than a direct contradiction of the original F1-W1/F1-W2 fixes, but it could still place the wrong primary rule in a WA RFA motion scaffold.
+
 ## Merge ordering
 
 1. F1-W1 fixed before merge or any live reliance.
 2. F1-W2 fixed with F1-W1 to avoid miscited WA sanctions authority.
 3. F1-CA1 fixed with the same patch.
+4. F1-W3 fixed during the Codex cross-check follow-up.
 
 After fixes: re-run the F1 selftest, the enforcement_motion test file, and the full legal suite; re-run `git diff --check`; re-verify the corrected WA CR 36(a) and CR 37(a)(4) entries against the courts.wa.gov PDFs.

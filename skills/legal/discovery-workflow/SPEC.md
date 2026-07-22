@@ -483,8 +483,10 @@ lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 - [x] `deemed_admitted` is RFA-only: CA selects CCP sec. 2033.280; WA selects
       CR 36(a) with CR 36(b) supporting effect authority; non-rfa request types
       are refused. CA motion-to-compel selects by request type (CCP sec.
-      2030.300 / 2031.310 / 2033.290); WA uses CR 37(a). Sanctions select CCP
-      sec. 2023.050 (+ sec. 2023.010 supporting) or CR 37(a)(4).
+      2030.300 / 2031.310 / 2033.290); WA uses CR 37(a) for ROG/RFP and
+      CR 36(a) for RFA sufficiency / no-response motions, with CR 37(a)(4)
+      supporting expenses. Sanctions select CCP sec. 2023.050 (+ sec. 2023.010
+      supporting) or CR 37(a)(4).
 - [x] Non-substantive scaffold; no invented Bates/page:line cites; no sanction
       amount; no §9.5 signature. `enforcement_<lever>_scaffold.md` + meta.
 - [x] `tests/skills/test_discovery_enforcement_motion.py` + `selftest`.

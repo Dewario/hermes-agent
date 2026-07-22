@@ -169,7 +169,10 @@ def select_statute(
         ca_id = CA_MTC_BY_TYPE.get(request_type)
         if ca_id and ca_id in avail:
             return ca_id, [], None
-        if "WA-CR-37-A" in avail:
+        if request_type == "rfa" and "WA-CR-36-A" in avail:
+            supporting = [r for r in ("WA-CR-37-A-4",) if r in avail]
+            return "WA-CR-36-A", supporting, None
+        if request_type in ("rog", "rfp") and "WA-CR-37-A" in avail:
             return "WA-CR-37-A", [], None
         return None, [], (
             f"motion_to_compel: no compelling statute for request_type "
@@ -210,6 +213,14 @@ def meet_confer_block(lever: str, request_type: str, available_rules: Iterable[s
                 "(Attorney to attach the declaration.)"
             )
         if "WA-CR-26-I" in avail:
+            if request_type == "rfa":
+                return (
+                    "This motion includes the CR 26(i) certification that the "
+                    "parties conferred or attempted to confer in good faith "
+                    "before a CR 36(a) request-for-admission sufficiency or "
+                    "no-response motion. "
+                    "(Attorney to attach the certification.)"
+                )
             return (
                 "This motion includes the CR 26(i) certification that the "
                 "parties conferred or attempted to confer in good faith. "
@@ -419,8 +430,17 @@ def cmd_draft_enforcement_motion(args: argparse.Namespace) -> int:
                 "WA / RFA only; CR 36(a) admissions are self-executing "
                 "if no timely answer or objection is served."
             )
-    if lever == "motion_to_compel" and "WA-CR-37-A" in available and "CCP-2030-300" not in available:
-        notes.append("CR 37(a) applies to ROG/RFP/RFA; meet-and-confer via CR 26(i).")
+    if lever == "motion_to_compel" and "CCP-2030-300" not in available:
+        if request_type == "rfa" and "WA-CR-36-A" in available:
+            notes.append(
+                "Washington request-for-admission sufficiency / no-response "
+                "motions proceed under CR 36(a); CR 37(a)(4) governs "
+                "motion-expense awards."
+            )
+        elif "WA-CR-37-A" in available:
+            notes.append(
+                "CR 37(a) applies to ROG/RFP motions; meet-and-confer via CR 26(i)."
+            )
 
     scaffold = build_enforcement_scaffold(
         matter_id=matter_id,
