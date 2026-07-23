@@ -200,6 +200,27 @@ class TestBuildAndStatus:
         assert "Docling is an optional" in payload["guidance"]
         assert cg.main(["export-ocr-queue", str(matter)]) == 1
 
+    def test_ocr_queue_write_retries_transient_replace_denial(self, matter, monkeypatch):
+        calls = {"count": 0}
+        original_replace = cg.os.replace
+
+        def flaky_replace(src, dst):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise PermissionError("transient Windows file lock")
+            return original_replace(src, dst)
+
+        monkeypatch.setattr(cg.os, "replace", flaky_replace)
+        path = cg.write_ocr_queue(
+            matter,
+            [{"relpath": "production/scan_TVRR-PROD-000010.pdf", "text_extractable": "none"}],
+            "SYN-A",
+        )
+        assert calls["count"] == 2
+        assert path.exists()
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        assert payload["count"] == 1
+
     def test_incremental_build_skips_unchanged(self, matter, capsys):
         assert cg.main(["build", str(matter), "--json"]) == 0
         report = json.loads(capsys.readouterr().out)

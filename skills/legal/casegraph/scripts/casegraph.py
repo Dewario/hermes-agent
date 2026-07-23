@@ -205,9 +205,20 @@ def write_ocr_queue(matter_dir: Path, rows: List[dict], matter_id: str) -> Path:
     }
     path = _index_dir(matter_dir) / OCR_QUEUE_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_suffix(path.suffix + ".tmp")
+    tmp = path.with_name(f"{path.name}.{os.getpid()}.{time.monotonic_ns()}.tmp")
     tmp.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-    os.replace(tmp, path)
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            break
+        except PermissionError:
+            if attempt == 4:
+                try:
+                    tmp.unlink()
+                except FileNotFoundError:
+                    pass
+                raise
+            time.sleep(0.05 * (attempt + 1))
     return path
 
 
