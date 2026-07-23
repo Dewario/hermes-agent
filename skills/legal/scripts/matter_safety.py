@@ -30,7 +30,7 @@ _VOIDISH_SIG = re.compile(
     r"(?i)\b(void|unsigned|rehearsal|not\s+approval|n/?a|none|_+)\b"
 )
 _OWNER_GATE_FILE = re.compile(
-    r"^OWNER_LIVE_GATE_(?P<slice>A[1-3]|B[1-3]|C[1-3]|D[1-3]|E1|F1|G1)"
+    r"^OWNER_LIVE_GATE_(?P<slice>A[1-3]|B[1-3]|C[1-3]|D[1-3]|E1|F1|F2|G1)"
     r"(?:_[A-Z0-9_-]+)?\.md$",
     re.IGNORECASE,
 )
@@ -156,6 +156,7 @@ def _validate_owner_gate_text(
             "draft_response",
             "expert_needs_assessment",
             "enforcement_motion_draft",
+            "objection_motion_draft",
         ),
     )
     if selected_mode is None:

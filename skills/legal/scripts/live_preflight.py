@@ -213,6 +213,7 @@ def main(argv: list[str] | None = None) -> int:
             "draft_response",
             "expert_needs_assessment",
             "enforcement_motion_draft",
+            "objection_motion_draft",
         ),
     )
     parser.add_argument(
@@ -225,6 +226,7 @@ def main(argv: list[str] | None = None) -> int:
             "D1", "D2", "D3",
             "E1",
             "F1",
+            "F2",
             "G1",
         ),
         help="Expected slice id, e.g. D1",

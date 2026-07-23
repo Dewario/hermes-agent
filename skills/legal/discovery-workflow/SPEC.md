@@ -5,10 +5,10 @@
 draft), **B2** (outgoing ROG draft), **B3** (outgoing RFP draft). Counsel-pack
 expansion: jurisdiction packs (`frcp_generic`, `fela`, `ca_ccp`,
 `ca_san_bernardino`, `wa_state`, `wa_king_county`, `wa_pierce_county`) +
-**D1-D3** + **G1** + **E1** + **F1** + **C1-C3** `draft_response` (synthetic-only).
+**D1-D3** + **G1** + **E1** + **F1** + **F2** + **C1-C3** `draft_response` (synthetic-only).
 See `COUNSEL_PACK_SPEC.md`.
 **Not ready for live client use** (owner §9.5 still required per real matter).
-**Date:** 2026-07-19 (amended: F1 plaintiff enforcement levers)
+**Date:** 2026-07-19 (amended: F2 plaintiff objection / protective-order scaffolds)
 **Goal:** One matter-scoped discovery system that covers interrogatories,
 RFPs, and RFAs in both **audit** and **outgoing draft** modes — never a
 cross-client combined review.
@@ -46,6 +46,7 @@ repo).
 | Expert-needs assessment for liability and damages (E1) | |
 | Draft responses from attorney answer briefs (C1–C3) | |
 | Plaintiff enforcement-lever scaffolds (F1) | |
+| Plaintiff objection / protective-order scaffolds (F2) | |
 | One matter at a time | |
 | Synthetic validation + live OCR gate (skip OCR only if synthetic) | |
 
@@ -62,7 +63,7 @@ Every invocation declares exactly one value on each axis:
 | Axis | Values | Meaning |
 |------|--------|---------|
 | `request_type` | `rog` \| `rfp` \| `rfa` \| `expert` | Interrogatory / request for production / request for admission / expert-needs assessment |
-| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1-D3) \| `trial_gap_assessment` (G1) \| `expert_needs_assessment` (E1) \| `enforcement_motion_draft` (F1) \| `draft_response` (C1-C3) | What the tool does |
+| `mode` | `audit_incoming_response` \| `draft_outgoing_request` \| `audit_incoming_request` (D1-D3) \| `trial_gap_assessment` (G1) \| `expert_needs_assessment` (E1) \| `enforcement_motion_draft` (F1) \| `objection_motion_draft` (F2) \| `draft_response` (C1-C3) | What the tool does |
 
 Definitions:
 
@@ -83,6 +84,16 @@ Definitions:
   enforcement-lever scaffolds (deemed-admitted, motion to compel,
   meet-and-confer, sanctions) with jurisdiction-aware statute selection (F1).
   Does not invent Bates/page:line cites, set a sanction amount, or sign §9.5.
+- **`objection_motion_draft`** — Draft non-substantive plaintiff
+  objection / protective-order scaffolds against defense-served ROG/RFP/RFA
+  with jurisdiction-aware statute selection (F2). CA objection grounds are
+  CCP sec. 2030.240 / 2031.240 / 2033.230 by request type; CA protective
+  orders are CCP sec. 2030.090 / 2031.060 / 2033.080 by request type (plus
+  2025.420 depositions and 2017.020 general scope). WA objections are
+  stated in the response under CR 33(a) / 34(b) / 36(a) with CR 26(g) form;
+  WA protective orders proceed under CR 26(c) for all request types with
+  CR 37(a)(4) expenses. Does not invent substantive objection grounds,
+  Bates/page:line cites, or sign §9.5.
 - **`draft_response`** — Draft responses to served requests from an attorney
   answer brief (C1 RFP / C2 RFA / C3 ROG). Does not invent admissions;
   `objection_draft` stays null unless attorney opt-in.
@@ -236,6 +247,7 @@ Do not open a later slice’s live gate before earlier synthetic matrices pass.
 | **G1** | `rog`/`rfp`/`rfa` | `trial_gap_assessment` | Implemented (synthetic-only) in `scripts/trial_gap.py` |
 | **E1** | `expert` | `expert_needs_assessment` | Implemented (synthetic-only) in `scripts/expert_needs.py` |
 | **F1** | `rog`/`rfp`/`rfa` | `enforcement_motion_draft` | Implemented (synthetic-only) in `scripts/enforcement_motion.py` |
+| **F2** | `rog`/`rfp`/`rfa` | `objection_motion_draft` | Implemented (synthetic-only) in `scripts/objection_motion.py` |
 | **C1** | `rfp` | `draft_response` | Implemented (synthetic-only) in `scripts/rfp_response_draft.py` |
 | **C2** | `rfa` | `draft_response` | Implemented (synthetic-only) in `scripts/rfa_response_draft.py` |
 | **C3** | `rog` | `draft_response` | Implemented (synthetic-only) in `scripts/rog_response_draft.py` |
@@ -267,6 +279,7 @@ are involved):
 11. expert-needs assessment *(Slice E1 - exists)*
 12. draft responses to served RFP/RFA/ROG *(Slices C1-C3 - exist)*
 13. plaintiff enforcement-lever scaffolds *(Slice F1 - exists)*
+14. plaintiff objection / protective-order scaffolds *(Slice F2 - exists)*
 
 Each cell needs parser golden or stable IDs, schema validation, package
 template render, and gate path (`validate-*` + synthetic `live_preflight`
@@ -392,6 +405,7 @@ All exit 0. No `--skip-ocr-queue` on live.
 | G1 multi / `trial_gap_assessment` | Green (pytest + selftest) | **Open - not signed** | Not run |
 | E1 `expert` / `expert_needs_assessment` | Green (pytest + selftest) | **Open - not signed** | Not run |
 | F1 `rog`/`rfp`/`rfa` / `enforcement_motion_draft` | Green (pytest + selftest) | **Open - not signed** | Not run |
+| F2 `rog`/`rfp`/`rfa` / `objection_motion_draft` | Green (pytest + selftest) | **Open - not signed** | Not run |
 | C1-C3 / `draft_response` | Green (pytest + selftest) | **Open - not signed** | Not run |
 
 §9.5 is an **owner** gate. Engineering may mark §9.1–9.3 green; it must **not**
@@ -418,6 +432,7 @@ that exact matter ID + request_type + mode + slice.
 | Slice G1 implementation | `skills/legal/discovery-workflow/scripts/trial_gap.py` |
 | Slice E1 implementation | `skills/legal/discovery-workflow/scripts/expert_needs.py` |
 | Slice F1 implementation | `skills/legal/discovery-workflow/scripts/enforcement_motion.py` |
+| Slice F2 implementation | `skills/legal/discovery-workflow/scripts/objection_motion.py` |
 | Slice C1-C3 implementations | `skills/legal/discovery-workflow/scripts/*_response_draft.py` |
 
 When this program SPEC and Slice A1 disagree on roadmap priority, **this file
@@ -428,12 +443,12 @@ SPEC wins until a compatibility amend is explicit.
 
 ## 11. Next actions
 
-Synthetic matrix for A1-B3 + **D1-D3** + **G1** + **E1** + **F1** + **C1-C3** is **complete**.
+Synthetic matrix for A1-B3 + **D1-D3** + **G1** + **E1** + **F1** + **F2** + **C1-C3** is **complete**.
 `ca_ccp` pack is **active**. Live-shaped rehearsal (synthetic matter ID only)
 lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 §9.5 gates stay outside the repo.
 
-1. Keep A1-B3 + D1-D3 + G1 + E1 + F1 + C1-C3 synthetic cells green. **No real clients** without §9.5.
+1. Keep A1-B3 + D1-D3 + G1 + E1 + F1 + F2 + C1-C3 synthetic cells green. **No real clients** without §9.5.
 2. One-matter smoke: `discovery_workflow.py smoke` (includes C2).
 3. Real-client live dry-run still requires **owner §9.5** (`OWNER_LIVE_GATE.md`).
    Engineering never forges owner approval for a real client matter.
@@ -492,4 +507,25 @@ lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 - [x] `tests/skills/test_discovery_enforcement_motion.py` + `selftest`.
 - [x] Live `validate-enforcement-motion` gates on `live_preflight` with
       `--slice F1 --mode enforcement_motion_draft`; does not skip OCR unless
+      synthetic.
+
+### F2 acceptance checklist (synthetic)
+
+- [x] Dedicated `objection_motion.py`; two levers (objection,
+      protective_order) with jurisdiction-aware statute selection from the
+      loaded pack's available rules across rog/rfp/rfa.
+- [x] CA objection grounds select by request type: CCP sec. 2030.240 (ROG),
+      2031.240 (RFP, with privilege-log requirement), 2033.230 (RFA). CA
+      protective orders select by request type: CCP sec. 2030.090 (ROG),
+      2031.060 (RFP), 2033.080 (RFA), with sec. 2017.020 (general scope) and
+      sec. 2016.040 (meet-and-confer) supporting; sec. 2025.420 governs
+      depositions. WA objections select CR 33(a) (ROG), 34(b) (RFP), 36(a)
+      (RFA) with CR 26(g) form supporting; WA protective orders select
+      CR 26(c) for all request types with CR 26(i) and CR 37(a)(4) supporting.
+- [x] Non-substantive scaffold; no invented Bates/page:line cites; no
+      substantive objection grounds or relief; no §9.5 signature.
+      `objection_<lever>_scaffold.md` + meta.
+- [x] `tests/skills/test_discovery_objection_motion.py` + `selftest`.
+- [x] Live `validate-objection-motion` gates on `live_preflight` with
+      `--slice F2 --mode objection_motion_draft`; does not skip OCR unless
       synthetic.

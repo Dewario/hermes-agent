@@ -1,7 +1,7 @@
 ---
 name: legal-discovery-workflow
 description: "Audit and draft ROG/RFP/RFA discovery sets."
-version: 0.17.0
+version: 0.18.0
 author: ahfullerjd (with Hermes Agent)
 license: MIT
 platforms: [linux, macos, windows]
@@ -37,6 +37,9 @@ See `SPEC.md` for the full roadmap.
 - **F1** - plaintiff enforcement-lever scaffolds (deemed-admitted, motion to
   compel, meet-and-confer, sanctions) with jurisdiction-aware statute selection
   (`scripts/enforcement_motion.py`)
+- **F2** - plaintiff objection / protective-order scaffolds against
+  defense-served ROG/RFP/RFA with jurisdiction-aware statute selection
+  (`scripts/objection_motion.py`)
 - **C1–C3** — draft responses to served RFP/RFA/ROG from attorney answer briefs
   (`scripts/*_response_draft.py`)
 
@@ -50,7 +53,7 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `--request-type` + `--mode` to the slice scripts below, or run
 `selftest-all` for the synthetic matrix.
 
-**Counsel-pack:** D1-D3 + G1 + E1 + F1 + C1-C3 implemented (synthetic-only).
+**Counsel-pack:** D1-D3 + G1 + E1 + F1 + F2 + C1-C3 implemented (synthetic-only).
 Jurisdiction
 packs: `frcp_generic`, `fela`, `ca_ccp`, `ca_san_bernardino`, `wa_state`,
 `wa_king_county`, `wa_pierce_county`. Live client use still needs owner
@@ -290,6 +293,42 @@ attorney-controlled relief/sanction posture. It does **not** invent Bates or
 page:line cites, does **not** set a sanction amount, and does **not** sign
 §9.5. Live use needs `OWNER_LIVE_GATE_F1.md` outside the repo.
 
+## Slice F2 Procedure (plaintiff objection / protective-order scaffolds)
+
+Requires `<matter>/03_attorney/matter_profile.yaml` with `jurisdiction_pack`.
+Deterministically selects the controlling statute from the loaded pack's
+available rules for two plaintiff response levers when defense-served
+discovery is overbroad or improper: `objection` (language for the response)
+and `protective_order` (a motion for protective order).
+
+CA objection grounds are request-type-specific: CCP sec. 2030.240 (ROG),
+2031.240 (RFP, with privilege-log requirement), 2033.230 (RFA). CA protective
+orders are CCP sec. 2030.090 (ROG), 2031.060 (RFP), 2033.080 (RFA), with
+sec. 2017.020 (general scope) and sec. 2016.040 (meet-and-confer) supporting;
+sec. 2025.420 governs depositions. WA objections are stated in the response
+under CR 33(a) (ROG), 34(b) (RFP), 36(a) (RFA) with CR 26(g) form; WA
+protective orders proceed under CR 26(c) for all request types with CR 26(i)
+and CR 37(a)(4) supporting.
+
+```powershell
+$f2 = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\objection_motion.py"
+$m = "C:\Matters\<MATTER-ID>"
+
+python $f2 draft-objection-motion $m --lever objection --request-type rog
+python $f2 validate-objection-motion $m --lever objection --request-type rog --synthetic
+# other lever: protective_order
+# other request types: rog | rfp | rfa
+```
+
+Outputs:
+- `02_outputs/objection_<lever>_scaffold.md` (attorney-review draft only)
+- `02_outputs/objection_<lever>_meta.json`
+
+The scaffold is non-substantive: it names the controlling statute and
+attorney-controlled objection/relief posture. It does **not** invent
+substantive objection grounds, does **not** invent Bates or page:line cites,
+and does **not** sign §9.5. Live use needs `OWNER_LIVE_GATE_F2.md` outside the repo.
+
 ## Counsel-Pack Smoke (one synthetic matter)
 
 Seed: `fixtures/smoke_matter/seed/` (SYNTHETIC / NON-CLIENT only).
@@ -339,4 +378,5 @@ python $d3 selftest
 python $g1 selftest
 python $e1 selftest
 python $f1 selftest
+python $f2 selftest
 ```

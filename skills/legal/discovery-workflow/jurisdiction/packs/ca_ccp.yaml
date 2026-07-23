@@ -1,5 +1,5 @@
 pack_id: ca_ccp
-version: 2
+version: 3
 status: active
 title: "California Code of Civil Procedure - civil discovery (generic state pack)"
 jurisdiction_kind: state
@@ -153,6 +153,55 @@ rules:
     summary: "Mandatory $1,000 sanction applies to specified document-production and meet-and-confer misconduct, subject to statutory exceptions. SB 235 increased the sanction from $250 to $1,000 effective Jan. 1, 2024."
     applies_to: [all]
     check_hints: [sanctions_mandatory, monetary, production_misconduct, sb_235]
+
+  - id: CCP-2017-020
+    citation: "Cal. Code Civ. Proc. sec. 2017.020"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2017.020."
+    summary: "The court shall limit the scope of discovery when the burden, expense, or intrusiveness clearly outweighs the likelihood that the information sought will lead to admissible evidence; this determination may be made on a motion for a protective order, accompanied by a meet-and-confer declaration."
+    applies_to: [all]
+    check_hints: [proportionality, scope, protective_order, burden, meet_confer]
+
+  - id: CCP-2030-240
+    citation: "Cal. Code Civ. Proc. sec. 2030.240"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.240."
+    summary: "An objection to an interrogatory must state the specific ground; a privilege objection must state the particular privilege invoked, and a work-product claim must be expressly asserted. If only part of an interrogatory is objectionable, the remainder must be answered."
+    applies_to: [rog]
+    check_hints: [objection_specificity, privilege, work_product, partial_objection]
+
+  - id: CCP-2030-090
+    citation: "Cal. Code Civ. Proc. sec. 2030.090"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2030.090."
+    summary: "When interrogatories have been propounded, the responding party or an affected person may promptly move for a protective order, accompanied by a meet-and-confer declaration. For good cause shown, the court may make any order justice requires to protect against unwarranted annoyance, embarrassment, oppression, or undue burden and expense."
+    applies_to: [rog]
+    check_hints: [protective_order, good_cause, meet_confer, burden]
+
+  - id: CCP-2031-060
+    citation: "Cal. Code Civ. Proc. sec. 2031.060"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2031.060."
+    summary: "When an inspection, copying, testing, or sampling of documents, tangible things, places, or electronically stored information has been demanded, the responding party or an affected person may promptly move for a protective order, accompanied by a meet-and-confer declaration. For good cause shown, the court may make any order justice requires to protect against unwarranted annoyance, embarrassment, oppression, or undue burden and expense."
+    applies_to: [rfp]
+    check_hints: [protective_order, good_cause, meet_confer, burden, esi]
+
+  - id: CCP-2033-230
+    citation: "Cal. Code Civ. Proc. sec. 2033.230"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.230."
+    summary: "If only part of a request for admission is objectionable, the remainder must be answered. An objection must state the specific ground; a privilege objection must state the particular privilege invoked, and a work-product claim must be expressly asserted."
+    applies_to: [rfa]
+    check_hints: [objection_specificity, privilege, work_product, partial_objection]
+
+  - id: CCP-2033-080
+    citation: "Cal. Code Civ. Proc. sec. 2033.080"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2033.080."
+    summary: "When requests for admission have been made, the responding party may promptly move for a protective order, accompanied by a meet-and-confer declaration. For good cause shown, the court may make any order justice requires to protect against unwarranted annoyance, embarrassment, oppression, or undue burden and expense."
+    applies_to: [rfa]
+    check_hints: [protective_order, good_cause, meet_confer, burden]
+
+  - id: CCP-2025-420
+    citation: "Cal. Code Civ. Proc. sec. 2025.420"
+    source_url: "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CCP&sectionNum=2025.420."
+    summary: "Before, during, or after a deposition, any party, deponent, or other affected person may promptly move for a protective order, accompanied by a meet-and-confer declaration. For good cause shown, the court may make any order justice requires to protect against unwarranted annoyance, embarrassment, oppression, or undue burden and expense."
+    applies_to: [all]
+    check_hints: [protective_order, deposition, good_cause, meet_confer]
 
   - id: CCP-UD-10-DAY-DISCOVERY
     citation: "Cal. Code Civ. Proc. secs. 2030.020, 2031.020, 2033.020"

@@ -1,5 +1,5 @@
 pack_id: wa_state
-version: 1
+version: 2
 status: active
 title: "Washington Superior Court Civil Rules - civil discovery"
 jurisdiction_kind: state
@@ -13,6 +13,13 @@ rules:
     summary: "Civil discovery methods include depositions, interrogatories, production/entry requests, physical or mental exams, and RFAs; scope is nonprivileged matter relevant to the subject matter, subject to court limits. Washington CR 26(b)(1) has not adopted the federal proportional-to-the-needs wording."
     applies_to: [all]
     check_hints: [scope, relevance, privilege, cumulative, burden]
+
+  - id: WA-CR-26-C
+    citation: "Wash. Super. Ct. Civ. R. 26(c)"
+    source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_26_00_00.pdf"
+    summary: "Upon motion by a party or by the person from whom discovery is sought, and for good cause shown, the court may make any order justice requires to protect a party or person from annoyance, embarrassment, oppression, or undue burden and expense, including the eight enumerated directions. CR 37(a)(4) governs the award of expenses incurred in relation to the motion."
+    applies_to: [all]
+    check_hints: [protective_order, good_cause, burden, expenses]
 
   - id: WA-CR-26-E
     citation: "Wash. Super. Ct. Civ. R. 26(e)"
