@@ -101,7 +101,7 @@ rules:
   - id: WA-CR-37-A-4
     citation: "Wash. Super. Ct. Civ. R. 37(a)(4)"
     source_url: "https://www.courts.wa.gov/court_rules/pdf/CR/SUP_CR_37_00_00.pdf"
-    summary: "If a motion to compel is granted, the court shall require the party or attorney whose conduct necessitated the motion to pay the moving party's reasonable expenses, including attorney fees, unless the opposition was substantially justified or other circumstances make an award unjust."
+    summary: "CR 37(a)(4) governs reasonable expenses, including attorney fees, for granted, denied, and partly granted discovery motions. Granted motions generally shift expenses to the party or attorney whose conduct necessitated the motion; denied motions generally shift expenses to the moving party or advising attorney; partly granted motions allow just apportionment, subject to substantial-justification and unjust-award exceptions."
     applies_to: [rog, rfp, rfa]
     check_hints: [sanctions, expenses, attorney_fees, substantial_justification]
 

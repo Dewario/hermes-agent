@@ -50,8 +50,9 @@ the owner signs off for that matter × request_type × mode (§9.5). Use
 `OWNER_LIVE_GATE.md` for that approval (owner only).
 
 **Umbrella (optional):** `scripts/discovery_workflow.py` dispatches by
-`--request-type` + `--mode` to the slice scripts below, or run
-`selftest-all` for the synthetic matrix.
+`--request-type` + `--mode` for A1-B3, D1-D3, G1, E1, and C1-C3. F1 and F2
+are standalone safety-scaffold slices with their own selftests; they are not
+included in umbrella `selftest-all`.
 
 **Counsel-pack:** D1-D3 + G1 + E1 + F1 + F2 + C1-C3 implemented (synthetic-only).
 Jurisdiction
@@ -340,7 +341,8 @@ python $dw smoke
 python $dw smoke -- --matter-dir "$env:TEMP\SYN-SMOKE-COUNSEL"
 ```
 
-Runs D1-D3 + G1 + E1 + A2 + B1-B3 + C1-C3 validate gates on one materialised matter.
+Runs D1-D3 + G1 + E1 + A2 + B1-B3 + C1-C3 validate gates on one materialised
+matter. F1/F2 are standalone and use their dedicated selftests.
 
 ## Synthetic preparation ladder (no live files)
 
@@ -366,6 +368,9 @@ python $live
 ```powershell
 $dw = "$env:LOCALAPPDATA\hermes\hermes-agent\skills\legal\discovery-workflow\scripts\discovery_workflow.py"
 python $dw selftest-all
+# F1/F2 are standalone:
+python $f1 selftest
+python $f2 selftest
 # or per slice:
 python $rfa selftest
 python $rog selftest
@@ -377,6 +382,4 @@ python $d2 selftest
 python $d3 selftest
 python $g1 selftest
 python $e1 selftest
-python $f1 selftest
-python $f2 selftest
 ```

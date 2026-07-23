@@ -316,6 +316,16 @@ def test_wa_state_has_mandatory_meet_and_confer_cr26i():
     assert "WA-CR-26-I" in ids
 
 
+def test_wa_cr37_a4_summary_covers_granted_denied_and_mixed_expenses():
+    """CR 37(a)(4) covers expense outcomes for granted, denied, and partly granted motions."""
+    loaded = lp.load_pack("wa_state")
+    summary = next(r["summary"] for r in loaded["rules"] if r["id"] == "WA-CR-37-A-4").lower()
+    assert "granted" in summary
+    assert "denied" in summary
+    assert "partly granted" in summary or "granted in part" in summary
+    assert "substantial-justification" in summary
+
+
 def test_ca_ccp_has_deemed_admission_statute_2033_280():
     """§ 2033.280 is the principal no-timely-response deemed-admission statute."""
     loaded = lp.load_pack("ca_ccp")

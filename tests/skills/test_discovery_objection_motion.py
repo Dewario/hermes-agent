@@ -93,6 +93,12 @@ def test_select_statute_ca_protective_order_by_type():
     assert refusal is None
 
 
+def test_ca_rfa_protective_order_text_matches_2033_080_scope():
+    text = obj.protective_order_block("protective_order", "rfa", CA_RULES)
+    assert "allows the responding party to promptly move" in text
+    assert "any other party or affected person" not in text
+
+
 def test_select_statute_wa_protective_order_uniform():
     for rt in ("rog", "rfp", "rfa"):
         primary, supporting, refusal = obj.select_statute("protective_order", rt, WA_RULES)

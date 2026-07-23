@@ -274,9 +274,12 @@ def protective_order_block(lever: str, request_type: str, available_rules: Itera
     ca_id = CA_PO_BY_TYPE.get(request_type)
     if ca_id and ca_id in avail:
         section = ca_id.replace("CCP-", "").replace("-", ".")
+        moving_party = "responding party"
+        if request_type != "rfa":
+            moving_party = "responding party, or any other party or affected person"
         return (
             f"Section {section} of the code of civil procedure allows the "
-            "responding party, or any other party or affected person, to "
+            f"{moving_party} to "
             "promptly move for a protective order. The motion must be "
             "accompanied by a meet-and-confer declaration. For good cause "
             "shown, the court may make any order justice requires to protect "

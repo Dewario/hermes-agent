@@ -187,6 +187,17 @@ def test_dispatch_expert_needs(monkeypatch):
     assert captured == ["expert_needs.py"]
 
 
+def test_f1_f2_are_standalone_not_umbrella_wired():
+    assert not any(path.name == "enforcement_motion.py" for _label, path in dw.SLICE_SELFTESTS)
+    assert not any(path.name == "objection_motion.py" for _label, path in dw.SLICE_SELFTESTS)
+
+    try:
+        dw.main(["--request-type", "rfa", "--mode", "objection_motion_draft", "selftest"])
+        raise AssertionError("expected argparse to reject standalone F2 mode")
+    except SystemExit as exc:
+        assert exc.code == 2
+
+
 def test_smoke_command_forwards(monkeypatch):
     captured: list[list[str]] = []
 

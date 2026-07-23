@@ -59,13 +59,16 @@ mode:           [ ] audit_incoming_response
                 [ ] audit_incoming_request
                 [ ] trial_gap_assessment
                 [ ] expert_needs_assessment
+                [ ] enforcement_motion_draft
+                [ ] objection_motion_draft
                 [ ] draft_response            (choose exactly one)
 tip_commit_sha: ______________________________   (git rev-parse HEAD, validated tip)
 slice:          ____   (A1 rfp-audit | A2 rfa-audit | A3 rog-audit |
                         B1 rfa-draft | B2 rog-draft | B3 rfp-draft |
                         D1 rfp-request-audit | D2 rfa-request-audit |
                         D3 rog-request-audit | G1 trial-gap |
-                        E1 expert-needs |
+                        E1 expert-needs | F1 enforcement-motion |
+                        F2 objection-motion |
                         C1 rfp-response-draft | C2 rfa-response-draft |
                         C3 rog-response-draft)
 
@@ -82,7 +85,7 @@ slice:          ____   (A1 rfp-audit | A2 rfa-audit | A3 rog-audit |
 [ ] casegraph check-isolation <matter_dir> <output.md> --strict -> exit 0
 [ ] live_preflight.py --matter-dir <matter_dir> --request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice>
       audit slices: add --output <output.md>
-      draft/no-Bates-cite slices (B1/B2/B3/C1/C2/C3/E1): omit --output
+      draft/no-Bates-cite slices (B1/B2/B3/C1/C2/C3/E1/F1/F2): omit --output
       NEVER pass --skip-ocr-queue on live -> exit 0
 [ ] OCR queue empty (casegraph export-ocr-queue <matter_dir> -> exit 0)
 
@@ -120,6 +123,6 @@ date:            ______________________________
   re-verify before the live run.
 - **No live results in the repo.** This template ships blank. Do not commit a
   filled copy, real matter IDs, or dry-run output into `hermes-agent/`.
-- **Current status:** A1-B3, D1-D3, G1, C1-C3, and E1 are synthetic-green when
+- **Current status:** A1-B3, D1-D3, G1, E1, F1, F2, and C1-C3 are synthetic-green when
   the matching focused tests and selftests pass on the current tip. Section 9.5
   remains open and unsigned for every real client matter.

@@ -290,10 +290,12 @@ cell to be green plus full OCR + `casegraph status` + `verify-cites` +
 
 ---
 
-## 8. CLI (umbrella — implemented)
+## 8. CLI (umbrella — implemented for A/B/C/D/G/E)
 
 Preferred surface (`scripts/discovery_workflow.py` dispatches to dedicated
-slice modules; it does not reimplement parsers):
+slice modules; it does not reimplement parsers). F1 and F2 are intentionally
+standalone safety-scaffold slices with dedicated scripts and selftests, not
+umbrella-dispatched modes:
 
 ```
 python skills/legal/discovery-workflow/scripts/discovery_workflow.py \
@@ -304,6 +306,9 @@ python skills/legal/discovery-workflow/scripts/discovery_workflow.py \
 
 python skills/legal/discovery-workflow/scripts/discovery_workflow.py selftest-all
 ```
+
+`selftest-all` covers A1-B3, D1-D3, G1, E1, and C1-C3. Run F1/F2 with their
+dedicated script selftests.
 
 Per-slice CLIs remain supported:
 
@@ -444,6 +449,8 @@ SPEC wins until a compatibility amend is explicit.
 ## 11. Next actions
 
 Synthetic matrix for A1-B3 + **D1-D3** + **G1** + **E1** + **F1** + **F2** + **C1-C3** is **complete**.
+Umbrella `selftest-all` covers A1-B3 + D1-D3 + G1 + E1 + C1-C3; F1/F2 use
+their dedicated selftests.
 `ca_ccp` pack is **active**. Live-shaped rehearsal (synthetic matter ID only)
 lives at `scripts/live_dry_run_rehearsal.py` under `C:\Matters\` — filled
 §9.5 gates stay outside the repo.

@@ -37,14 +37,19 @@ def _valid_owner_gate(
         "rfa": "[ ] rog   [ ] rfp   [x] rfa   [ ] expert",
         "expert": "[ ] rog   [ ] rfp   [ ] rfa   [x] expert",
     }[request_type]
-    mode_choices = {
-        "audit_incoming_response": "[x] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
-        "draft_outgoing_request": "[ ] audit_incoming_response\n                [x] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
-        "audit_incoming_request": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [x] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
-        "trial_gap_assessment": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [x] trial_gap_assessment\n                [ ] draft_response\n                [ ] expert_needs_assessment",
-        "draft_response": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [x] draft_response\n                [ ] expert_needs_assessment",
-        "expert_needs_assessment": "[ ] audit_incoming_response\n                [ ] draft_outgoing_request\n                [ ] audit_incoming_request\n                [ ] trial_gap_assessment\n                [ ] draft_response\n                [x] expert_needs_assessment",
-    }[mode]
+    modes = [
+        "audit_incoming_response",
+        "draft_outgoing_request",
+        "audit_incoming_request",
+        "trial_gap_assessment",
+        "draft_response",
+        "expert_needs_assessment",
+        "enforcement_motion_draft",
+        "objection_motion_draft",
+    ]
+    mode_choices = "\n                ".join(
+        f"[{'x' if item == mode else ' '}] {item}" for item in modes
+    )
     return f"""# 9.5 Owner Live Gate - {matter_id}
 
 matter_id:      {matter_id}
@@ -194,6 +199,10 @@ def test_owner_gate_template_matches_validator_contract():
     assert "matter_id:" in text
     assert "tip_commit_sha:" in text
     assert "owner_signature:" in text
+    assert "enforcement_motion_draft" in text
+    assert "objection_motion_draft" in text
+    assert "F1 enforcement-motion" in text
+    assert "F2 objection-motion" in text
     assert "--request-type <rog|rfp|rfa|expert> --mode <mode> --slice <slice>" in text
 
 
@@ -218,6 +227,29 @@ def test_owner_gate_accepts_expert_needs_axis(tmp_path):
     )
     assert ok is True
     assert "OWNER_LIVE_GATE_E1.md" in detail
+
+
+def test_owner_gate_accepts_f2_objection_axis(tmp_path):
+    matter = tmp_path / "REAL-CLIENT-01"
+    attorney = matter / "03_attorney"
+    attorney.mkdir(parents=True)
+    (attorney / "OWNER_LIVE_GATE_F2.md").write_text(
+        _valid_owner_gate(
+            request_type="rfa",
+            mode="objection_motion_draft",
+            slice_id="F2",
+        ),
+        encoding="utf-8",
+    )
+    ok, detail = ms.owner_live_gate_satisfied(
+        matter,
+        expected_matter_id="REAL-CLIENT-01",
+        request_type="rfa",
+        mode="objection_motion_draft",
+        slice_id="F2",
+    )
+    assert ok is True
+    assert "OWNER_LIVE_GATE_F2.md" in detail
 
 
 def test_refuse_skip_live_preflight_on_live(tmp_path, monkeypatch):
